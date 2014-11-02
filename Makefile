@@ -18,6 +18,8 @@ default: XMPPConnector
 clean:
 	rm -f main.o XMPPConnector.o XMPPConnector
 
+all: XMPPConnector
+
 XMPPConnector: XMPPConnector.o main.o $(ALLJOYN_LIB) ../allseen/gateway/gwagent/build/linux/x86/debug/dist/gatewayConnector/lib/liballjoyn_gwConnector.a
 	$(CXX) -o $@ XMPPConnector.o main.o -L$(ALLJOYN_DIST)/lib -L../allseen/gateway/gwagent/build/linux/x86/debug/dist/gatewayConnector/lib -L. $(LIBS) -lalljoyn_gwConnector
 	
