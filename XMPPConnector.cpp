@@ -444,123 +444,312 @@ public:
 		xmpp_stanza_release(message);
 	}
 
-	// could be part of MsgArg
-	static MsgArg MsgArg_FromString(qcc::String argXml)
+private:
+	static std::vector<MsgArg*> MsgArg_ParseArray(qcc::String content, std::vector<bool>* variants = NULL)
 	{
-		MsgArg result;
+		std::vector<MsgArg*> array;
+
+		// Get the MsgArgs for each element
+		content = Trim(content);
+		while(!content.empty())
+		{
+			size_t typeBeginPos = content.find_first_of('<')+1;
+			size_t typeEndPos = content.find_first_of(" >", typeBeginPos);
+			qcc::String elemType = content.substr(typeBeginPos, typeEndPos-typeBeginPos);
+			qcc::String closeTag = "</"+elemType+">";
+
+			// Find the closing tag for this element
+			size_t closeTagPos = content.find(closeTag);
+			size_t nestedTypeEndPos = typeEndPos;
+			while(closeTagPos > content.find(elemType, nestedTypeEndPos))
+			{
+				closeTagPos = content.find(closeTag, closeTagPos+closeTag.length());
+				nestedTypeEndPos = closeTagPos+2+elemType.length();
+			}
+
+			qcc::String element = content.substr(0, closeTagPos+closeTag.length());
+			bool isVariant = false;
+			array.push_back(MsgArg_FromString(element, &isVariant));
+			if(variants)
+			{
+				variants->push_back(isVariant);
+			}
+
+			content = content.substr(closeTagPos+closeTag.length());
+		}
+
+		return array;
+	}
+
+public:
+	// could be part of MsgArg
+	static MsgArg* MsgArg_FromString(qcc::String argXml, bool* isVariant = NULL)
+	{
+		cout << argXml << endl;
+
+		MsgArg* result = new MsgArg();
+		bool variant = false;
 
 		QStatus status = ER_OK;
 		size_t pos = argXml.find_first_of('>')+1;
-		qcc::String typeTag = argXml.substr(0, pos);
+		qcc::String typeTag = Trim(argXml.substr(0, pos));
 		qcc::String content = argXml.substr(pos, argXml.find_last_of('<')-pos);
 
-		if(qcc::String::npos != typeTag.find("<array type_sig="))
-		{
+		if(0 == typeTag.find("<array type_sig=")) {
+			std::vector<bool> variants;
+			std::vector<MsgArg*> array = MsgArg_ParseArray(content, &variants);
+
+			MsgArg* testsomething = new MsgArg[array.size()];
+			for(int i = 0; i < array.size(); ++i)
+			{
+				testsomething[i] = *array[i];
+				delete array[i];
+			}
+
+			pos = typeTag.find_first_of("\"")+1;
+			//qcc::String sig = "a"+typeTag.substr(pos,typeTag.find_last_of("\"")-pos);
+			qcc::String sig = (variants.empty() || !variants[0]) ? "a*" : "av";
+			status = result->Set(sig.c_str(), array.size(), &testsomething[0]);
+		    result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+		}
+		else if(typeTag == "<boolean>") {
+			status = result->Set("b", content == "1");
+		}
+		else if(typeTag == "<double>") {
+			status = result->Set("d", StringToU64(content, 16));
+		}
+		else if(typeTag == "<dict_entry>") {
+			std::vector<bool> variants;
+			std::vector<MsgArg*> array = MsgArg_ParseArray(content, &variants);
+			if(array.size() != 2)
+			{
+				status = ER_BUS_BAD_VALUE;
+			}
+			else
+			{
+				qcc::String sig1 = variants[0] ? "v" : "*";
+				qcc::String sig2 = variants[1] ? "v" : "*";
+				qcc::String sig = "{"+sig1+sig2+"}";
+				status = result->Set(sig.c_str(), array[0], array[1]);
+				result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+
+				/*qcc::String sig1 = array[0]->Signature();
+				qcc::String sig2 = array[1]->Signature();
+				if(sig1.empty() || sig2.empty())
+				{
+					status = ER_INVALID_DATA;
+				}
+				else
+				{
+					if(sig1[0] == 'a'){ sig1 = "v"; }
+					if(sig2[0] == 'a'){ sig2 = "v"; }
+
+					qcc::String sig = "{"+sig1+sig2+"}";
+					status = result->Set(sig.c_str(), array[0], array[1]);
+					status = result->Set("{**}", array[0], array[1]);
+					result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+				}*/
+			}
+		}
+		else if(typeTag == "<signature>") {
+			status = result->Set("g", content.c_str());
+			result->Stabilize();
+		}
+		else if(typeTag == "<int32>") {
+			status = result->Set("i", StringToI32(content));
+		}
+		else if(typeTag == "<int16>") {
+			status = result->Set("n", StringToI32(content));
+		}
+		else if(typeTag == "<object_path>") {
+			status = result->Set("o", content.c_str());
+			result->Stabilize();
+		}
+		else if(typeTag == "<uint16>") {
+			status = result->Set("q", StringToU32(content));
+		}
+		else if(typeTag == "<struct>") {
+			std::vector<MsgArg*> array = MsgArg_ParseArray(content);
+
+			status = result->Set("r", array.size(), &array[0]);
+		    result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+		}
+		else if(typeTag == "<string>") {
+			status = result->Set("s", content.c_str());
+			result->Stabilize();
+		}
+		else if(typeTag == "<uint64>") {
+			status = result->Set("t", StringToU64(content));
+		}
+		else if(typeTag == "<uint32>") {
+			status = result->Set("u", StringToU32(content));
+		}
+		else if(0 == typeTag.find("<variant signature=")) {
+			/*std::vector<MsgArg*> array = MsgArg_ParseArray(content);
+			if(array.size() != 1)
+			{
+				status = ER_INVALID_DATA;
+			}
+			else
+			{
+				status = result->Set("v", array[0]);
+				result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+			}*/
+			result = MsgArg_FromString(content);
+			variant = true;
+		}
+		else if(typeTag == "<int64>") {
+			status = result->Set("x", StringToI64(content));
+		}
+		else if(typeTag == "<byte>") {
+			status = result->Set("y", StringToU32(content));
+		}
+		else if(typeTag == "<handle>") {
+
+
+
+
+
 
 		}
-		else if(qcc::String::npos != typeTag.find("<boolean>"))
-		{
-			status = result.Set("b", content == "1");
-		}
-		else if(qcc::String::npos != typeTag.find("<double>"))
-		{
-			status = result.Set("d", StringToU64(content, 16));
-		}
-		else if(qcc::String::npos != typeTag.find("<dict_entry>"))
-		{
+		else if(typeTag == "<array type=\"boolean\">") {
+			content = Trim(content);
+			std::vector<bool> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(content.substr(pos, endPos-pos) == "1");
+				pos = endPos;
+			}
 
+			// std::vector<bool> is special so we must copy it to a usable array
+			bool* array = new bool[elements.size()];
+			std::copy(elements.begin(), elements.end(), array);
+			status = result->Set("ab", elements.size(), array);
+			result->Stabilize();
+			delete[] array;
 		}
-		else if(qcc::String::npos != typeTag.find("<signature>"))
-		{
-			status = result.Set("g", content.c_str());
+		else if(typeTag == "<array type=\"double\">") {
+			/* NOTE: double arrays not supported properly due to MsgArg::ToString not converting
+			 * double arrays into bit-exact hex strings the same way it does single doubles */
+			content = Trim(content);
+			std::vector<double> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToDouble(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("ad", elements.size(), &elements[0]);
+			result->Stabilize();
 		}
-		else if(qcc::String::npos != typeTag.find("<int32>"))
-		{
-			status = result.Set("i", StringToI32(content));
+		else if(typeTag == "<array type=\"int32\">") {
+			content = Trim(content);
+			std::vector<int32_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("ai", elements.size(), &elements[0]);
+			result->Stabilize();
 		}
-		else if(qcc::String::npos != typeTag.find("<int16>"))
-		{
-			status = result.Set("n", StringToI32(content));
+		else if(typeTag == "<array type=\"int16\">") {
+			content = Trim(content);
+			std::vector<int16_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("an", elements.size(), &elements[0]);
+			result->Stabilize();
 		}
-		else if(qcc::String::npos != typeTag.find("<object_path>"))
-		{
-			status = result.Set("o", content.c_str());
+		else if(typeTag == "<array type=\"uint16\">") {
+			content = Trim(content);
+			std::vector<uint16_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("aq", elements.size(), &elements[0]);
+			result->Stabilize();
 		}
-		else if(qcc::String::npos != typeTag.find("<uint16>"))
-		{
-			status = result.Set("q", StringToU32(content));
+		else if(typeTag == "<array type=\"uint64\">") {
+			content = Trim(content);
+			std::vector<uint64_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToU64(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("at", elements.size(), &elements[0]);
+			result->Stabilize();
 		}
-		else if(qcc::String::npos != typeTag.find("<struct>"))
-		{
+		else if(typeTag == "<array type=\"uint32\">") {
+			content = Trim(content);
+			std::vector<uint32_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("au", elements.size(), &elements[0]);
+			result->Stabilize();
+		}
+		else if(typeTag == "<array type=\"int64\">") {
+			content = Trim(content);
+			std::vector<int64_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToI64(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("ax", elements.size(), &elements[0]);
+			result->Stabilize();
+		}
+		else if(typeTag == "<array type=\"byte\">") {
+			content = Trim(content);
+			std::vector<uint8_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result->Set("ay", elements.size(), &elements[0]);
+			result->Stabilize();
+		}
 
-		}
-		else if(qcc::String::npos != typeTag.find("<string>"))
+		if(status == ER_OK)
 		{
-			status = result.Set("s", content.c_str());
+			if(isVariant)
+			{
+				*isVariant = variant;
+			}
+			return result;
 		}
-		else if(qcc::String::npos != typeTag.find("<uint64>"))
+		else
 		{
-			status = result.Set("t", StringToU64(content));
+			delete result;
+			return NULL;
 		}
-		else if(qcc::String::npos != typeTag.find("<uint32>"))
-		{
-			status = result.Set("u", StringToU32(content));
-		}
-		else if(qcc::String::npos != typeTag.find("<variant signature="))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<int64>"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<byte>"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<handle>"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"boolean\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"double\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"int32\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"int16\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"uint16\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"uint64\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"uint32\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"int64\">"))
-		{
-
-		}
-		else if(qcc::String::npos != typeTag.find("<array type=\"byte\">"))
-		{
-
-		}
-
-		result.Stabilize();
-		return result;
 	}
 
 	// modeled after ProxyBusObject::GetInterfaces(), could be a member of MsgArgs class
@@ -929,8 +1118,9 @@ private:
 			msg_stream << about_it->second.ToString() << "\n";
 
 
-			MsgArg msgarg(AllJoynHandler::MsgArg_FromString(about_it->second.ToString()));
-			cout << msgarg.ToString() << endl;
+			MsgArg* msgarg = AllJoynHandler::MsgArg_FromString(about_it->second.ToString());
+			cout << msgarg->OwnsArgs;
+			delete msgarg;
 		}
 
 		// Now wrap it in an XMPP stanza
@@ -1979,7 +2169,7 @@ public:
 int main(int argc, char** argv)
 {
 	// hard-coding required announce properties for now...
-	/*MsgArg all;
+	MsgArg all;
     MsgArg argsAnnounceData[7];
 
     MsgArg* arg = 0;
@@ -2005,14 +2195,24 @@ int main(int argc, char** argv)
     arg = new MsgArg("s", "ModelNumber");
     argsAnnounceData[6].Set("{sv}", "Smart Plug", arg);
 
-    all.Set("a{sv}", 7, argsAnnounceData);
+    QStatus result = all.Set("a*"/*{sv}"*/, 7, argsAnnounceData);
     all.SetOwnershipFlags(MsgArg::OwnsArgs, true);
 
-	AllJoynHandler::MsgArg_FromString(all.ToString());*/
+	MsgArg* marg = AllJoynHandler::MsgArg_FromString(all.ToString());
+	cout << marg->ToString() << endl;
+	delete marg;
 
-	MsgArg arg("g", "s");
+
+	// TODO: test nested types
+
+
+
+	//cout << qcc::StringToI32("0") << endl;
+
+	//uint64_t array[] = {0, -1, -9999, 65535, 9999};
+	/*MsgArg arg("a{sv}", 0);
 	cout << arg.ToString() << endl;
-	cout << AllJoynHandler::MsgArg_FromString(arg.ToString()).ToString() << endl;
+	cout << AllJoynHandler::MsgArg_FromString(arg.ToString()).ToString() << endl;*/
 
     /*signal(SIGINT, SigIntHandler);
 	s_Bus = new BusAttachment("XMPPConnector", true);
