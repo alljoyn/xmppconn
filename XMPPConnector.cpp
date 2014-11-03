@@ -5,10 +5,12 @@
 #include <alljoyn/TransportMask.h>
 #include <sstream>
 #include <iostream>
+#include <iterator>
 #include <cstdlib>
 #include <pthread.h>
 #include <cerrno>
 #include <map>
+#include <vector>
 #include <alljoyn/about/AboutService.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
 
@@ -25,6 +27,10 @@ using namespace ajn::services;
 using std::cout;
 using std::endl;
 using std::string;
+using std::map;
+using std::vector;
+using std::istringstream;
+using std::istream_iterator;
 
 #define ALLJOYN_CODE_ADVERTISEMENT  "ADVERTISEMENT"
 #define ALLJOYN_CODE_MESSAGE        "MESSAGE"
@@ -34,6 +40,7 @@ using std::string;
 #define ALLJOYN_CODE_JOIN_RESPONSE  "JOIN_RESPONSE"
 #define ALLJOYN_CODE_SESSION_JOINED "SESSION_JOINED"
 #define ALLJOYN_CODE_ANNOUNCE       "ANNOUNCE"
+#define TR069_ALARM_MESSAGE         "** Alarm **"
 
 static inline void stringReplaceAll(string& str, string from, string to)
 {
@@ -1940,6 +1947,43 @@ void XMPPConnector::handleIncomingAnnounce(string info) // TODO: in real thing, 
     m_UnsentAnnouncements[busName] = info;
 }
 
+void XMPPConnector::handleIncomingAlarm(
+    string info 
+    )
+{
+    // Parse the message
+    std::istringstream msg_stream(info);
+    vector<string> lines;
+    copy(istream_iterator<string>(msg_stream),
+         istream_iterator<string>(),
+         back_inserter(lines));
+    map<string,string> alarm_data;
+    for ( vector<string>::iterator it(lines.begin());
+          lines.end() != it; ++it )
+    {
+        istringstream line_stream(*it);
+        string token;
+        vector<string> tokens;
+        while (getline(line_stream, token, ':'))
+        {
+            tokens.push_back(token);
+        }
+        // Ignore lines with more than one colon
+        if ( tokens.size() == 2 )
+        {
+            // Add the key/value pair
+            alarm_data[tokens.at(0)] = tokens.at(1);
+        }
+    }
+
+    // Send the Description as an AllJoyn Notification
+    if ( alarm_data.end() != alarm_data.find("Description") )
+    {
+        // TODO:
+        cout << "Alarm Description: " << alarm_data.at("Description");
+    }
+}
+
 int XMPPConnector::xmppStanzaHandler(
     xmpp_conn_t* const conn,
     xmpp_stanza_t* const stanza,
@@ -1980,9 +2024,9 @@ int XMPPConnector::xmppStanzaHandler(
             }
             buf_str = buf_str.substr(strlen("<body>"), buf_str.length()-strlen("<body></body>"));
 
-            // Handle the content of the message
             string type_code = buf_str.substr(0, buf_str.find_first_of('\n'));
-            cout << "Received XMPP message: " << type_code << endl;//:\n" << buf << endl;
+            cout << "Received XMPP message: " << buf_str << endl;//:\n" << buf << endl;
+
             if(type_code == ALLJOYN_CODE_ADVERTISEMENT)
             {
                 xmppConnector->handleIncomingAdvertisement(buf_str);
@@ -2014,6 +2058,10 @@ int XMPPConnector::xmppStanzaHandler(
             else if(type_code == ALLJOYN_CODE_ANNOUNCE)
             {
                 xmppConnector->handleIncomingAnnounce(buf_str);
+            }
+            else if(type_code == TR069_ALARM_MESSAGE)
+            {
+                xmppConnector->handleIncomingAlarm(buf_str);
             }
         }
         else

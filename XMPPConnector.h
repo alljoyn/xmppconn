@@ -62,6 +62,7 @@ private:
     void handleIncomingJoinResponse(std::string info);
     void handleIncomingSessionJoined(std::string info);
     void handleIncomingAnnounce(std::string info);
+    void handleIncomingAlarm(std::string info);
 
     static int  xmppStanzaHandler(xmpp_conn_t* const conn, xmpp_stanza_t* const stanza, void* const userdata);
     static void xmppConnectionHandler(
