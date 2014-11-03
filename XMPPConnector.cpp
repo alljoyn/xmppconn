@@ -2172,35 +2172,60 @@ int main(int argc, char** argv)
 	MsgArg all;
     MsgArg argsAnnounceData[7];
 
-    MsgArg* arg = 0;
+    MsgArg arg;
     uint8_t id_array[] = {253,213,157,54,89,138,109,219,154,119,132,93,215,64,87,42};
-    arg = new MsgArg("ay", 16, id_array);
-    argsAnnounceData[0].Set("{sv}", "AppId", arg);
+    arg.Set("ay", 16, id_array);
+    qcc::String tmp = "AppId";
+    argsAnnounceData[0].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[0].Stabilize();
 
-    arg = new MsgArg("s", "Controlee");
-    argsAnnounceData[1].Set("{sv}", "AppName", arg);
+    tmp = "Controlee";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    tmp = "AppName";
+    argsAnnounceData[1].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[1].Stabilize();
 
-    arg = new MsgArg("s", "en");
-    argsAnnounceData[2].Set("{sv}", "DefaultLanguage", arg);
+    tmp = "en";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    argsAnnounceData[2].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[2].Stabilize();
 
-    arg = new MsgArg("s", "fdd59d36598a6ddb9a77845dd740572a");
-    argsAnnounceData[3].Set("{sv}", "DeviceId", arg);
+    tmp = "fdd59d36598a6ddb9a77845dd740572a";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    tmp = "DeviceId";
+    argsAnnounceData[3].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[3].Stabilize();
 
-    arg = new MsgArg("s", "PT Plug 40572a");
-    argsAnnounceData[4].Set("{sv}", "DeviceName", arg);
+    tmp = "PT Plug 40572a";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    tmp = "DeviceName";
+    argsAnnounceData[4].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[4].Stabilize();
 
-    arg = new MsgArg("s", "Powertech");
-    argsAnnounceData[5].Set("{sv}", "Manufacturer", arg);
+    tmp = "Powertech";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    argsAnnounceData[5].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[5].Stabilize();
 
-    arg = new MsgArg("s", "ModelNumber");
-    argsAnnounceData[6].Set("{sv}", "Smart Plug", arg);
+    tmp = "ModelNumber";
+    arg.Set("s", tmp.c_str());
+    arg.Stabilize();
+    tmp = "SmartPlug";
+    argsAnnounceData[6].Set("{sv}", tmp.c_str(), &arg);
+    argsAnnounceData[6].Stabilize();
 
     QStatus result = all.Set("a*"/*{sv}"*/, 7, argsAnnounceData);
-    all.SetOwnershipFlags(MsgArg::OwnsArgs, true);
 
 	MsgArg* marg = AllJoynHandler::MsgArg_FromString(all.ToString());
 	cout << marg->ToString() << endl;
 	delete marg;
+
+	cout << "blahblah" << endl;
 
 
 	// TODO: test nested types
