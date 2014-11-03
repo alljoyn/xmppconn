@@ -445,9 +445,9 @@ public:
 	}
 
 private:
-	static std::vector<MsgArg*> MsgArg_ParseArray(qcc::String content, std::vector<bool>* variants = NULL)
+	static std::vector<MsgArg> MsgArg_ParseArray(qcc::String content, std::vector<bool>* variants = NULL)
 	{
-		std::vector<MsgArg*> array;
+		std::vector<MsgArg> array;
 
 		// Get the MsgArgs for each element
 		content = Trim(content);
@@ -483,11 +483,9 @@ private:
 
 public:
 	// could be part of MsgArg
-	static MsgArg* MsgArg_FromString(qcc::String argXml, bool* isVariant = NULL)
+	static MsgArg MsgArg_FromString(qcc::String argXml, bool* isVariant = NULL)
 	{
-		cout << argXml << endl;
-
-		MsgArg* result = new MsgArg();
+		MsgArg result;
 		bool variant = false;
 
 		QStatus status = ER_OK;
@@ -497,30 +495,20 @@ public:
 
 		if(0 == typeTag.find("<array type_sig=")) {
 			std::vector<bool> variants;
-			std::vector<MsgArg*> array = MsgArg_ParseArray(content, &variants);
-
-			MsgArg* testsomething = new MsgArg[array.size()];
-			for(int i = 0; i < array.size(); ++i)
-			{
-				testsomething[i] = *array[i];
-				delete array[i];
-			}
-
-			pos = typeTag.find_first_of("\"")+1;
-			//qcc::String sig = "a"+typeTag.substr(pos,typeTag.find_last_of("\"")-pos);
+			std::vector<MsgArg> array = MsgArg_ParseArray(content, &variants);
 			qcc::String sig = (variants.empty() || !variants[0]) ? "a*" : "av";
-			status = result->Set(sig.c_str(), array.size(), &testsomething[0]);
-		    result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+			status = result.Set(sig.c_str(), array.size(), &array[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<boolean>") {
-			status = result->Set("b", content == "1");
+			status = result.Set("b", content == "1");
 		}
 		else if(typeTag == "<double>") {
-			status = result->Set("d", StringToU64(content, 16));
+			status = result.Set("d", StringToU64(content, 16));
 		}
 		else if(typeTag == "<dict_entry>") {
 			std::vector<bool> variants;
-			std::vector<MsgArg*> array = MsgArg_ParseArray(content, &variants);
+			std::vector<MsgArg> array = MsgArg_ParseArray(content, &variants);
 			if(array.size() != 2)
 			{
 				status = ER_BUS_BAD_VALUE;
@@ -530,87 +518,76 @@ public:
 				qcc::String sig1 = variants[0] ? "v" : "*";
 				qcc::String sig2 = variants[1] ? "v" : "*";
 				qcc::String sig = "{"+sig1+sig2+"}";
-				status = result->Set(sig.c_str(), array[0], array[1]);
-				result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
-
-				/*qcc::String sig1 = array[0]->Signature();
-				qcc::String sig2 = array[1]->Signature();
-				if(sig1.empty() || sig2.empty())
-				{
-					status = ER_INVALID_DATA;
-				}
-				else
-				{
-					if(sig1[0] == 'a'){ sig1 = "v"; }
-					if(sig2[0] == 'a'){ sig2 = "v"; }
-
-					qcc::String sig = "{"+sig1+sig2+"}";
-					status = result->Set(sig.c_str(), array[0], array[1]);
-					status = result->Set("{**}", array[0], array[1]);
-					result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
-				}*/
+				status = result.Set(sig.c_str(), &array[0], &array[1]);
+				result.Stabilize();
 			}
 		}
 		else if(typeTag == "<signature>") {
-			status = result->Set("g", content.c_str());
-			result->Stabilize();
+			status = result.Set("g", content.c_str());
+			result.Stabilize();
 		}
 		else if(typeTag == "<int32>") {
-			status = result->Set("i", StringToI32(content));
+			status = result.Set("i", StringToI32(content));
 		}
 		else if(typeTag == "<int16>") {
-			status = result->Set("n", StringToI32(content));
+			status = result.Set("n", StringToI32(content));
 		}
 		else if(typeTag == "<object_path>") {
-			status = result->Set("o", content.c_str());
-			result->Stabilize();
+			status = result.Set("o", content.c_str());
+			result.Stabilize();
 		}
 		else if(typeTag == "<uint16>") {
-			status = result->Set("q", StringToU32(content));
+			status = result.Set("q", StringToU32(content));
 		}
 		else if(typeTag == "<struct>") {
-			std::vector<MsgArg*> array = MsgArg_ParseArray(content);
-
-			status = result->Set("r", array.size(), &array[0]);
-		    result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
+			std::vector<MsgArg> array = MsgArg_ParseArray(content);
+			status = result.Set("r", array.size(), &array[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<string>") {
-			status = result->Set("s", content.c_str());
-			result->Stabilize();
+			status = result.Set("s", content.c_str());
+			result.Stabilize();
 		}
 		else if(typeTag == "<uint64>") {
-			status = result->Set("t", StringToU64(content));
+			status = result.Set("t", StringToU64(content));
 		}
 		else if(typeTag == "<uint32>") {
-			status = result->Set("u", StringToU32(content));
+			status = result.Set("u", StringToU32(content));
 		}
 		else if(0 == typeTag.find("<variant signature=")) {
-			/*std::vector<MsgArg*> array = MsgArg_ParseArray(content);
-			if(array.size() != 1)
-			{
-				status = ER_INVALID_DATA;
-			}
-			else
-			{
-				status = result->Set("v", array[0]);
-				result->SetOwnershipFlags(MsgArg::OwnsArgs, true);
-			}*/
 			result = MsgArg_FromString(content);
 			variant = true;
 		}
 		else if(typeTag == "<int64>") {
-			status = result->Set("x", StringToI64(content));
+			status = result.Set("x", StringToI64(content));
 		}
 		else if(typeTag == "<byte>") {
-			status = result->Set("y", StringToU32(content));
+			status = result.Set("y", StringToU32(content));
 		}
 		else if(typeTag == "<handle>") {
-
-
-
-
-
-
+			content = Trim(content);
+			size_t len = content.length()/2;
+			uint8_t* bytes = new uint8_t[len];
+			if(len != HexStringToBytes(content, bytes, len))
+			{
+				status = ER_BUS_BAD_VALUE;
+			}
+			else
+			{
+				result.Set("h", bytes);
+				result.Stabilize();
+			}
+			delete[] bytes;
+			/*std::vector<uint8_t> elements;
+			pos = 0;
+			while((pos = content.find_first_not_of(" ", pos)) != qcc::String::npos)
+			{
+				size_t endPos = content.find_first_of(' ', pos);
+				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
+				pos = endPos;
+			}
+			status = result.Set("ay", elements.size(), &elements[0]);
+			result.Stabilize();*/
 		}
 		else if(typeTag == "<array type=\"boolean\">") {
 			content = Trim(content);
@@ -626,8 +603,8 @@ public:
 			// std::vector<bool> is special so we must copy it to a usable array
 			bool* array = new bool[elements.size()];
 			std::copy(elements.begin(), elements.end(), array);
-			status = result->Set("ab", elements.size(), array);
-			result->Stabilize();
+			status = result.Set("ab", elements.size(), array);
+			result.Stabilize();
 			delete[] array;
 		}
 		else if(typeTag == "<array type=\"double\">") {
@@ -642,8 +619,8 @@ public:
 				elements.push_back(StringToDouble(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("ad", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("ad", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"int32\">") {
 			content = Trim(content);
@@ -655,8 +632,8 @@ public:
 				elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("ai", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("ai", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"int16\">") {
 			content = Trim(content);
@@ -668,8 +645,8 @@ public:
 				elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("an", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("an", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"uint16\">") {
 			content = Trim(content);
@@ -681,8 +658,8 @@ public:
 				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("aq", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("aq", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"uint64\">") {
 			content = Trim(content);
@@ -694,8 +671,8 @@ public:
 				elements.push_back(StringToU64(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("at", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("at", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"uint32\">") {
 			content = Trim(content);
@@ -707,8 +684,8 @@ public:
 				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("au", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("au", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"int64\">") {
 			content = Trim(content);
@@ -720,8 +697,8 @@ public:
 				elements.push_back(StringToI64(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("ax", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("ax", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 		else if(typeTag == "<array type=\"byte\">") {
 			content = Trim(content);
@@ -733,23 +710,15 @@ public:
 				elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
 				pos = endPos;
 			}
-			status = result->Set("ay", elements.size(), &elements[0]);
-			result->Stabilize();
+			status = result.Set("ay", elements.size(), &elements[0]);
+			result.Stabilize();
 		}
 
-		if(status == ER_OK)
+		if(status == ER_OK && isVariant)
 		{
-			if(isVariant)
-			{
-				*isVariant = variant;
-			}
-			return result;
+			*isVariant = variant;
 		}
-		else
-		{
-			delete result;
-			return NULL;
-		}
+		return result;
 	}
 
 	// modeled after ProxyBusObject::GetInterfaces(), could be a member of MsgArgs class
@@ -1118,9 +1087,8 @@ private:
 			msg_stream << about_it->second.ToString() << "\n";
 
 
-			MsgArg* msgarg = AllJoynHandler::MsgArg_FromString(about_it->second.ToString());
-			cout << msgarg->OwnsArgs;
-			delete msgarg;
+			/*MsgArg msgarg = AllJoynHandler::MsgArg_FromString(about_it->second.ToString());
+			cout << msgarg.OwnsArgs << endl;*/
 		}
 
 		// Now wrap it in an XMPP stanza
@@ -1227,31 +1195,54 @@ public:
 		// hard-coding required announce properties for now...
 	    MsgArg argsAnnounceData[7];
 
-	    MsgArg* arg = 0;
+	    MsgArg arg;
 	    uint8_t id_array[] = {253,213,157,54,89,138,109,219,154,119,132,93,215,64,87,42};
-	    arg = new MsgArg("ay", 16, id_array);
-	    argsAnnounceData[0].Set("{sv}", "AppId", arg);
+	    arg.Set("ay", 16, id_array);
+	    qcc::String tmp = "AppId";
+	    argsAnnounceData[0].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[0].Stabilize();
 
-	    arg = new MsgArg("s", "Controlee");
-	    argsAnnounceData[1].Set("{sv}", "AppName", arg);
+	    tmp = "Controlee";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    tmp = "AppName";
+	    argsAnnounceData[1].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[1].Stabilize();
 
-	    arg = new MsgArg("s", "en");
-	    argsAnnounceData[2].Set("{sv}", "DefaultLanguage", arg);
+	    tmp = "en";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    argsAnnounceData[2].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[2].Stabilize();
 
-	    arg = new MsgArg("s", "fdd59d36598a6ddb9a77845dd740572a");
-	    argsAnnounceData[3].Set("{sv}", "DeviceId", arg);
+	    tmp = "fdd59d36598a6ddb9a77845dd740572a";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    tmp = "DeviceId";
+	    argsAnnounceData[3].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[3].Stabilize();
 
-	    arg = new MsgArg("s", "PT Plug 40572a");
-	    argsAnnounceData[4].Set("{sv}", "DeviceName", arg);
+	    tmp = "PT Plug 40572a";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    tmp = "DeviceName";
+	    argsAnnounceData[4].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[4].Stabilize();
 
-	    arg = new MsgArg("s", "Powertech");
-	    argsAnnounceData[5].Set("{sv}", "Manufacturer", arg);
+	    tmp = "Powertech";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    argsAnnounceData[5].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[5].Stabilize();
 
-	    arg = new MsgArg("s", "ModelNumber");
-	    argsAnnounceData[6].Set("{sv}", "Smart Plug", arg);
+	    tmp = "ModelNumber";
+	    arg.Set("s", tmp.c_str());
+	    arg.Stabilize();
+	    tmp = "SmartPlug";
+	    argsAnnounceData[6].Set("{sv}", tmp.c_str(), &arg);
+	    argsAnnounceData[6].Stabilize();
 
 	    all.Set("a{sv}", 7, argsAnnounceData);
-	    all.SetOwnershipFlags(MsgArg::OwnsArgs, true);
 
 		return ER_OK;
 	}
@@ -2157,92 +2148,12 @@ static void SigIntHandler(int sig)
 	exit(0);
 }
 
-/*class ok : public ProxyBusObject::Listener
-{
-public:
-	void IntrospectCB(QStatus status, ProxyBusObject* obj, void* context)
-	{
-		cout << "\n\nHELLOOOOOOOOOO\n\n" << endl;
-	}
-};*/
-
 int main(int argc, char** argv)
 {
-	// hard-coding required announce properties for now...
-	MsgArg all;
-    MsgArg argsAnnounceData[7];
-
-    MsgArg arg;
-    uint8_t id_array[] = {253,213,157,54,89,138,109,219,154,119,132,93,215,64,87,42};
-    arg.Set("ay", 16, id_array);
-    qcc::String tmp = "AppId";
-    argsAnnounceData[0].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[0].Stabilize();
-
-    tmp = "Controlee";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    tmp = "AppName";
-    argsAnnounceData[1].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[1].Stabilize();
-
-    tmp = "en";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    argsAnnounceData[2].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[2].Stabilize();
-
-    tmp = "fdd59d36598a6ddb9a77845dd740572a";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    tmp = "DeviceId";
-    argsAnnounceData[3].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[3].Stabilize();
-
-    tmp = "PT Plug 40572a";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    tmp = "DeviceName";
-    argsAnnounceData[4].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[4].Stabilize();
-
-    tmp = "Powertech";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    argsAnnounceData[5].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[5].Stabilize();
-
-    tmp = "ModelNumber";
-    arg.Set("s", tmp.c_str());
-    arg.Stabilize();
-    tmp = "SmartPlug";
-    argsAnnounceData[6].Set("{sv}", tmp.c_str(), &arg);
-    argsAnnounceData[6].Stabilize();
-
-    QStatus result = all.Set("a*"/*{sv}"*/, 7, argsAnnounceData);
-
-	MsgArg* marg = AllJoynHandler::MsgArg_FromString(all.ToString());
-	cout << marg->ToString() << endl;
-	delete marg;
-
-	cout << "blahblah" << endl;
-
-
-	// TODO: test nested types
-
-
-
-	//cout << qcc::StringToI32("0") << endl;
-
-	//uint64_t array[] = {0, -1, -9999, 65535, 9999};
-	/*MsgArg arg("a{sv}", 0);
-	cout << arg.ToString() << endl;
-	cout << AllJoynHandler::MsgArg_FromString(arg.ToString()).ToString() << endl;*/
-
-    /*signal(SIGINT, SigIntHandler);
+	signal(SIGINT, SigIntHandler);
 	s_Bus = new BusAttachment("XMPPConnector", true);
 
-	// TODO: set up bus attachment
+	// Set up bus attachment
     QStatus status = s_Bus->Start();
     if (ER_OK != status) {
         cout << "Error starting bus: " << QCC_StatusText(status) << endl;
@@ -2255,54 +2166,11 @@ int main(int argc, char** argv)
         cout << "Error connecting bus: " << QCC_StatusText(status) << endl;
         cleanup();
         return 1;
-    }*/
+    }
 
-    /*ok okay;
-	ProxyBusObject proxy(*s_Bus, "org.alljoyn.bus.samples.chat.local", "/", 0);
-	QStatus err = proxy.IntrospectRemoteObjectAsync(&okay, static_cast<ProxyBusObject::Listener::IntrospectCB>(&ok::IntrospectCB), NULL, 500);
-	cout << "done: " << QCC_StatusText(err) << " " << proxy.GetServiceName() << endl;
-
-	sleep(15);*/
-
-    // TODO: create our XMPP connector
-	/*s_Conn = new XMPPConnector(s_Bus, "XMPP", "pub@aus1.affinegy.com", "pub", "alljoyn@muc.aus1.affinegy.com");
+    // Create our XMPP connector
+	s_Conn = new XMPPConnector(s_Bus, "XMPP", "pub@aus1.affinegy.com", "pub", "alljoyn@muc.aus1.affinegy.com");
 	s_Conn->start();
 
-	cleanup();*/
-
-	/*ProxyBusObject proxy(*s_Bus, ":8YmOhHyt.3", "/", 0);
-	QStatus err = proxy.IntrospectRemoteObject();
-	cout << "done: " << QCC_StatusText(err) << " " << proxy.GetPath() << endl;*/
-
-	/*s_Bus = new BusAttachment("XMPPConnector", true);
-    MyBusListener buslistener;
-
-    InterfaceDescription* chatIntf = NULL;
-    s_Bus->CreateInterface("org.alljoyn.bus.samples.chat", chatIntf);
-    chatIntf->AddSignal("Chat", "s",  "str", 0);
-    chatIntf->Activate();
-
-    s_Bus->RegisterBusListener(buslistener);
-	s_Bus->Start();
-
-	//maybe register bus objs before connecting?
-	MyBusObject busobj(s_Bus, "/chatService");
-	s_Bus->RegisterBusObject(busobj);
-
-	s_Bus->Connect();
-
-	SessionPort sp = 27;
-	QStatus err =s_Bus->BindSessionPort(sp, SessionOpts(SessionOpts::TRAFFIC_MESSAGES, true, SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY), s_SessionListener);
-	if(err != ER_OK)
-	{
-		cout << "Could not bind session port: " << QCC_StatusText(err) << endl;
-	}
-
-	err = s_Bus->AdvertiseName("org.alljoyn.bus.samples.chat.xmpp", TRANSPORT_ANY);
-	if(err != ER_OK) // TODO: only print if not "already advertising" or something
-	{
-		cout << "Could not advertise name: " << QCC_StatusText(err) << endl;
-	}
-
-	while(1) sleep(5);*/
+	cleanup();
 }
