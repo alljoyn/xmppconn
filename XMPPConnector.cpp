@@ -1,5 +1,29 @@
 #include "XMPPConnector.h"
 
+#include <algorithm>
+#include <iostream>
+#include <signal.h>
+#include <alljoyn/PasswordManager.h>
+#include <alljoyn/notification/NotificationService.h>
+#include <alljoyn/notification/NotificationSender.h>
+#include <alljoyn/notification/NotificationText.h>
+#include <alljoyn/notification/RichAudioUrl.h>
+#include <alljoyn/notification/NotificationEnums.h>
+
+#include <alljoyn/BusAttachment.h>
+#include <qcc/String.h>
+#include <alljoyn/about/AboutPropertyStoreImpl.h>
+
+#include <alljoyn/BusAttachment.h>
+#include <alljoyn/BusListener.h>
+#include <alljoyn/SessionPortListener.h>
+#include <vector>
+
+#include <alljoyn/about/AboutServiceApi.h>
+#include <alljoyn/notification/Notification.h>
+#include <alljoyn/services_common/GuidUtil.h>
+#include <alljoyn/services_common/LogModulesNames.h>
+
 // XMPPConnector.cpp
 #include <alljoyn/InterfaceDescription.h>
 #include <alljoyn/TransportMask.h>
@@ -42,7 +66,7 @@ using std::istream_iterator;
 #define ALLJOYN_CODE_GET_PROP_REPLY "GET_PROP_REPLY"
 #define ALLJOYN_CODE_SET_PROPERTY   "SET_PROPERTY"
 #define ALLJOYN_CODE_SET_PROP_REPLY "SET_PROP_REPLY"
-#define TR069_ALARM_MESSAGE         "** Alarm **"
+#define TR069_ALARM_MESSAGE         "** Alert **"
 
 static inline void stringReplaceAll(string& str, string from, string to)
 {
@@ -1538,9 +1562,10 @@ private:
 };
 
 XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId, string password, string chatroomJabberId) :
-    GatewayConnector(bus, appName.c_str()),
+    //GatewayConnector(bus, appName.c_str()),
     m_Bus(bus), m_BusAttachments(), m_UnsentAnnouncements(),
-    m_JabberId(jabberId), m_Password(password), m_ChatroomJabberId(chatroomJabberId)
+    m_JabberId(jabberId), m_Password(password), m_ChatroomJabberId(chatroomJabberId),
+    m_AboutPropertyStore(NULL), m_NotifService(NULL), m_NotifSender(NULL)
 {
     // Initialize our XMPP connection
     xmpp_initialize();
@@ -1549,6 +1574,10 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
 
     m_BusListener = new AllJoynHandler(this, m_XmppConn);
     m_Bus->RegisterBusListener(*m_BusListener);
+    // TODO:
+    //m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
+    m_NotifService = NotificationService::getInstance();
+    //m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
 
     // Well-known ports that we need to bind (temporary)
     m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
@@ -1769,10 +1798,10 @@ void XMPPConnector::shutdown()
     // TODO
 }
 
-void XMPPConnector::receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response)
-{
-    // TODO
-}
+//void XMPPConnector::receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response)
+//{
+//    // TODO
+//}
 
 void XMPPConnector::relayAnnouncement(BusAttachment* bus, string info)
 {
@@ -2463,16 +2492,17 @@ void XMPPConnector::handleIncomingAlarm(
 {
     // Parse the message
     std::istringstream msg_stream(info);
+    string token;
     vector<string> lines;
-    copy(istream_iterator<string>(msg_stream),
-         istream_iterator<string>(),
-         back_inserter(lines));
+    while (getline(msg_stream, token, '\n'))
+    {
+        lines.push_back(token);
+    }
     map<string,string> alarm_data;
     for ( vector<string>::iterator it(lines.begin());
           lines.end() != it; ++it )
     {
         istringstream line_stream(*it);
-        string token;
         vector<string> tokens;
         while (getline(line_stream, token, ':'))
         {
@@ -2490,7 +2520,22 @@ void XMPPConnector::handleIncomingAlarm(
     if ( alarm_data.end() != alarm_data.find("Description") )
     {
         // TODO:
-        cout << "Alarm Description: " << alarm_data.at("Description");
+        cout << "Alarm Description: " << alarm_data.at("Description") << endl;
+/*        NotificationMessageType message_type = INFO;
+        NotificationText message("en", alarm_data.at("Description").c_str());
+        vector<NotificationText> messages;
+        messages.push_back(message);
+        Notification notification(message_type, messages);
+        QStatus status = m_NotifSender->send(notification, 7200);
+        if (status != ER_OK)
+        {
+            cout << "Failed to send Alarm notification!" << endl;
+        }
+        else
+        {
+            cout << "Successfully sent Alarm notification!" << endl;
+        }
+*/
     }
 }
 

@@ -1,15 +1,13 @@
 
-ALLJOYN_DIST := ../alljoyn-suite-14.06.00a-src/core/alljoyn/build/linux/x86/debug/dist/cpp
-
-ALLJOYN_LIB := $(ALLJOYN_DIST)/lib/liballjoyn.a
+#ALLJOYN_DIST := ../alljoyn-suite-14.06.00a-src/core/alljoyn/build/linux/x86/debug/dist/cpp
+AJ_BASE_PATH := ../allseen
+ALLJOYN_DIST := $(AJ_BASE_PATH)/gateway/gwagent/build/linux/x86/debug/dist
 
 CXXFLAGS = -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX -DQCC_CPU_X86
 
-LIBS = -lalljoyn -lstdc++ -lcrypto -lpthread -lrt -lstrophe -lalljoyn_about -lssl -lexpat -lresolv
+LIBS = -lalljoyn_gwConnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lcrypto -lpthread -lrt
 
-ALLJOYN_INC := ../allseen
-
-INCLUDES = -I$(ALLJOYN_DIST)/inc -I$(ALLJOYN_INC)/gateway/gwagent/cpp/GatewayConnector/inc -I$(ALLJOYN_INC)/gateway/gwagent/cpp/GatewayMgmtApp/inc -I../alljoyn-suite-14.06.00a-src/core/alljoyn/services/about/cpp/inc
+INCLUDES = -I$(ALLJOYN_DIST)/cpp/inc -I$(ALLJOYN_DIST)/gatewayConnector/inc -I$(ALLJOYN_DIST)/gatewayMgmtApp/inc -I$(ALLJOYN_DIST)/notification/inc -I$(ALLJOYN_DIST)/services_common/inc
 
 .PHONY: default clean
 
@@ -20,12 +18,12 @@ clean:
 
 all: XMPPConnector
 
-XMPPConnector: XMPPConnector.o main.o $(ALLJOYN_LIB) ../allseen/gateway/gwagent/build/linux/x86/debug/dist/gatewayConnector/lib/liballjoyn_gwConnector.a
-	$(CXX) -o $@ XMPPConnector.o main.o -L$(ALLJOYN_DIST)/lib -L../allseen/gateway/gwagent/build/linux/x86/debug/dist/gatewayConnector/lib -L. $(LIBS) -lalljoyn_gwConnector
+XMPPConnector: XMPPConnector.o main.o
+	$(CXX) -o $@ XMPPConnector.o main.o -L. $(LIBS)
 	
-main.o: main.cpp $(ALLJOYN_LIB)
+main.o: main.cpp
 	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ main.cpp
 
-XMPPConnector.o: XMPPConnector.cpp $(ALLJOYN_LIB)
+XMPPConnector.o: XMPPConnector.cpp
 	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ XMPPConnector.cpp
 
