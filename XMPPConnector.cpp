@@ -1684,7 +1684,7 @@ private:
 };
 
 XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId, string password, string chatroomJabberId) :
-    //GatewayConnector(bus, appName.c_str()),
+    GatewayConnector(bus, appName.c_str()),
     m_Bus(bus), m_BusAttachments(), m_UnsentAnnouncements(),
     m_JabberId(jabberId), m_Password(password), m_ChatroomJabberId(chatroomJabberId),
     m_AboutPropertyStore(NULL), m_NotifService(NULL), m_NotifSender(NULL)
@@ -1697,9 +1697,9 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
     m_BusListener = new AllJoynHandler(this, m_XmppConn);
     m_Bus->RegisterBusListener(*m_BusListener);
     // TODO:
-    //m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
+    m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
     m_NotifService = NotificationService::getInstance();
-    //m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
+    m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
 
     // Well-known ports that we need to bind (temporary)
     m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
@@ -1920,10 +1920,10 @@ void XMPPConnector::shutdown()
     // TODO
 }
 
-//void XMPPConnector::receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response)
-//{
-//    // TODO
-//}
+void XMPPConnector::receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response)
+{
+    // TODO
+}
 
 void XMPPConnector::relayAnnouncement(BusAttachment* bus, string info)
 {
@@ -2724,7 +2724,7 @@ void XMPPConnector::handleIncomingAlarm(
     {
         // TODO:
         cout << "Alarm Description: " << alarm_data.at("Description") << endl;
-/*        NotificationMessageType message_type = INFO;
+        NotificationMessageType message_type = INFO;
         NotificationText message("en", alarm_data.at("Description").c_str());
         vector<NotificationText> messages;
         messages.push_back(message);
@@ -2738,7 +2738,6 @@ void XMPPConnector::handleIncomingAlarm(
         {
             cout << "Successfully sent Alarm notification!" << endl;
         }
-*/
     }
 }
 

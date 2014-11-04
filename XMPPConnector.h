@@ -6,7 +6,7 @@
 
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
-//#include <alljoyn/gateway/GatewayConnector.h>
+#include <alljoyn/gateway/GatewayConnector.h>
 #include <alljoyn/notification/Notification.h>
 #include <alljoyn/notification/NotificationService.h>
 #include <alljoyn/notification/NotificationSender.h>
@@ -20,7 +20,7 @@
 namespace ajn {
 namespace gw {
 
-class XMPPConnector// : public GatewayConnector
+class XMPPConnector : public GatewayConnector
 {
 public:
     struct RemoteBusObject
@@ -53,7 +53,7 @@ public:
 protected:
     virtual void mergedAclUpdated();
     virtual void shutdown();
-    //virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
+    virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
 
 private:
     void relayAnnouncement(BusAttachment* bus, std::string info);
