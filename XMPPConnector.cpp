@@ -338,7 +338,7 @@ public:
         char* buf = 0;
         size_t buflen = 0;
         xmpp_stanza_to_text(message, &buf, &buflen);
-	    cout << "Sending XMPP message:\n" << buf << endl;
+	    cout << "Sending XMPP session join request message" << endl;//:\n" << buf << endl;
 	    free(buf);
 
 		xmpp_send(m_XmppConn, message);
@@ -377,27 +377,27 @@ public:
         char* buf = 0;
         size_t buflen = 0;
         xmpp_stanza_to_text(message, &buf, &buflen);
-	    cout << "Sending XMPP message:\n" << buf << endl;
+	    cout << "Sending XMPP session joined message" << endl;//:\n" << buf << endl;
 	    free(buf);
 
 		xmpp_send(m_XmppConn, message);
 		xmpp_stanza_release(message);
 	}
 
-	void AllJoynMethodHandler(const InterfaceDescription::Member* member, Message& message)
+	/*void AllJoynMethodHandler(const InterfaceDescription::Member* member, Message& message)
 	{
 		size_t num_args = 0;
 		const MsgArg* msgargs = 0;
 		message->GetArgs(num_args, msgargs);
-		cout << "Received message: " /*<< member->description.c_str() << "\n"*/ << MsgArg::ToString(msgargs, num_args).c_str() << endl;
+		cout << "Received message: " *//*<< member->description.c_str() << "\n"*//* << MsgArg::ToString(msgargs, num_args).c_str() << endl;
 
 		// TODO: pack message in XMPP, send to destination
 		// member.destination? we need the WKN this was sent to
 		// member.description
 		// message.GetArgs() -> MsgArgs* -> ToString
-	}
+	}*/
 
-	void AllJoynSignalHandler(const InterfaceDescription::Member* member, const char* srcPath, Message& message)
+	/*void AllJoynSignalHandler(const InterfaceDescription::Member* member, const char* srcPath, Message& message)
 	{
 		// Pack the signal in an XMPP message and send it to the server
 		xmpp_stanza_t* xmpp_message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
@@ -411,7 +411,7 @@ public:
 
 		xmpp_send(m_XmppConn, xmpp_message);
 		xmpp_stanza_release(xmpp_message);
-	}
+	}*/
 
 	void AssociateBusAttachment(GenericBusAttachment* bus)
 	{
@@ -756,7 +756,7 @@ private:
 		cout << "Introspect callback on " << proxy->GetServiceName().c_str() << endl;
 		std::list<XMPPConnector::RemoteBusObject> busObjects;
 
-		cout << proxy->GetServiceName() << endl;
+		//cout << proxy->GetServiceName() << endl;
 		getInterfacesRecursive(busObjects, *proxy, proxy->GetServiceName().c_str());
 
 		if(!busObjects.empty())
@@ -768,7 +768,7 @@ private:
 			char* buf = 0;
 			size_t buflen = 0;
 			xmpp_stanza_to_text(message, &buf, &buflen);
-			cout << "Sending XMPP message"/*:\n" << buf*/ << endl;
+			cout << "Sending XMPP advertise message"/*:\n" << buf*/ << endl;
 			free(buf);
 
 			xmpp_send(m_XmppConn, message);
@@ -793,7 +793,7 @@ private:
 			this_bus_object.objectPath = "/";
 		}
 
-		cout << "  " << this_bus_object.objectPath << endl;
+		//cout << "  " << this_bus_object.objectPath << endl;
 
 		// Get the interfaces implemented at this object path
 		size_t num_ifaces = proxy.GetInterfaces();
@@ -816,7 +816,14 @@ private:
 				{
 					//if(!advertiseName || advertiseName == strstr(advertiseName, iface_name))
 					{
-						cout << "    " << iface_name << endl;//<< " at " << proxy.GetServiceName().c_str() << proxy.GetPath().c_str() << endl;
+						//cout << "    " << iface_name << endl;//<< " at " << proxy.GetServiceName().c_str() << proxy.GetPath().c_str() << endl;
+
+						/*if(0 == strcmp(iface_name, "org.alljoyn.Icon"))
+						{
+							cout << iface_list[i]->Introspect(6);
+						}*/
+
+
 						this_bus_object.interfaces.push_back(iface_list[i]);
 
 						// TODO: properties?
@@ -1126,11 +1133,57 @@ public:
 	{
 	}
 
-	QStatus implementInterfaces(std::list<const InterfaceDescription*> interfaces, AllJoynHandler* ajHandler)
+	void AllJoynMethodHandler(const InterfaceDescription::Member* member, Message& message)
 	{
+		size_t num_args = 0;
+		const MsgArg* msgargs = 0;
+		message->GetArgs(num_args, msgargs);
+		cout << "Received method call: " << member->name << endl;//MsgArg::ToString(msgargs, num_args).c_str() << endl;
+		cout << "sig: " << member->signature << endl;
+		cout << "return sig: " << member->returnSignature << endl;
+
+		// TODO: pack message in XMPP, send to destination
+		// member.destination? we need the WKN this was sent to
+		// member.description
+		// message.GetArgs() -> MsgArgs* -> ToString
+
+		// TODO: wait for reply, then MethodReply()
+	}
+
+	void AllJoynSignalHandler(const InterfaceDescription::Member* member, const char* srcPath, Message& message)
+	{
+		size_t num_args = 0;
+		const MsgArg* msgargs = 0;
+		message->GetArgs(num_args, msgargs);
+		cout << "Received signal: " /*<< member->description.c_str() << "\n"*/ << MsgArg::ToString(msgargs, num_args).c_str() << endl;
+
+		// Pack the signal in an XMPP message and send it to the server
+		/*xmpp_stanza_t* xmpp_message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+		createXmppSignalStanza(member, srcPath, message, xmpp_message);
+
+        char* buf = 0;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(xmpp_message, &buf, &buflen);
+	    cout << "Sending XMPP message:\n" << buf << endl;
+	    free(buf);
+
+		xmpp_send(m_XmppConn, xmpp_message);
+		xmpp_stanza_release(xmpp_message);*/
+	}
+
+	void ObjectRegistered()
+	{
+		cout << ((GenericBusAttachment*)bus)->GetAdvertisedName() << GetPath() << " registered" << endl;
+	}
+
+	QStatus implementInterfaces(std::list<const InterfaceDescription*> interfaces)//, AllJoynHandler* ajHandler)
+	{
+		cout << "implementing interfaces for: " << this->GetPath() << endl;
+
 		std::list<const InterfaceDescription*>::iterator it;
 		for(it = interfaces.begin(); it != interfaces.end(); ++it)
 		{
+			cout << "  " << (*it)->GetName() << endl;
 			QStatus err = AddInterface(**it);
 			if(ER_OK != err)
 			{
@@ -1145,16 +1198,18 @@ public:
 
 			for(size_t i = 0; i < num_members; ++i)
 			{
+				cout << "    " << interface_members[i]->name << endl;
+
 				/*if(interface_members[i]->isSessionlessSignal)
 				{*/
-					err = bus->RegisterSignalHandler(
-						ajHandler, static_cast<MessageReceiver::SignalHandler>(&AllJoynHandler::AllJoynSignalHandler), interface_members[i], NULL);
+					//err = bus->RegisterSignalHandler(
+					//	this, static_cast<MessageReceiver::SignalHandler>(&GenericBusObject::AllJoynSignalHandler), interface_members[i], NULL);
 
 				/*}
 				else
 				{*/
 					err = AddMethodHandler(interface_members[i],
-						static_cast<MessageReceiver::MethodHandler>(&AllJoynHandler::AllJoynMethodHandler), ajHandler);
+						static_cast<MessageReceiver::MethodHandler>(&GenericBusObject::AllJoynMethodHandler));
 				//}
 				if(err != ER_OK)
 				{
@@ -1242,18 +1297,21 @@ public:
 	    argsAnnounceData[6].Set("{sv}", tmp.c_str(), &arg);
 	    argsAnnounceData[6].Stabilize();
 
-	    all.Set("a{sv}", 7, argsAnnounceData);
+	    QStatus result = all.Set("a{sv}", 7, argsAnnounceData);
+	    all.Stabilize();
 
-		return ER_OK;
+		return result;
 	}
 
 	QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
 	{
+		cout << "UPDATE CALLED" << endl;
 		return ER_NOT_IMPLEMENTED;
 	}
 
 	QStatus Delete(const char* name, const char* languageTag)
 	{
+		cout << "DELETE CALLED" << endl;
 		return ER_NOT_IMPLEMENTED;
 	}
 };
@@ -1408,18 +1466,18 @@ QStatus XMPPConnector::addRemoteInterface(std::string name, std::list<RemoteBusO
 	for(obj_it = busObjects.begin(); obj_it != busObjects.end(); ++obj_it)
 	{
 		GenericBusObject* new_object = new GenericBusObject(obj_it->objectPath.c_str());
-		err = new_attachment->AddBusObject(new_object);
+		err = new_object->implementInterfaces(obj_it->interfaces);//, ajHandler);
 		if(err != ER_OK)
 		{
-			cout << "Could not register bus object: " << QCC_StatusText(err) << endl;
+			cout << "Could not add interfaces to bus object: " << QCC_StatusText(err) << endl;
 			delete new_attachment;
 			return err;
 		}
 
-		QStatus err = new_object->implementInterfaces(obj_it->interfaces, ajHandler);
+		err = new_attachment->AddBusObject(new_object);
 		if(err != ER_OK)
 		{
-			cout << "Could not add interfaces to bus object: " << QCC_StatusText(err) << endl;
+			cout << "Could not register bus object: " << QCC_StatusText(err) << endl;
 			delete new_attachment;
 			return err;
 		}
@@ -1580,9 +1638,14 @@ void XMPPConnector::relayAnnouncement(BusAttachment* bus, string info)
 	PropertyStore* properties = AboutBusObject::CreatePropertyStoreFromXmppInfo(info);
 	AboutBusObject* about_obj = new AboutBusObject(*gen_bus, properties);
 	about_obj->AddObjectDescriptionsFromXmppInfo(info);
-	gen_bus->AddBusObject(about_obj);
+
+	// Bind the announced session port
+	SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true, SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+	SessionPort sp = 900; // TODO: get real port
+	gen_bus->BindSessionPort(sp, opts, *(AllJoynHandler*)(gen_bus->GetBusListener()));
 
 	about_obj->Register(900); // TODO: get real port
+	gen_bus->AddBusObject(about_obj);
 
 	QStatus err = about_obj->Announce();
 	if(err != ER_OK)
@@ -1629,6 +1692,12 @@ void XMPPConnector::handleIncomingAdvertisement(string info)
 				if(err == ER_OK)
 				{
 					cout << "Created InterfaceDescription " << interface_name << endl;
+
+					if(interface_name == "org.alljoyn.Icon")
+					{
+						cout << interface_name << "\n" << interface_description << endl;
+					}
+
 					const InterfaceDescription* new_interface = m_Bus->GetInterface(interface_name.c_str());
 					if(new_interface)
 					{
@@ -1770,30 +1839,33 @@ void XMPPConnector::handleIncomingJoinRequest(string info)
 	{
 		if(line.empty())
 		{
-			// We've reached the end of an interface description. Put it in new_bus_object.
-			unescapeXml(interface_description);
-			QStatus err = m_Bus->CreateInterfacesFromXml(interface_description.c_str());
-			if(err == ER_OK)
+			if(!interface_description.empty())
 			{
-				const InterfaceDescription* new_interface = m_Bus->GetInterface(interface_name.c_str());
-				if(new_interface)
+				// We've reached the end of an interface description. Put it in new_bus_object.
+				unescapeXml(interface_description);
+				//cout << "interface description:\n" << interface_description << endl;
+				QStatus err = m_Bus->CreateInterfacesFromXml(interface_description.c_str());
+				if(err == ER_OK)
 				{
-					// TODO: problem that we cannot activate the interface?
-					new_bus_object.interfaces.push_back(new_interface);
+					cout << "Created InterfaceDescription " << interface_name << endl;
+					const InterfaceDescription* new_interface = m_Bus->GetInterface(interface_name.c_str());
+					if(new_interface)
+					{
+						// TODO: problem that we cannot activate the interface?
+						new_bus_object.interfaces.push_back(new_interface);
+					}
 				}
+				else
+				{
+					cout << "Failed to create InterfaceDescription " << interface_name << ": " << QCC_StatusText(err) << endl;
+				}
+
+				interface_name.clear();
+				interface_description.clear();
 			}
 			else
 			{
-				cout << "Failed to create InterfaceDescription: " << QCC_StatusText(err) << endl;
-			}
-
-			interface_name.clear();
-			interface_description.clear();
-
-			// If the NEXT line is empty, we've reached the end of a bus object.
-			if(0 == std::getline(info_stream, line)){ return; }
-			if(line.empty())
-			{
+				// We've reached the end of a bus object.
 				bus_objects.push_back(new_bus_object);
 
 				new_bus_object.objectPath.clear();
