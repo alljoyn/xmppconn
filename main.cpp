@@ -59,7 +59,7 @@ int main(int argc, char** argv)
     }
 
     // Create our XMPP connector
-    s_Conn = new XMPPConnector(s_Bus, "XMPP", "pub@aus1.affinegy.com", "pub", "alljoyn@muc.aus1.affinegy.com");
+    s_Conn = new XMPPConnector(s_Bus, "XMPP", "alljoyn@swiftnet.acs.affinegy.com", "alljoyn", "alljoyn@muc.swiftnet.acs.affinegy.com");
     s_Conn->start();
 
     cleanup();
