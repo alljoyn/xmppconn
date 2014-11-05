@@ -321,8 +321,22 @@ public:
 
 		xmpp_send(m_XmppConn, stanza);
 		xmpp_stanza_release(stanza);
+	}
 
-		// TODO: Wait for a reply?
+	void HandleAllJoynGetRequest(const char* ifcName, const char* propName, string destName, string destPath)
+	{
+		// Send the method call via XMPP
+		xmpp_stanza_t* stanza = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+		createXmppGetRequestStanza(ifcName, propName, destName, destPath, stanza);
+
+        char* buf = 0;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(stanza, &buf, &buflen);
+	    cout << "Sending XMPP Get request message:\n" << buf << endl;
+	    free(buf);
+
+		xmpp_send(m_XmppConn, stanza);
+		xmpp_stanza_release(stanza);
 	}
 
 	/*void AllJoynMethodHandler(const InterfaceDescription::Member* member, Message& message)
@@ -378,7 +392,7 @@ public:
         char* buf = 0;
         size_t buflen = 0;
         xmpp_stanza_to_text(message, &buf, &buflen);
-	    cout << "Sending XMPP Announce message" << endl;//:\n" << buf << endl;
+	    cout << "Sending XMPP Announce message:\n" << buf << endl;
 	    free(buf);
 
 		xmpp_send(m_XmppConn, message);
@@ -386,7 +400,7 @@ public:
 	}
 
 private:
-	static std::vector<MsgArg> MsgArg_ParseArray(qcc::String content, std::vector<bool>* variants = NULL)
+	static std::vector<MsgArg> MsgArg_ParseArray(qcc::String content)
 	{
 		std::vector<MsgArg> array;
 
@@ -409,12 +423,7 @@ private:
 			}
 
 			qcc::String element = content.substr(0, closeTagPos+closeTag.length());
-			bool isVariant = false;
-			array.push_back(MsgArg_FromString(element, &isVariant));
-			if(variants)
-			{
-				variants->push_back(isVariant);
-			}
+			array.push_back(MsgArg_FromString(element));
 
 			content = content.substr(closeTagPos+closeTag.length());
 		}
@@ -424,10 +433,9 @@ private:
 
 public:
 	// could be part of MsgArg
-	static MsgArg MsgArg_FromString(qcc::String argXml, bool* isVariant = NULL)
+	static MsgArg MsgArg_FromString(qcc::String argXml)
 	{
 		MsgArg result;
-		bool variant = false;
 
 		QStatus status = ER_OK;
 		size_t pos = argXml.find_first_of('>')+1;
@@ -435,10 +443,8 @@ public:
 		qcc::String content = argXml.substr(pos, argXml.find_last_of('<')-pos);
 
 		if(0 == typeTag.find("<array type_sig=")) {
-			std::vector<bool> variants;
-			std::vector<MsgArg> array = MsgArg_ParseArray(content, &variants);
-			qcc::String sig = (variants.empty() || !variants[0]) ? "a*" : "av";
-			status = result.Set(sig.c_str(), array.size(), &array[0]);
+			std::vector<MsgArg> array = MsgArg_ParseArray(content);
+			status = result.Set("a*", array.size(), &array[0]);
 			result.Stabilize();
 		}
 		else if(typeTag == "<boolean>") {
@@ -448,18 +454,14 @@ public:
 			status = result.Set("d", StringToU64(content, 16));
 		}
 		else if(typeTag == "<dict_entry>") {
-			std::vector<bool> variants;
-			std::vector<MsgArg> array = MsgArg_ParseArray(content, &variants);
+			std::vector<MsgArg> array = MsgArg_ParseArray(content);
 			if(array.size() != 2)
 			{
 				status = ER_BUS_BAD_VALUE;
 			}
 			else
 			{
-				qcc::String sig1 = variants[0] ? "v" : "*";
-				qcc::String sig2 = variants[1] ? "v" : "*";
-				qcc::String sig = "{"+sig1+sig2+"}";
-				status = result.Set(sig.c_str(), &array[0], &array[1]);
+				status = result.Set("{**}", &array[0], &array[1]);
 				result.Stabilize();
 			}
 		}
@@ -496,8 +498,9 @@ public:
 			status = result.Set("u", StringToU32(content));
 		}
 		else if(0 == typeTag.find("<variant signature=")) {
-			result = MsgArg_FromString(content);
-			variant = true;
+			MsgArg varArg = MsgArg_FromString(content);
+			result.Set("v", &varArg);
+			result.Stabilize();
 		}
 		else if(typeTag == "<int64>") {
 			status = result.Set("x", StringToI64(content));
@@ -645,10 +648,6 @@ public:
 			result.Stabilize();
 		}
 
-		if(status == ER_OK && isVariant)
-		{
-			*isVariant = variant;
-		}
 		return result;
 	}
 
@@ -696,7 +695,7 @@ private:
 		bus->EnableConcurrentCallbacks();
 
 		pthread_mutex_lock(&m_SessionJoinedMutex); // TODO: different mutex
-		cout << "Introspect callback on " << proxy->GetServiceName().c_str() << endl;
+		//cout << "Introspect callback on " << proxy->GetServiceName().c_str() << endl;
 		std::list<XMPPConnector::RemoteBusObject> busObjects;
 
 		//cout << proxy->GetServiceName() << endl;
@@ -810,7 +809,7 @@ private:
 		std::list<XMPPConnector::RemoteBusObject>::const_iterator it;
 		for(it = BusObjects.begin(); it != BusObjects.end(); ++it)
 		{
-			cout << "." << std::flush;
+			//cout << "." << std::flush;
 			msg_stream << it->objectPath << "\n";
 			std::list<const InterfaceDescription*>::const_iterator if_it;
 			for(if_it = it->interfaces.begin(); if_it != it->interfaces.end(); ++if_it)
@@ -824,7 +823,7 @@ private:
 
 			msg_stream << "\n";
 		}
-		cout << endl;
+		//cout << endl;
 
 		// Now wrap it in an XMPP stanza
 		xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(m_XmppConn);
@@ -1100,6 +1099,42 @@ private:
 		xmpp_stanza_release(body);
 	}
 
+	void createXmppGetRequestStanza(const char* ifcName, const char* propName, string destName, string destPath, xmpp_stanza_t* stanza)
+	{
+		/*string wellKnownName = m_Connector->FindWellKnownName(message->GetRcvEndpointName());
+		if(wellKnownName.empty())
+		{
+			cout << "Received signal for unknown endpoint." << endl;
+			return;
+		}*/
+
+		// Construct the text that will be the body of our message
+		std::stringstream msg_stream;
+		msg_stream << ALLJOYN_CODE_GET_PROPERTY << "\n";
+		//msg_stream << sender << "\n"; // TODO: need sender?
+		msg_stream << destName << "\n";
+		msg_stream << destPath << "\n";
+		msg_stream << ifcName << "\n";
+		msg_stream << propName << "\n";
+		//msg_stream << sid << "\n"; // TODO: need session id?
+
+		// Now wrap it in an XMPP stanza
+		xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(m_XmppConn);
+
+		xmpp_stanza_set_name(stanza, "message");
+		xmpp_stanza_set_attribute(stanza, "to", m_Connector->getChatroomJabberId().c_str());
+		xmpp_stanza_set_type(stanza, "groupchat");
+
+		xmpp_stanza_t* body = xmpp_stanza_new(xmppCtx);
+		xmpp_stanza_set_name(body, "body");
+		xmpp_stanza_t* text = xmpp_stanza_new(xmppCtx);
+		xmpp_stanza_set_text(text, msg_stream.str().c_str());
+		xmpp_stanza_add_child(body, text);
+		xmpp_stanza_release(text);
+		xmpp_stanza_add_child(stanza, body);
+		xmpp_stanza_release(body);
+	}
+
 	XMPPConnector* m_Connector;
 	xmpp_conn_t* m_XmppConn;
 	GenericBusAttachment* m_AssociatedBus;
@@ -1158,8 +1193,8 @@ public:
 			}
 		}
 
-		cout << "Received reply? " << m_ReplyReceived << endl;
-		cout << m_ReplyStr << endl;
+		//cout << "Received reply? " << m_ReplyReceived << endl;
+		//cout << m_ReplyStr << endl;
 
 		string replyStr = m_ReplyStr;
 
@@ -1207,14 +1242,14 @@ public:
 		cout << ((GenericBusAttachment*)bus)->GetAdvertisedName() << GetPath() << " registered" << endl;
 	}
 
-	QStatus implementInterfaces(std::list<const InterfaceDescription*> interfaces)//, AllJoynHandler* ajHandler)
+	QStatus implementInterfaces(std::list<const InterfaceDescription*> interfaces, BusAttachment* busAttachment)
 	{
-		cout << "implementing interfaces for: " << this->GetPath() << endl;
+		//cout << "implementing interfaces for: " << this->GetPath() << endl;
 
 		std::list<const InterfaceDescription*>::iterator it;
 		for(it = interfaces.begin(); it != interfaces.end(); ++it)
 		{
-			cout << "  " << (*it)->GetName() << endl;
+			//cout << "  " << (*it)->GetName() << endl;
 			QStatus err = AddInterface(**it);
 			if(ER_OK != err)
 			{
@@ -1229,19 +1264,18 @@ public:
 
 			for(size_t i = 0; i < num_members; ++i)
 			{
-				cout << "    " << interface_members[i]->name << endl;
+				//cout << "    " << interface_members[i]->name << endl;
 
-				/*if(interface_members[i]->isSessionlessSignal)
-				{*/
-					//err = bus->RegisterSignalHandler(
-					//	this, static_cast<MessageReceiver::SignalHandler>(&GenericBusObject::AllJoynSignalHandler), interface_members[i], NULL);
-
-				/*}
+				if(interface_members[i]->memberType == MESSAGE_SIGNAL)
+				{
+					err = busAttachment->RegisterSignalHandler(
+						this, static_cast<MessageReceiver::SignalHandler>(&GenericBusObject::AllJoynSignalHandler), interface_members[i], NULL); // TODO: not registered w/ bus yet...
+				}
 				else
-				{*/
+				{
 					err = AddMethodHandler(interface_members[i],
 						static_cast<MessageReceiver::MethodHandler>(&GenericBusObject::AllJoynMethodHandler));
-				//}
+				}
 				if(err != ER_OK)
 				{
 					cout << "Failed to add method handler for " << interface_members[i]->name.c_str() << ": ";
@@ -1257,8 +1291,55 @@ public:
 
 	QStatus Get(const char* ifcName, const char* propName, MsgArg& val)
 	{
-		cout << "\n\nGET REQUEST!!\n\n" << endl;
-		return ER_BUS_NO_SUCH_PROPERTY;
+		cout << "Received alljoyn get request for " << ifcName << ":" << propName << endl;
+
+		if(!bus)
+		{
+			return ER_BUS_NO_SUCH_PROPERTY;
+		}
+
+		pthread_mutex_lock(&m_ReplyReceivedMutex);
+		m_ReplyReceived = false;
+		m_ReplyStr = "";
+
+		((AllJoynHandler*)((GenericBusAttachment*)bus)->GetBusListener())->HandleAllJoynGetRequest(
+			ifcName, propName, ((GenericBusAttachment*)bus)->GetAppName(), this->GetPath());
+
+		// Wait for the XMPP response signal
+		struct timespec wait_time;
+		wait_time.tv_sec = time(NULL)+10; wait_time.tv_nsec = 0;
+		while(!m_ReplyReceived)
+		{
+			if(ETIMEDOUT == pthread_cond_timedwait(&m_ReplyReceivedWaitCond, &m_ReplyReceivedMutex, &wait_time))
+			{
+				break;
+			}
+		}
+
+		//cout << "Received reply? " << m_ReplyReceived << endl;
+		//cout << m_ReplyStr << endl;
+
+		bool replyReceived = m_ReplyReceived;
+		string replyStr = m_ReplyStr;
+
+		pthread_mutex_unlock(&m_ReplyReceivedMutex);
+
+		if(replyReceived)
+		{
+			MsgArg why(AllJoynHandler::MsgArg_FromString(replyStr.c_str()));
+			if(why.Signature() == "v") {
+				val = *why.v_variant.val; // TODO: why do I have to do this?
+			} else {
+				val = why;
+			}
+			val.Stabilize();
+			cout << "GET RESPONSE:\n" << val.ToString() << endl;
+			return ER_OK;
+		}
+		else
+		{
+			return ER_BUS_NO_SUCH_PROPERTY;
+		}
 	}
 
     QStatus Set(const char* ifcName, const char* propName, MsgArg& val)
@@ -1266,6 +1347,11 @@ public:
 		cout << "\n\nSET REQUEST!!\n\n" << endl;
     	return ER_BUS_NO_SUCH_PROPERTY;
     }
+
+    /*void GetAllProps(const InterfaceDescription::Member* member, Message& msg)
+    {
+    	cout << "\n\nGET ALL PROPERTIES!!!\n\n" << endl;
+    }*/
 
     void SignalReplyReceived(string replyStr)
     {
@@ -1293,7 +1379,7 @@ public:
 
 	QStatus ReadAll(const char* languageTag, Filter filter, ajn::MsgArg& all)
 	{
-		cout << "ReadAll called" << endl;
+		cout << "ReadAll called: " << filter << endl;
 
 		// hard-coding required announce properties for now...
 	    MsgArg argsAnnounceData[7];
@@ -1315,6 +1401,7 @@ public:
 	    tmp = "en";
 	    arg.Set("s", tmp.c_str());
 	    arg.Stabilize();
+	    tmp = "DefaultLanguage";
 	    argsAnnounceData[2].Set("{sv}", tmp.c_str(), &arg);
 	    argsAnnounceData[2].Stabilize();
 
@@ -1335,6 +1422,7 @@ public:
 	    tmp = "Powertech";
 	    arg.Set("s", tmp.c_str());
 	    arg.Stabilize();
+	    tmp = "Manufacturer";
 	    argsAnnounceData[5].Set("{sv}", tmp.c_str(), &arg);
 	    argsAnnounceData[5].Stabilize();
 
@@ -1457,6 +1545,7 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
 
 	// Well-known ports that we need to bind (temporary)
 	m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
+	m_SessionPorts.push_back(1000);
 }
 
 XMPPConnector::~XMPPConnector()
@@ -1514,7 +1603,7 @@ QStatus XMPPConnector::addRemoteInterface(std::string name, std::list<RemoteBusO
 	for(obj_it = busObjects.begin(); obj_it != busObjects.end(); ++obj_it)
 	{
 		GenericBusObject* new_object = new GenericBusObject(obj_it->objectPath.c_str());
-		err = new_object->implementInterfaces(obj_it->interfaces);//, ajHandler);
+		err = new_object->implementInterfaces(obj_it->interfaces, new_attachment);
 		if(err != ER_OK)
 		{
 			cout << "Could not add interfaces to bus object: " << QCC_StatusText(err) << endl;
@@ -1739,12 +1828,7 @@ void XMPPConnector::handleIncomingAdvertisement(string info)
 				QStatus err = m_Bus->CreateInterfacesFromXml(interface_description.c_str());
 				if(err == ER_OK)
 				{
-					cout << "Created InterfaceDescription " << interface_name << endl;
-
-					if(interface_name == "org.alljoyn.Icon")
-					{
-						cout << interface_name << "\n" << interface_description << endl;
-					}
+					//cout << "Created InterfaceDescription " << interface_name << endl;
 
 					const InterfaceDescription* new_interface = m_Bus->GetInterface(interface_name.c_str());
 					if(new_interface)
@@ -1816,7 +1900,7 @@ void XMPPConnector::handleIncomingMethodCall(string info)
 	std::istringstream info_stream(info);
 	string line, appName, destName, destPath, ifaceName, memberName, remoteSessionId;
 
-	// First line is the type (signal)
+	// First line is the type (method call)
 	if(0 == std::getline(info_stream, line)){ return; }
 	if(line != ALLJOYN_CODE_METHOD_CALL){ return; }
 
@@ -1913,7 +1997,7 @@ void XMPPConnector::handleIncomingMethodCall(string info)
     char* buf = 0;
     size_t buflen = 0;
     xmpp_stanza_to_text(message, &buf, &buflen);
-    cout << "Sending XMPP message:\n" << buf << endl;
+    cout << "Sending XMPP method call message:\n" << buf << endl;
     free(buf);
 
     // Send it back
@@ -1929,7 +2013,7 @@ void XMPPConnector::handleIncomingMethodReply(string info)
 	std::istringstream info_stream(info);
 	string line, appName, objPath;
 
-	// First line is the type (signal)
+	// First line is the type (method reply)
 	if(0 == std::getline(info_stream, line)){ return; }
 	if(line != ALLJOYN_CODE_METHOD_REPLY){ return; }
 
@@ -2054,7 +2138,7 @@ void XMPPConnector::handleIncomingJoinRequest(string info)
 				QStatus err = m_Bus->CreateInterfacesFromXml(interface_description.c_str());
 				if(err == ER_OK)
 				{
-					cout << "Created InterfaceDescription " << interface_name << endl;
+					//cout << "Created InterfaceDescription " << interface_name << endl;
 					const InterfaceDescription* new_interface = m_Bus->GetInterface(interface_name.c_str());
 					if(new_interface)
 					{
@@ -2139,7 +2223,7 @@ void XMPPConnector::handleIncomingJoinRequest(string info)
     char* buf = 0;
     size_t buflen = 0;
     xmpp_stanza_to_text(message, &buf, &buflen);
-    cout << "Sending XMPP message:\n" << buf << endl;
+    cout << "Sending XMPP join response message" << endl;//:\n" << buf << endl;
     free(buf);
 
     // Send it back
@@ -2239,6 +2323,133 @@ void XMPPConnector::handleIncomingAnnounce(string info) // TODO: in real thing, 
 	m_UnsentAnnouncements[busName] = info;
 }
 
+void XMPPConnector::handleIncomingGetRequest(string info)
+{
+	cout << "INCOMING GET REQUEST:\n" << info << endl;
+
+	/*std::stringstream msg_stream;
+	msg_stream << ALLJOYN_CODE_GET_PROPERTY << "\n";
+	//msg_stream << sender << "\n"; // TODO: need sender?
+	msg_stream << destName << "\n";
+	msg_stream << destPath << "\n";
+	msg_stream << ifcName << "\n";
+	msg_stream << propName << "\n";
+	//msg_stream << sid << "\n"; // TODO: need session id?
+	 */
+
+	// Parse the required information
+	std::istringstream info_stream(info);
+	string line, destName, destPath, ifcName, propName;
+
+	// First line is the type (get request)
+	if(0 == std::getline(info_stream, line)){ return; }
+	if(line != ALLJOYN_CODE_GET_PROPERTY){ return; }
+
+	if(0 == std::getline(info_stream, destName)){ return; }
+	if(0 == std::getline(info_stream, destPath)){ return; }
+	if(0 == std::getline(info_stream, ifcName)){ return; }
+	if(0 == std::getline(info_stream, propName)){ return; }
+
+	// Call the method
+	ProxyBusObject proxy(*m_Bus, destName.c_str(), destPath.c_str(), 0);
+	QStatus err = proxy.IntrospectRemoteObject();
+	if(err != ER_OK)
+	{
+		cout << "Failed to introspect remote object to relay get request: " << QCC_StatusText(err) << endl;
+		return;
+	}
+
+	MsgArg value;
+	err = proxy.GetProperty(ifcName.c_str(), propName.c_str(), value, 5000);
+	if(err != ER_OK)
+	{
+		cout << "Failed to relay method call: " << QCC_StatusText(err) << endl;
+		return; // TODO: send the actual response status back
+	}
+
+	// Return the reply
+	std::stringstream msg_stream;
+	msg_stream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
+	msg_stream << destName << "\n";
+	msg_stream << destPath << "\n";
+	msg_stream << value.ToString() << "\n";
+
+	// Now wrap it in an XMPP stanza
+	xmpp_stanza_t* message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+
+	xmpp_stanza_set_name(message, "message");
+	xmpp_stanza_set_attribute(message, "to", m_ChatroomJabberId.c_str());
+	xmpp_stanza_set_type(message, "groupchat");
+
+	xmpp_stanza_t* body = xmpp_stanza_new(m_XmppCtx);
+	xmpp_stanza_set_name(body, "body");
+	xmpp_stanza_t* text = xmpp_stanza_new(m_XmppCtx);
+	xmpp_stanza_set_text(text, msg_stream.str().c_str());
+	xmpp_stanza_add_child(body, text);
+	xmpp_stanza_release(text);
+	xmpp_stanza_add_child(message, body);
+	xmpp_stanza_release(body);
+
+    char* buf = 0;
+    size_t buflen = 0;
+    xmpp_stanza_to_text(message, &buf, &buflen);
+    cout << "Sending XMPP get reply message:\n" << buf << endl;
+    free(buf);
+
+    // Send it back
+	xmpp_send(m_XmppConn, message);
+	xmpp_stanza_release(message);
+}
+
+void XMPPConnector::handleIncomingGetReply(string info)
+{
+	cout << "INCOMING GET REPLY:\n" << info << endl;
+
+	// Parse the required information
+	std::istringstream info_stream(info);
+	string line, appName, objPath;
+
+	// First line is the type (get reply)
+	if(0 == std::getline(info_stream, line)){ return; }
+	if(line != ALLJOYN_CODE_GET_PROP_REPLY){ return; }
+
+	if(0 == std::getline(info_stream, appName)){ return; }
+	if(0 == std::getline(info_stream, objPath)){ return; }
+
+	// The rest is the property value
+	string messageArgString = "";
+	while(0 != std::getline(info_stream, line))
+	{
+		messageArgString += line + "\n";
+	}
+
+	// Find the bus attachment with this busName
+	GenericBusAttachment* found_bus = 0;
+
+	std::list<BusAttachment*>::iterator it;
+	for(it = m_BusAttachments.begin(); it != m_BusAttachments.end(); ++it)
+	{
+		GenericBusAttachment* gen_bus = (GenericBusAttachment*)(*it);
+		cout << gen_bus->GetAppName() << endl;
+		if(gen_bus->GetAppName() == appName)
+		{
+			found_bus = gen_bus;
+			break;
+		}
+	}
+
+	if(!found_bus)
+	{
+		cout << "No bus attachment to handle incoming get reply." << endl;
+		return;
+	}
+
+	// Tell the attachment we received a message reply
+	unescapeXml(messageArgString);
+	GenericBusObject* genObj = (GenericBusObject*)found_bus->GetBusObject(objPath);
+	genObj->SignalReplyReceived(messageArgString);
+}
+
 int XMPPConnector::xmppStanzaHandler(
 	xmpp_conn_t* const conn,
 	xmpp_stanza_t* const stanza,
@@ -2318,6 +2529,14 @@ int XMPPConnector::xmppStanzaHandler(
 			{
 				xmppConnector->handleIncomingAnnounce(buf_str);
 			}
+			else if(type_code == ALLJOYN_CODE_GET_PROPERTY)
+			{
+				xmppConnector->handleIncomingGetRequest(buf_str);
+			}
+			else if(type_code == ALLJOYN_CODE_GET_PROP_REPLY)
+			{
+				xmppConnector->handleIncomingGetReply(buf_str);
+			}
 		}
 		else
 		{
@@ -2353,7 +2572,7 @@ void XMPPConnector::xmppConnectionHandler(
         char* buf = 0;
         size_t buflen = 0;
         xmpp_stanza_to_text(message, &buf, &buflen);
-        cout << "Sending XMPP message:\n" << buf << endl;
+        cout << "Sending XMPP presence message" << endl;//:\n" << buf << endl;
         free(buf);
 
         xmpp_send(conn, message);
@@ -2382,5 +2601,5 @@ void XMPPConnector::xmppConnectionHandler(
 	}
 
 	// TODO: send connection status to Gateway Management app
-	cout << "CONNECTION HANDLER" << endl;
+	//cout << "CONNECTION HANDLER" << endl;
 }
