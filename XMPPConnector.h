@@ -68,6 +68,8 @@ private:
     void handleIncomingAnnounce(std::string info);
     void handleIncomingGetRequest(std::string info);
     void handleIncomingGetReply(std::string info);
+    void handleIncomingGetAll(std::string info);
+    void handleIncomingGetAllReply(std::string info);
     void handleIncomingAlarm(std::string info);
 
     static int  xmppStanzaHandler(xmpp_conn_t* const conn, xmpp_stanza_t* const stanza, void* const userdata);

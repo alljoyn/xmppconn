@@ -66,7 +66,9 @@ using std::istream_iterator;
 #define ALLJOYN_CODE_GET_PROP_REPLY "GET_PROP_REPLY"
 #define ALLJOYN_CODE_SET_PROPERTY   "SET_PROPERTY"
 #define ALLJOYN_CODE_SET_PROP_REPLY "SET_PROP_REPLY"
-#define TR069_ALARM_MESSAGE         "** Alert **"
+#define ALLJOYN_CODE_GET_ALL        "GET_ALL"
+#define ALLJOYN_CODE_GET_ALL_REPLY  "GET_ALL_REPLY"
+#define TR069_ALARM_MESSAGE         "** Alarm **"
 
 static inline void stringReplaceAll(string& str, string from, string to)
 {
@@ -183,17 +185,6 @@ private:
 
     std::map<SessionId, SessionId> m_SessionIdMap;
 };
-
-static void doNothingConnHandler(
-        xmpp_conn_t* const conn,
-        const xmpp_conn_event_t event,
-        const int error,
-        xmpp_stream_error_t* const streamError,
-        void* const userdata
-        )
-{
-
-}
 
 // TODO: probably need an ajhandler per busattachment instead of one for all
 class AllJoynHandler : public BusListener, /*public MessageReceiver,*/ public SessionPortListener, public ProxyBusObject::Listener, public AnnounceHandler
@@ -388,6 +379,22 @@ public:
         xmpp_stanza_release(stanza);
     }
 
+    void HandleAllJoynGetAllRequest(const InterfaceDescription::Member* member, string destName, string destPath)
+    {
+        // Send the method call via XMPP
+        xmpp_stanza_t* stanza = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+        createXmppGetAllRequestStanza(member, destName, destPath, stanza);
+
+        char* buf = 0;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(stanza, &buf, &buflen);
+        cout << "Sending XMPP Get All request message" << endl;//:\n" << buf << endl;
+        free(buf);
+
+        xmpp_send(m_XmppConn, stanza);
+        xmpp_stanza_release(stanza);
+    }
+
     /*void AllJoynMethodHandler(const InterfaceDescription::Member* member, Message& message)
     {
         size_t num_args = 0;
@@ -472,6 +479,7 @@ private:
         content = Trim(content);
         while(!content.empty())
         {
+            //cout << "\n\n" << content << "\n\n" << endl;
             size_t typeBeginPos = content.find_first_of('<')+1;
             size_t typeEndPos = content.find_first_of(" >", typeBeginPos);
             qcc::String elemType = content.substr(typeBeginPos, typeEndPos-typeBeginPos);
@@ -480,13 +488,15 @@ private:
             // Find the closing tag for this element
             size_t closeTagPos = content.find(closeTag);
             size_t nestedTypeEndPos = typeEndPos;
+            //cout << content.find(elemType, nestedTypeEndPos) << endl;
             while(closeTagPos > content.find(elemType, nestedTypeEndPos))
             {
-                closeTagPos = content.find(closeTag, closeTagPos+closeTag.length());
                 nestedTypeEndPos = closeTagPos+2+elemType.length();
+                closeTagPos = content.find(closeTag, closeTagPos+closeTag.length());
             }
 
             qcc::String element = content.substr(0, closeTagPos+closeTag.length());
+            //cout << "\n\n" << element << "\n\n" << endl;
             array.push_back(MsgArg_FromString(element));
 
             content = content.substr(closeTagPos+closeTag.length());
@@ -1222,6 +1232,34 @@ private:
         xmpp_stanza_release(body);
     }
 
+    void createXmppGetAllRequestStanza(const InterfaceDescription::Member* member, string destName, string destPath, xmpp_stanza_t* stanza)
+    {
+        // Construct the text that will be the body of our message
+        std::stringstream msg_stream;
+        msg_stream << ALLJOYN_CODE_GET_ALL << "\n";
+        //msg_stream << sender << "\n"; // TODO: need sender?
+        msg_stream << destName << "\n";
+        msg_stream << destPath << "\n";
+        msg_stream << member->iface->GetName() << "\n";
+        msg_stream << member->name << "\n";
+
+        // Now wrap it in an XMPP stanza
+        xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(m_XmppConn);
+
+        xmpp_stanza_set_name(stanza, "message");
+        xmpp_stanza_set_attribute(stanza, "to", m_Connector->getChatroomJabberId().c_str());
+        xmpp_stanza_set_type(stanza, "groupchat");
+
+        xmpp_stanza_t* body = xmpp_stanza_new(xmppCtx);
+        xmpp_stanza_set_name(body, "body");
+        xmpp_stanza_t* text = xmpp_stanza_new(xmppCtx);
+        xmpp_stanza_set_text(text, msg_stream.str().c_str());
+        xmpp_stanza_add_child(body, text);
+        xmpp_stanza_release(text);
+        xmpp_stanza_add_child(stanza, body);
+        xmpp_stanza_release(body);
+    }
+
     XMPPConnector* m_Connector;
     xmpp_conn_t* m_XmppConn;
     GenericBusAttachment* m_AssociatedBus;
@@ -1430,10 +1468,53 @@ public:
         }
     }
 
-    /*void GetAllProps(const InterfaceDescription::Member* member, Message& msg)
+    void GetAllProps(const InterfaceDescription::Member* member, Message& msg)
     {
+        cout << "Received alljoyn GetAllProps request for " << member->iface->GetName() << ":" << member->name << endl;
 
-    }*/
+        if(!bus)
+        {
+            return;
+        }
+
+        pthread_mutex_lock(&m_ReplyReceivedMutex);
+        m_ReplyReceived = false;
+        m_ReplyStr = "";
+
+        ((AllJoynHandler*)((GenericBusAttachment*)bus)->GetBusListener())->HandleAllJoynGetAllRequest(
+            member, ((GenericBusAttachment*)bus)->GetAppName(), this->GetPath());
+
+        // Wait for the XMPP response signal
+        struct timespec wait_time;
+        wait_time.tv_sec = time(NULL)+10; wait_time.tv_nsec = 0;
+        while(!m_ReplyReceived)
+        {
+            if(ETIMEDOUT == pthread_cond_timedwait(&m_ReplyReceivedWaitCond, &m_ReplyReceivedMutex, &wait_time))
+            {
+                break;
+            }
+        }
+
+        //cout << "Received reply? " << m_ReplyReceived << endl;
+        //cout << m_ReplyStr << endl;
+
+        bool replyReceived = m_ReplyReceived;
+        string replyStr = m_ReplyStr;
+
+        pthread_mutex_unlock(&m_ReplyReceivedMutex);
+
+        if(replyReceived)
+        {
+            MsgArg result = AllJoynHandler::MsgArg_FromString(replyStr.c_str());
+            cout << "\nGETALLPROPS POST-PARSE:\n" << result.ToString() << endl;
+
+            QStatus err = MethodReply(msg, &result, 1);
+            if(err != ER_OK)
+            {
+                cout << "Failed to send method reply to GetAllProps request: " << QCC_StatusText(err) << endl;
+            }
+        }
+    }
 
     QStatus Set(const char* ifcName, const char* propName, MsgArg& val)
     {
@@ -1697,13 +1778,13 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
     m_BusListener = new AllJoynHandler(this, m_XmppConn);
     m_Bus->RegisterBusListener(*m_BusListener);
     // TODO:
-    m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
+    /*m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
     m_NotifService = NotificationService::getInstance();
-    m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
+    m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);*/
 
     // Well-known ports that we need to bind (temporary)
     m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
-    m_SessionPorts.push_back(1000);
+    m_SessionPorts.push_back(1000); // ControlPanel
 }
 
 XMPPConnector::~XMPPConnector()
@@ -2689,6 +2770,121 @@ void XMPPConnector::handleIncomingGetReply(string info)
     genObj->SignalReplyReceived(messageArgString);
 }
 
+void XMPPConnector::handleIncomingGetAll(string info)
+{
+    // Parse the required information
+    std::istringstream info_stream(info);
+    string line, destName, destPath, ifcName, memberName;
+
+    // First line is the type (get request)
+    if(0 == std::getline(info_stream, line)){ return; }
+    if(line != ALLJOYN_CODE_GET_ALL){ return; }
+
+    if(0 == std::getline(info_stream, destName)){ return; }
+    if(0 == std::getline(info_stream, destPath)){ return; }
+    if(0 == std::getline(info_stream, ifcName)){ return; }
+    if(0 == std::getline(info_stream, memberName)){ return; }
+
+    // Call the method
+    ProxyBusObject proxy(*m_Bus, destName.c_str(), destPath.c_str(), 0);
+    QStatus err = proxy.IntrospectRemoteObject();
+    if(err != ER_OK)
+    {
+        cout << "Failed to introspect remote object to relay get request: " << QCC_StatusText(err) << endl;
+        return;
+    }
+
+    MsgArg values;
+    cout << "Getting all properties..." << endl;
+    err = proxy.GetAllProperties(ifcName.c_str(), values, 5000);
+    if(err != ER_OK)
+    {
+        cout << "Failed to get all properties: " << QCC_StatusText(err) << endl;
+        return; // TODO: send the actual response status back
+    }
+    cout << values.ToString() << endl;
+
+    // Return the reply
+    std::stringstream msg_stream;
+    msg_stream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
+    msg_stream << destName << "\n";
+    msg_stream << destPath << "\n";
+    msg_stream << values.ToString() << "\n";
+
+    // Now wrap it in an XMPP stanza
+    xmpp_stanza_t* message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+
+    xmpp_stanza_set_name(message, "message");
+    xmpp_stanza_set_attribute(message, "to", m_ChatroomJabberId.c_str());
+    xmpp_stanza_set_type(message, "groupchat");
+
+    xmpp_stanza_t* body = xmpp_stanza_new(m_XmppCtx);
+    xmpp_stanza_set_name(body, "body");
+    xmpp_stanza_t* text = xmpp_stanza_new(m_XmppCtx);
+    xmpp_stanza_set_text(text, msg_stream.str().c_str());
+    xmpp_stanza_add_child(body, text);
+    xmpp_stanza_release(text);
+    xmpp_stanza_add_child(message, body);
+    xmpp_stanza_release(body);
+
+    char* buf = 0;
+    size_t buflen = 0;
+    xmpp_stanza_to_text(message, &buf, &buflen);
+    cout << "Sending XMPP get reply message" << endl;//:\n" << buf << endl;
+    free(buf);
+
+    // Send it back
+    xmpp_send(m_XmppConn, message);
+    xmpp_stanza_release(message);
+}
+
+void XMPPConnector::handleIncomingGetAllReply(string info)
+{
+    // Parse the required information
+    std::istringstream info_stream(info);
+    string line, appName, objPath;
+
+    // First line is the type (get reply)
+    if(0 == std::getline(info_stream, line)){ return; }
+    if(line != ALLJOYN_CODE_GET_ALL_REPLY){ return; }
+
+    if(0 == std::getline(info_stream, appName)){ return; }
+    if(0 == std::getline(info_stream, objPath)){ return; }
+
+    // The rest is the property value
+    string messageArgString = "";
+    while(0 != std::getline(info_stream, line))
+    {
+        messageArgString += line + "\n";
+    }
+
+    // Find the bus attachment with this busName
+    GenericBusAttachment* found_bus = 0;
+
+    std::list<BusAttachment*>::iterator it;
+    for(it = m_BusAttachments.begin(); it != m_BusAttachments.end(); ++it)
+    {
+        GenericBusAttachment* gen_bus = (GenericBusAttachment*)(*it);
+        cout << gen_bus->GetAppName() << endl;
+        if(gen_bus->GetAppName() == appName)
+        {
+            found_bus = gen_bus;
+            break;
+        }
+    }
+
+    if(!found_bus)
+    {
+        cout << "No bus attachment to handle incoming get reply." << endl;
+        return;
+    }
+
+    // Tell the attachment we received a message reply
+    unescapeXml(messageArgString);
+    GenericBusObject* genObj = (GenericBusObject*)found_bus->GetBusObject(objPath);
+    genObj->SignalReplyReceived(messageArgString);
+}
+
 void XMPPConnector::handleIncomingAlarm(
     string info 
     )
@@ -2832,6 +3028,14 @@ int XMPPConnector::xmppStanzaHandler(
             else if(type_code == ALLJOYN_CODE_GET_PROP_REPLY)
             {
                 xmppConnector->handleIncomingGetReply(buf_str);
+            }
+            else if(type_code == ALLJOYN_CODE_GET_ALL)
+            {
+                xmppConnector->handleIncomingGetAll(buf_str);
+            }
+            else if(type_code == ALLJOYN_CODE_GET_ALL_REPLY)
+            {
+                xmppConnector->handleIncomingGetAllReply(buf_str);
             }
         }
         else
