@@ -17,6 +17,8 @@
 #include <list>
 #include <map>
 
+#include <alljoyn/about/AboutPropertyStoreImpl.h>
+
 // TODO: P5 make naming and capitalization consistent
 
 namespace ajn {
