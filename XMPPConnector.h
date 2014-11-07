@@ -4,9 +4,11 @@
 #ifndef XMPPCONNECTOR_H_
 #define XMPPCONNECTOR_H_
 
+#ifndef NO_AJ_GATEWAY
+#include <alljoyn/gateway/GatewayConnector.h>
+#endif // !NO_AJ_GATEWAY
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
-#include <alljoyn/gateway/GatewayConnector.h>
 #include <alljoyn/notification/Notification.h>
 #include <alljoyn/notification/NotificationService.h>
 #include <alljoyn/notification/NotificationSender.h>
@@ -20,7 +22,11 @@
 namespace ajn {
 namespace gw {
 
+#ifdef NO_AJ_GATEWAY
+class XMPPConnector
+#else
 class XMPPConnector : public GatewayConnector
+#endif // NO_AJ_GATEWAY
 {
 public:
     struct RemoteBusObject
@@ -53,7 +59,9 @@ public:
 protected:
     virtual void mergedAclUpdated();
     virtual void shutdown();
+#ifndef NO_AJ_GATEWAY
     virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
+#endif // !NO_AJ_GATEWAY
 
 private:
     void relayAnnouncement(BusAttachment* bus, std::string info);

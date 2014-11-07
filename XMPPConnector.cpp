@@ -1765,7 +1765,9 @@ private:
 };
 
 XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId, string password, string chatroomJabberId) :
+#ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
+#endif // !NO_AJ_GATEWAY
     m_Bus(bus), m_BusAttachments(), m_UnsentAnnouncements(),
     m_JabberId(jabberId), m_Password(password), m_ChatroomJabberId(chatroomJabberId),
     m_AboutPropertyStore(NULL), m_NotifService(NULL), m_NotifSender(NULL)
@@ -2001,10 +2003,12 @@ void XMPPConnector::shutdown()
     // TODO
 }
 
+#ifndef NO_AJ_GATEWAY
 void XMPPConnector::receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response)
 {
     // TODO
 }
+#endif // !NO_AJ_GATEWAY
 
 void XMPPConnector::relayAnnouncement(BusAttachment* bus, string info)
 {
