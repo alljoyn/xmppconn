@@ -68,7 +68,7 @@ using std::istream_iterator;
 #define ALLJOYN_CODE_SET_PROP_REPLY "SET_PROP_REPLY"
 #define ALLJOYN_CODE_GET_ALL        "GET_ALL"
 #define ALLJOYN_CODE_GET_ALL_REPLY  "GET_ALL_REPLY"
-#define TR069_ALARM_MESSAGE         "** Alarm **"
+#define TR069_ALARM_MESSAGE         "** Alert **"
 
 static inline void stringReplaceAll(string& str, string from, string to)
 {
@@ -511,65 +511,65 @@ public:
     {
         MsgArg result;
 
-        QStatus status = ER_OK;
+        //QStatus status = ER_OK;
         size_t pos = argXml.find_first_of('>')+1;
         qcc::String typeTag = Trim(argXml.substr(0, pos));
         qcc::String content = argXml.substr(pos, argXml.find_last_of('<')-pos);
 
         if(0 == typeTag.find("<array type_sig=")) {
             std::vector<MsgArg> array = MsgArg_ParseArray(content);
-            status = result.Set("a*", array.size(), &array[0]);
+            /*status = */result.Set("a*", array.size(), &array[0]);
             result.Stabilize();
         }
         else if(typeTag == "<boolean>") {
-            status = result.Set("b", content == "1");
+            /*status = */result.Set("b", content == "1");
         }
         else if(typeTag == "<double>") {
-            status = result.Set("d", StringToU64(content, 16));
+            /*status = */result.Set("d", StringToU64(content, 16));
         }
         else if(typeTag == "<dict_entry>") {
             std::vector<MsgArg> array = MsgArg_ParseArray(content);
             if(array.size() != 2)
             {
-                status = ER_BUS_BAD_VALUE;
+                //status = ER_BUS_BAD_VALUE;
             }
             else
             {
-                status = result.Set("{**}", &array[0], &array[1]);
+                /*status = */result.Set("{**}", &array[0], &array[1]);
                 result.Stabilize();
             }
         }
         else if(typeTag == "<signature>") {
-            status = result.Set("g", content.c_str());
+            /*status = */result.Set("g", content.c_str());
             result.Stabilize();
         }
         else if(typeTag == "<int32>") {
-            status = result.Set("i", StringToI32(content));
+            /*status = */result.Set("i", StringToI32(content));
         }
         else if(typeTag == "<int16>") {
-            status = result.Set("n", StringToI32(content));
+            /*status = */result.Set("n", StringToI32(content));
         }
         else if(typeTag == "<object_path>") {
-            status = result.Set("o", content.c_str());
+            /*status = */result.Set("o", content.c_str());
             result.Stabilize();
         }
         else if(typeTag == "<uint16>") {
-            status = result.Set("q", StringToU32(content));
+            /*status = */result.Set("q", StringToU32(content));
         }
         else if(typeTag == "<struct>") {
             std::vector<MsgArg> array = MsgArg_ParseArray(content);
-            status = result.Set("r", array.size(), &array[0]);
+            /*status = */result.Set("r", array.size(), &array[0]);
             result.Stabilize();
         }
         else if(typeTag == "<string>") {
-            status = result.Set("s", content.c_str());
+            /*status = */result.Set("s", content.c_str());
             result.Stabilize();
         }
         else if(typeTag == "<uint64>") {
-            status = result.Set("t", StringToU64(content));
+            /*status = */result.Set("t", StringToU64(content));
         }
         else if(typeTag == "<uint32>") {
-            status = result.Set("u", StringToU32(content));
+            /*status = */result.Set("u", StringToU32(content));
         }
         else if(0 == typeTag.find("<variant signature=")) {
             MsgArg varArg = MsgArg_FromString(content);
@@ -577,10 +577,10 @@ public:
             result.Stabilize();
         }
         else if(typeTag == "<int64>") {
-            status = result.Set("x", StringToI64(content));
+            /*status = */result.Set("x", StringToI64(content));
         }
         else if(typeTag == "<byte>") {
-            status = result.Set("y", StringToU32(content));
+            /*status = */result.Set("y", StringToU32(content));
         }
         else if(typeTag == "<handle>") {
             content = Trim(content);
@@ -588,7 +588,7 @@ public:
             uint8_t* bytes = new uint8_t[len];
             if(len != HexStringToBytes(content, bytes, len))
             {
-                status = ER_BUS_BAD_VALUE;
+                //status = ER_BUS_BAD_VALUE;
             }
             else
             {
@@ -611,7 +611,7 @@ public:
             // std::vector<bool> is special so we must copy it to a usable array
             bool* array = new bool[elements.size()];
             std::copy(elements.begin(), elements.end(), array);
-            status = result.Set("ab", elements.size(), array);
+            /*status = */result.Set("ab", elements.size(), array);
             result.Stabilize();
             delete[] array;
         }
@@ -627,7 +627,7 @@ public:
                 elements.push_back(StringToDouble(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("ad", elements.size(), &elements[0]);
+            /*status = */result.Set("ad", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int32\">") {
@@ -640,7 +640,7 @@ public:
                 elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("ai", elements.size(), &elements[0]);
+            /*status = */result.Set("ai", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int16\">") {
@@ -653,7 +653,7 @@ public:
                 elements.push_back(StringToI32(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("an", elements.size(), &elements[0]);
+            /*status = */result.Set("an", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint16\">") {
@@ -666,7 +666,7 @@ public:
                 elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("aq", elements.size(), &elements[0]);
+            /*status = */result.Set("aq", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint64\">") {
@@ -679,7 +679,7 @@ public:
                 elements.push_back(StringToU64(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("at", elements.size(), &elements[0]);
+            /*status = */result.Set("at", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint32\">") {
@@ -692,7 +692,7 @@ public:
                 elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("au", elements.size(), &elements[0]);
+            /*status = */result.Set("au", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int64\">") {
@@ -705,7 +705,7 @@ public:
                 elements.push_back(StringToI64(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("ax", elements.size(), &elements[0]);
+            /*status = */result.Set("ax", elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"byte\">") {
@@ -718,7 +718,7 @@ public:
                 elements.push_back(StringToU32(content.substr(pos, endPos-pos)));
                 pos = endPos;
             }
-            status = result.Set("ay", elements.size(), &elements[0]);
+            /*status = */result.Set("ay", elements.size(), &elements[0]);
             result.Stabilize();
         }
 
@@ -1779,10 +1779,12 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
 
     m_BusListener = new AllJoynHandler(this, m_XmppConn);
     m_Bus->RegisterBusListener(*m_BusListener);
+
     // TODO:
-    /*m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
+    m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
     m_NotifService = NotificationService::getInstance();
-    m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);*/
+    AboutServiceApi::Init(*m_Bus, *m_AboutPropertyStore);
+    m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
 
     // Well-known ports that we need to bind (temporary)
     m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
