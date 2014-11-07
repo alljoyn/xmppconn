@@ -1075,8 +1075,8 @@ private:
         for(about_it = aboutData.begin(); about_it != aboutData.end(); ++about_it)
         {
             msg_stream << about_it->first.c_str() << "\n";
-            msg_stream << about_it->second.Signature() << "\n";
-            msg_stream << about_it->second.ToString() << "\n";
+            //msg_stream << about_it->second.Signature() << "\n";
+            msg_stream << about_it->second.ToString() << "\n\n";
 
 
             /*MsgArg msgarg = AllJoynHandler::MsgArg_FromString(about_it->second.ToString());
@@ -1608,15 +1608,18 @@ private:
 class GenericPropertyStore : public PropertyStore
 {
 public:
-    GenericPropertyStore(){}
+    GenericPropertyStore(MsgArg& allProperties) : m_AllProperties(allProperties){}
     ~GenericPropertyStore(){}
 
     QStatus ReadAll(const char* languageTag, Filter filter, ajn::MsgArg& all)
     {
         cout << "ReadAll called: " << filter << endl;
 
+        all = m_AllProperties;
+        return ER_OK;
+
         // hard-coding required announce properties for now...
-        MsgArg argsAnnounceData[7];
+        /*MsgArg argsAnnounceData[7];
 
         MsgArg arg;
         uint8_t id_array[] = {253,213,157,54,89,138,109,219,154,119,132,93,215,64,87,42};
@@ -1670,7 +1673,7 @@ public:
         QStatus result = all.Set("a{sv}", 7, argsAnnounceData);
         all.Stabilize();
 
-        return result;
+        return result;*/
     }
 
     QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
@@ -1684,6 +1687,9 @@ public:
         cout << "DELETE CALLED" << endl;
         return ER_NOT_IMPLEMENTED;
     }
+
+private:
+    MsgArg m_AllProperties;
 };
 
 // BusObject we attach to a BusAttachment when we need to relay an announcement
@@ -1745,7 +1751,67 @@ public:
 
     static PropertyStore* CreatePropertyStoreFromXmppInfo(string info)
     {
-        return new GenericPropertyStore();
+        //cout << info << endl;
+
+        unescapeXml(info);
+        std::istringstream info_stream(info);
+        string line, version, port_str, busName;
+
+        // First line is the type (announcement)
+        if(0 == std::getline(info_stream, line)){ return NULL; }
+        if(line != ALLJOYN_CODE_ANNOUNCE){ return NULL; }
+
+        // Get the info from the message
+        if(0 == std::getline(info_stream, version)){ return NULL; }
+        if(0 == std::getline(info_stream, port_str)){ return NULL; }
+        if(0 == std::getline(info_stream, busName)){ return NULL; }
+
+        // The object descriptions follow
+        string objectPath = "";
+        std::vector<qcc::String> interfaceNames;
+        while(0 != std::getline(info_stream, line))
+        {
+            if(line.empty())
+            {
+                break;
+            }
+        }
+
+        // Then come the properties
+        std::vector<MsgArg> dictArgs;
+        string propName = "", propDesc = "";
+        while(0 != std::getline(info_stream, line))
+        {
+            if(line.empty())
+            {
+                // reached the end of a property
+                string key = propName;
+                MsgArg val = AllJoynHandler::MsgArg_FromString(propDesc.c_str());
+                MsgArg dictEntry("{sv}", key.c_str(), &val);
+                dictEntry.Stabilize();
+
+                dictArgs.push_back(dictEntry);
+
+                propName.clear();
+                propDesc.clear();
+            }
+
+            if(propName.empty())
+            {
+                propName = line;
+            }
+            else
+            {
+                propDesc += line;
+            }
+        }
+
+        MsgArg args("a{sv}", dictArgs.size(), &dictArgs[0]);
+        args.Stabilize();
+
+        //cout << args.ToString() << endl;
+
+        return new GenericPropertyStore(args);
     }
 
     QStatus Get(const char* ifcName, const char* propName, MsgArg& val)
@@ -1781,9 +1847,76 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
     m_Bus->RegisterBusListener(*m_BusListener);
 
     // TODO:
-    m_AboutPropertyStore = new GenericPropertyStore(); //new AboutPropertyStoreImpl();
-    m_NotifService = NotificationService::getInstance();
+    qcc::String deviceid;
+    GuidUtil::GetInstance()->GetDeviceIdString(&deviceid);
+    qcc::String appid;
+    GuidUtil::GetInstance()->GenerateGUID(&appid);
+    size_t len = appid.length()/2;
+    uint8_t* bytes = new uint8_t[len];
+    HexStringToBytes(appid, bytes, len);
+    MsgArg appidArg("ay", len, bytes);
+    appidArg.Stabilize();
+    MsgArg args = AllJoynHandler::MsgArg_FromString(
+            "<array type_sig=\"{sv}\">\
+              <dict_entry>\
+                <string>AppId</string>\
+                <variant signature=\"ay\">"
+                + appidArg.ToString() +
+                "</variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>AppName</string>\
+                <variant signature=\"s\">\
+                  <string>Notifier</string>\
+                </variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>DefaultLanguage</string>\
+                <variant signature=\"s\">\
+                  <string>en</string>\
+                </variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>DeviceId</string>\
+                <variant signature=\"s\">\
+                  <string>"+deviceid+"</string>\
+                </variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>DeviceName</string>\
+                <variant signature=\"s\">\
+                  <string>Alarm Service</string>\
+                </variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>Manufacturer</string>\
+                <variant signature=\"s\">\
+                  <string>Affinegy</string>\
+                </variant>\
+              </dict_entry>\
+              <dict_entry>\
+                <string>ModelNumber</string>\
+                <variant signature=\"s\">\
+                  <string>1.0</string>\
+                </variant>\
+              </dict_entry>\
+            </array>"
+    );
+
+    //cout << args.ToString() << endl;
+
+    // TODO: maybe about advertise?
+    m_AboutPropertyStore = new GenericPropertyStore(args); //new AboutPropertyStoreImpl();
     AboutServiceApi::Init(*m_Bus, *m_AboutPropertyStore);
+    AboutServiceApi* aboutService = AboutServiceApi::getInstance();
+    SessionPort sp = 900;
+    SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+    m_Bus->BindSessionPort(sp, opts, *(AllJoynHandler*)m_BusListener);
+    aboutService->Register(sp);
+    m_Bus->RegisterBusObject(*aboutService);
+    aboutService->Announce();
+
+    m_NotifService = NotificationService::getInstance();
     m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
 
     // Well-known ports that we need to bind (temporary)
