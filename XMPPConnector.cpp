@@ -89,6 +89,220 @@ static inline void unescapeXml(string& str)
     stringReplaceAll(str, "&amp;",  "&");
 }
 
+using namespace qcc;
+
+static qcc::String MsgArg_ToString(const MsgArg& arg, size_t indent = 0)
+{
+    qcc::String str;
+#define CHK_STR(s)  (((s) == NULL) ? "" : (s))
+    qcc::String in = qcc::String(indent, ' ');
+
+    str = in;
+
+    indent += 2;
+
+    switch (arg.typeId) {
+    case ALLJOYN_ARRAY:
+    {
+        str += "<array type_sig=\"" + qcc::String(CHK_STR(arg.v_array.GetElemSig())) + "\">";
+        const MsgArg* elems = arg.v_array.GetElements();
+        for (uint32_t i = 0; i < arg.v_array.GetNumElements(); i++) {
+            str += "\n" + MsgArg_ToString(elems[i], indent);
+        }
+        str += "\n" + in + "</array>";
+        break;
+    }
+
+    case ALLJOYN_BOOLEAN:
+        str += arg.v_bool ? "<boolean>1</boolean>" : "<boolean>0</boolean>";
+        break;
+
+    case ALLJOYN_DOUBLE:
+        // To be bit-exact stringify double as a 64 bit hex value
+        str += "<double>" "0x" + U64ToString(arg.v_uint64, 16) + "</double>";
+        break;
+
+    case ALLJOYN_DICT_ENTRY:
+        str += "<dict_entry>\n" +
+               MsgArg_ToString(*arg.v_dictEntry.key, indent) + "\n" +
+               MsgArg_ToString(*arg.v_dictEntry.val, indent) + "\n" +
+               in + "</dict_entry>";
+        break;
+
+    case ALLJOYN_SIGNATURE:
+        str += "<signature>" + qcc::String(CHK_STR(arg.v_signature.sig)) + "</signature>";
+        break;
+
+    case ALLJOYN_INT32:
+        str += "<int32>" + I32ToString(arg.v_int32) + "</int32>";
+        break;
+
+    case ALLJOYN_INT16:
+        str += "<int16>" + I32ToString(arg.v_int16) + "</int16>";
+        break;
+
+    case ALLJOYN_OBJECT_PATH:
+        str += "<object_path>" + qcc::String(CHK_STR(arg.v_objPath.str)) + "</object_path>";
+        break;
+
+    case ALLJOYN_UINT16:
+        str += "<uint16>" + U32ToString(arg.v_uint16) + "</uint16>";
+        break;
+
+    case ALLJOYN_STRUCT:
+        str += "<struct>\n";
+        for (uint32_t i = 0; i < arg.v_struct.numMembers; i++) {
+            str += MsgArg_ToString(arg.v_struct.members[i], indent) + "\n";
+        }
+        str += in + "</struct>";
+        break;
+
+    case ALLJOYN_STRING:
+        str += "<string>" + qcc::String(CHK_STR(arg.v_string.str)) + "</string>";
+        break;
+
+    case ALLJOYN_UINT64:
+        str += "<uint64>" + U64ToString(arg.v_uint64) + "</uint64>";
+        break;
+
+    case ALLJOYN_UINT32:
+        str += "<uint32>" + U32ToString(arg.v_uint32) + "</uint32>";
+        break;
+
+    case ALLJOYN_VARIANT:
+        str += "<variant signature=\"" + arg.v_variant.val->Signature() + "\">\n";
+        str += MsgArg_ToString(*arg.v_variant.val, indent);
+        str += "\n" + in + "</variant>";
+        break;
+
+    case ALLJOYN_INT64:
+        str += "<int64>" + I64ToString(arg.v_int64) + "</int64>";
+        break;
+
+    case ALLJOYN_BYTE:
+        str += "<byte>" + U32ToString(arg.v_byte) + "</byte>";
+        break;
+
+    case ALLJOYN_HANDLE:
+        str += "<handle>" + qcc::BytesToHexString((const uint8_t*)&arg.v_handle.fd, sizeof(arg.v_handle.fd)) + "</handle>";
+        break;
+
+    case ALLJOYN_BOOLEAN_ARRAY:
+        str += "<array type=\"boolean\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += arg.v_scalarArray.v_bool[i] ? "1 " : "0 ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_DOUBLE_ARRAY:
+        str += "<array type=\"double\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += U64ToString((uint64_t)arg.v_scalarArray.v_double[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_INT32_ARRAY:
+        str += "<array type=\"int32\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += I32ToString(arg.v_scalarArray.v_int32[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_INT16_ARRAY:
+        str += "<array type=\"int16\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += I32ToString(arg.v_scalarArray.v_int16[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_UINT16_ARRAY:
+        str += "<array type=\"uint16\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += U32ToString(arg.v_scalarArray.v_uint16[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_UINT64_ARRAY:
+        str += "<array type=\"uint64\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += U64ToString(arg.v_scalarArray.v_uint64[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_UINT32_ARRAY:
+        str += "<array type=\"uint32\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += U32ToString(arg.v_scalarArray.v_uint32[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_INT64_ARRAY:
+        str += "<array type=\"int64\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += I64ToString(arg.v_scalarArray.v_int64[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    case ALLJOYN_BYTE_ARRAY:
+        str += "<array type=\"byte\">";
+        if (arg.v_scalarArray.numElements) {
+            str += "\n" + qcc::String(indent, ' ');
+            for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++) {
+                str += U32ToString(arg.v_scalarArray.v_byte[i]) + " ";
+            }
+        }
+        str += "\n" + in + "</array>";
+        break;
+
+    default:
+        str += "<invalid/>";
+        break;
+    }
+#undef CHK_STR
+    return str;
+}
+
+static qcc::String MsgArg_ListToString(const MsgArg* args, size_t numArgs, size_t indent = 0)
+{
+    qcc::String outStr;
+    for (size_t i = 0; i < numArgs; ++i) {
+        outStr += MsgArg_ToString(args[i], indent) + '\n';
+    }
+    return outStr;
+}
+
 class GenericBusAttachment : public BusAttachment
 {
 public:
@@ -848,7 +1062,7 @@ private:
         bus->EnableConcurrentCallbacks();
 
         pthread_mutex_lock(&m_SessionJoinedMutex); // TODO: different mutex
-        //cout << "Introspect callback on " << proxy->GetServiceName().c_str() << endl;
+        cout << "Introspect callback on " << proxy->GetServiceName().c_str() << endl;
         std::list<XMPPConnector::RemoteBusObject> busObjects;
 
         //cout << proxy->GetServiceName() << endl;
@@ -1076,7 +1290,7 @@ private:
         {
             msg_stream << about_it->first.c_str() << "\n";
             //msg_stream << about_it->second.Signature() << "\n";
-            msg_stream << about_it->second.ToString() << "\n\n";
+            msg_stream << MsgArg_ToString(about_it->second) << "\n\n";
 
 
             /*MsgArg msgarg = AllJoynHandler::MsgArg_FromString(about_it->second.ToString());
@@ -1122,7 +1336,7 @@ private:
         msg_stream << member->iface->GetName() << "\n";
         msg_stream << member->name << "\n";
         msg_stream << message->GetSessionId() << "\n";
-        msg_stream << MsgArg::ToString(msgargs, num_args).c_str() << "\n";
+        msg_stream << MsgArg_ListToString(msgargs, num_args).c_str() << "\n";
 
 
         // Now wrap it in an XMPP stanza
@@ -1176,7 +1390,7 @@ private:
         msg_stream << member->iface->GetName() << "\n";
         msg_stream << member->name << "\n";
         //msg_stream << member->iface->Introspect().c_str() << "\n";
-        msg_stream << MsgArg::ToString(msgargs, num_args).c_str() << "\n";
+        msg_stream << MsgArg_ListToString(msgargs, num_args).c_str() << "\n";
 
 
         // Now wrap it in an XMPP stanza
@@ -1346,7 +1560,7 @@ public:
         size_t num_args = 0;
         const MsgArg* msgargs = 0;
         message->GetArgs(num_args, msgargs);
-        cout << "Received signal: " /*<< member->description.c_str() << "\n"*/ << MsgArg::ToString(msgargs, num_args).c_str() << endl;
+        cout << "Received signal: " /*<< member->description.c_str() << "\n"*/ << MsgArg_ListToString(msgargs, num_args).c_str() << endl;
 
         // Pack the signal in an XMPP message and send it to the server
         /*xmpp_stanza_t* xmpp_message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
@@ -1506,7 +1720,7 @@ public:
         if(replyReceived)
         {
             MsgArg result = AllJoynHandler::MsgArg_FromString(replyStr.c_str());
-            cout << "\nGETALLPROPS POST-PARSE:\n" << result.ToString() << endl;
+            cout << "\nGETALLPROPS POST-PARSE:\n" << MsgArg_ToString(result) << endl;
 
             QStatus err = MethodReply(msg, &result, 1);
             if(err != ER_OK)
@@ -1861,7 +2075,7 @@ XMPPConnector::XMPPConnector(BusAttachment* bus, string appName, string jabberId
               <dict_entry>\
                 <string>AppId</string>\
                 <variant signature=\"ay\">"
-                + appidArg.ToString() +
+                + MsgArg_ToString(appidArg) +
                 "</variant>\
               </dict_entry>\
               <dict_entry>\
@@ -2354,7 +2568,7 @@ void XMPPConnector::handleIncomingMethodCall(string info)
     msg_stream << ALLJOYN_CODE_METHOD_REPLY << "\n";
     msg_stream << destName << "\n";
     msg_stream << destPath << "\n";
-    msg_stream << MsgArg::ToString(replyArgs, numReplyArgs) << "\n";
+    msg_stream << MsgArg_ListToString(replyArgs, numReplyArgs) << "\n";
 
     // Now wrap it in an XMPP stanza
     xmpp_stanza_t* message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
@@ -2831,7 +3045,7 @@ void XMPPConnector::handleIncomingGetRequest(string info)
     msg_stream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
     msg_stream << destName << "\n";
     msg_stream << destPath << "\n";
-    msg_stream << value.ToString() << "\n";
+    msg_stream << MsgArg_ToString(value) << "\n";
 
     // Now wrap it in an XMPP stanza
     xmpp_stanza_t* message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
@@ -2941,14 +3155,14 @@ void XMPPConnector::handleIncomingGetAll(string info)
         cout << "Failed to get all properties: " << QCC_StatusText(err) << endl;
         return; // TODO: send the actual response status back
     }
-    cout << values.ToString() << endl;
+    cout << MsgArg_ToString(values) << endl;
 
     // Return the reply
     std::stringstream msg_stream;
     msg_stream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
     msg_stream << destName << "\n";
     msg_stream << destPath << "\n";
-    msg_stream << values.ToString() << "\n";
+    msg_stream << MsgArg_ToString(values) << "\n";
 
     // Now wrap it in an XMPP stanza
     xmpp_stanza_t* message = xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
