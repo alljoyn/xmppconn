@@ -1,4 +1,4 @@
-#include "XMPPConnector.h"
+#include "XMPPConnector.h"                                                      // TODO: remove c-style casting
 #include <vector>
 #include <iostream>
 #include <sstream>
@@ -124,7 +124,7 @@ namespace msgarg {
             break;
 
         case ALLJOYN_DOUBLE:
-            // To be bit-exact stringify double as a 64 bit hex value
+            // To be bit-exact stringify double as a 64-bit hex value
             str += "<double>"
                     "0x" + string(U64ToString(arg.v_uint64, 16).c_str()) +
                     "</double>";
@@ -229,10 +229,19 @@ namespace msgarg {
                 str += "\n" + string(indent, ' ');
                 for (uint32_t i = 0; i < arg.v_scalarArray.numElements; i++)
                 {
-                    // To be bit-exact stringify double as a 64 bit hex value
-                    str += "0x" + string(U64ToString(
-                            (uint64_t)arg.v_scalarArray.v_double[i],
-                            16).c_str()) + " ";
+                    if(sizeof(double) == sizeof(uint64_t))
+                    {
+                        // To be bit-exact stringify double as 64-bit hex
+                        str += "0x" + string(U64ToString(
+                                *reinterpret_cast<const uint64_t*>(
+                                &arg.v_scalarArray.v_double[i]), 16).c_str()) +
+                                " ";
+                    }
+                    else
+                    {
+                        str += string(U64ToString(static_cast<uint64_t>(
+                                arg.v_scalarArray.v_double[i])).c_str()) + " ";
+                    }
                 }
             }
             str += "\n" + in + "</array>";
@@ -506,9 +515,19 @@ namespace msgarg {
             while((pos = content.find_first_not_of(" ", pos)) != string::npos)
             {
                 size_t endPos = content.find_first_of(' ', pos);
-                elements.push_back(static_cast<double>(StringToU64(
-                        content.substr(pos, endPos-pos).c_str(), 16)));         // TODO: maybe work? also TODO: remove C-style casting
-                pos = endPos;
+
+                if(sizeof(double) == sizeof(uint64_t))
+                {
+                    uint64_t val = StringToU64(
+                            content.substr(pos, endPos-pos).c_str(), 16);
+                    elements.push_back(*reinterpret_cast<double*>(&val));
+                    pos = endPos;
+                }
+                else
+                {
+                    elements.push_back(StringToDouble(
+                            content.substr(pos, endPos-pos).c_str()));
+                }
             }
             status = result.Set("ad", elements.size(), &elements[0]);
             result.Stabilize();
