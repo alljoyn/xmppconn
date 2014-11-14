@@ -15,7 +15,7 @@ static XMPPConnector* s_Conn = 0;
 void cleanup()
 {
     if (s_Conn) {
-        s_Conn->stop();
+        s_Conn->Stop();
         delete s_Conn;
         s_Conn = 0;
     }
@@ -32,7 +32,7 @@ static void SigIntHandler(int sig)
 {
     if(s_Conn)
     {
-        s_Conn->stop();
+        s_Conn->Stop();
     }
     cleanup();
     exit(0);
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 
     // Create our XMPP connector
     s_Conn = new XMPPConnector(s_Bus, "XMPP", "alljoyn@swiftnet.acs.affinegy.com", "alljoyn", "alljoyn@muc.swiftnet.acs.affinegy.com");
-    s_Conn->start();
+    s_Conn->Start();
 
     cleanup();
 }

@@ -14,7 +14,7 @@
 #include <alljoyn/notification/NotificationSender.h>
 #include <strophe.h>
 #include <string>
-#include <list>
+#include <vector>
 #include <map>
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
@@ -34,65 +34,65 @@ public:
     struct RemoteBusObject
     {
         std::string objectPath;
-        std::list<const InterfaceDescription*> interfaces;
+        std::vector<const InterfaceDescription*> interfaces;
     };
 
     XMPPConnector(BusAttachment* bus, std::string appName, std::string jabberId, std::string password, std::string chatroomJabberId);
     virtual ~XMPPConnector();
 
     // Blocks until stop() is called, listens for XMPP
-    QStatus start();
-    void stop();
+    QStatus Start();
+    void Stop();
 
-    QStatus addRemoteInterface(std::string name, std::list<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
-    QStatus removeRemoteInterface(std::string name);
+    QStatus AddRemoteInterface(std::string name, std::vector<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
+    QStatus RemoveRemoteInterface(std::string name);
 
     std::string FindWellKnownName(std::string uniqueName);
 
-    BusAttachment* getBusAttachment(); // TODO: maybe make private
-    BusListener* getBusListener();
+    BusAttachment* GetBusAttachment(); // TODO: maybe make private
+    BusListener* GetBusListener();
 
-    std::string getJabberId();
-    std::string getPassword();
-    std::string getChatroomJabberId();
+    std::string GetJabberId();
+    std::string GetPassword();
+    std::string GetChatroomJabberId();
 
-    bool advertisingName(std::string name);
+    bool IsAdvertisingName(std::string name);
 
 protected:
+#ifndef NO_AJ_GATEWAY
     virtual void mergedAclUpdated();
     virtual void shutdown();
-#ifndef NO_AJ_GATEWAY
     virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
 #endif // !NO_AJ_GATEWAY
 
 private:
-    void relayAnnouncement(BusAttachment* bus, std::string info);
+    void RelayAnnouncement(BusAttachment* bus, std::string info);
 
-    void handleIncomingAdvertisement(std::string info);
-    void handleIncomingMethodCall(std::string info);
-    void handleIncomingMethodReply(std::string info);
-    void handleIncomingSignal(std::string info);
-    void handleIncomingJoinRequest(std::string info);
-    void handleIncomingJoinResponse(std::string info);
-    void handleIncomingSessionJoined(std::string info);
-    void handleIncomingAnnounce(std::string info);
-    void handleIncomingGetRequest(std::string info);
-    void handleIncomingGetReply(std::string info);
-    void handleIncomingGetAll(std::string info);
-    void handleIncomingGetAllReply(std::string info);
-    void handleIncomingAlarm(std::string info);
+    void HandleIncomingAdvertisement(std::string info);
+    void HandleIncomingMethodCall(std::string info);
+    void HandleIncomingMethodReply(std::string info);
+    void HandleIncomingSignal(std::string info);
+    void HandleIncomingJoinRequest(std::string info);
+    void HandleIncomingJoinResponse(std::string info);
+    void HandleIncomingSessionJoined(std::string info);
+    void HandleIncomingAnnounce(std::string info);
+    void HandleIncomingGetRequest(std::string info);
+    void HandleIncomingGetReply(std::string info);
+    void HandleIncomingGetAll(std::string info);
+    void HandleIncomingGetAllReply(std::string info);
+    void HandleIncomingAlarm(std::string info);
 
-    static int  xmppStanzaHandler(xmpp_conn_t* const conn, xmpp_stanza_t* const stanza, void* const userdata);
-    static void xmppConnectionHandler(
+    static int  XmppStanzaHandler(xmpp_conn_t* const conn, xmpp_stanza_t* const stanza, void* const userdata);
+    static void XmppConnectionHandler(
         xmpp_conn_t* const conn, const xmpp_conn_event_t event, const int error,
         xmpp_stream_error_t* const streamError, void* const userdata);
 
 private:
     BusAttachment* m_Bus;
     BusListener* m_BusListener;
-    std::list<SessionPort> m_SessionPorts;
+    std::vector<SessionPort> m_SessionPorts;
 
-    std::list<BusAttachment*> m_BusAttachments;
+    std::vector<BusAttachment*> m_BusAttachments;
     std::map<std::string, std::string> m_UnsentAnnouncements;
 
     xmpp_ctx_t* m_XmppCtx;
