@@ -12,7 +12,7 @@
 #include <alljoyn/notification/Notification.h>
 #include <alljoyn/notification/NotificationService.h>
 #include <alljoyn/notification/NotificationSender.h>
-#include <strophe.h>
+//#include <strophe.h>
 #include <string>
 #include <vector>
 #include <map>
@@ -23,6 +23,9 @@
 
 namespace ajn {
 namespace gw {
+
+class XmppTransport;
+class ProxyBusAttachment;
 
 #ifdef NO_AJ_GATEWAY
 class XMPPConnector
@@ -44,13 +47,13 @@ public:
     QStatus Start();
     void Stop();
 
-    QStatus AddRemoteInterface(std::string name, std::vector<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
-    QStatus RemoveRemoteInterface(std::string name);
+    //QStatus AddRemoteInterface(std::string name, std::vector<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
+    //QStatus RemoveRemoteInterface(std::string name);
 
     std::string FindWellKnownName(std::string uniqueName);
 
-    BusAttachment* GetBusAttachment(); // TODO: maybe make private
-    BusListener* GetBusListener();
+    //BusAttachment* GetBusAttachment(); // TODO: maybe make private
+    //BusListener* GetBusListener();
 
     std::string GetJabberId();
     std::string GetPassword();
@@ -82,21 +85,14 @@ private:
     void HandleIncomingGetAllReply(std::string info);
     void HandleIncomingAlarm(std::string info);
 
-    static int  XmppStanzaHandler(xmpp_conn_t* const conn, xmpp_stanza_t* const stanza, void* const userdata);
-    static void XmppConnectionHandler(
-        xmpp_conn_t* const conn, const xmpp_conn_event_t event, const int error,
-        xmpp_stream_error_t* const streamError, void* const userdata);
-
 private:
     BusAttachment* m_Bus;
-    BusListener* m_BusListener;
-    std::vector<SessionPort> m_SessionPorts;
+    //BusListener* m_BusListener;
+    //std::vector<SessionPort> m_SessionPorts;                                  // TODO: how to handle well-known ports we need to bind?
 
-    std::vector<BusAttachment*> m_BusAttachments;
-    std::map<std::string, std::string> m_UnsentAnnouncements;
+    std::vector<ProxyBusAttachment*> m_ProxyAttachments;
 
-    xmpp_ctx_t* m_XmppCtx;
-    xmpp_conn_t* m_XmppConn;
+    XmppTransport* m_XmppTransport;
 
     std::string m_JabberId;
     std::string m_Password;
