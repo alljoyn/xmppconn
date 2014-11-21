@@ -688,22 +688,24 @@ public:
         typedef
         void
         (XmppTransport::Listener::* ConnectionCallback)(
-            ConnectionStatus status
+            ConnectionStatus status,
+            void*            userdata
             );
     };
 
     XmppTransport(
-        string                                      jabberId,
-        string                                      chatroom,
-        string                                      nickname,
-        XmppTransport::Listener*                    listener,
-        XmppTransport::Listener::ConnectionCallback connectionCallback
+        string jabberId,
+        string password,
+        string chatroom,
+        string nickname
         ) :
         m_jabberId(jabberId),
+        m_password(password),
         m_chatroom(chatroom),
         m_nickname(nickname),
-        m_listener(listener),
-        m_connectionCallback(connectionCallback)
+        m_listener(NULL),
+        m_connectionCallback(NULL),
+        m_callbackUserdata(NULL)
     {
         xmpp_initialize();
         m_xmppCtx = xmpp_ctx_new(NULL, NULL);
@@ -715,6 +717,49 @@ public:
         xmpp_conn_release(m_xmppConn);
         xmpp_ctx_free(m_xmppCtx);
         xmpp_shutdown();
+    }
+
+    void SetConnectionCallback(
+        XmppTransport::Listener*                    listener,
+        XmppTransport::Listener::ConnectionCallback connectionCallback,
+        void*                                       userdata
+        )
+    {
+        m_listener = listener;
+        m_connectionCallback = connectionCallback;
+        m_callbackUserdata = userdata;
+    }
+    void RemoveConnectionCallback()
+    {
+        m_listener = NULL;
+        m_connectionCallback = NULL;
+        m_callbackUserdata = NULL;
+    }
+
+    QStatus Run()
+    {
+        // Set up our xmpp connection
+        xmpp_conn_set_jid(m_xmppConn, m_jabberId.c_str());
+        xmpp_conn_set_pass(m_xmppConn, m_password.c_str());
+        xmpp_handler_add(
+                m_xmppConn, XmppStanzaHandler, NULL, "message", NULL, this);
+        if(0 != xmpp_connect_client(
+                m_xmppConn, NULL, 0, XmppConnectionHandler, this))
+        {
+            cout << "Failed to connect to XMPP server." << endl;
+            return ER_FAIL;
+        }
+
+        // Listen for XMPP
+        xmpp_run(m_xmppCtx);
+
+        return ER_OK;
+    }
+
+    void Stop()
+    {
+        xmpp_disconnect(m_xmppConn);
+        xmpp_handler_delete(m_xmppConn, XmppStanzaHandler);
     }
 
     void
@@ -840,7 +885,7 @@ private:
         void* const          userdata
         )
     {
-        XmppTransport* transport = (XmppTransport*)userdata;
+        XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
         // Ignore stanzas from ourself
         string fromLocal = transport->m_chatroom+"/"+transport->m_nickname;
@@ -950,9 +995,11 @@ private:
         void* const                userdata
         )
     {
-        XmppTransport* transport = (XmppTransport*)userdata;
+        XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
-        if(event == XMPP_CONN_CONNECT)
+        switch(event)
+        {
+        case XMPP_CONN_CONNECT:
         {
             // Send presence to chatroom
             xmpp_stanza_t* presence = 0;
@@ -972,40 +1019,26 @@ private:
             xmpp_send(conn, presence);
             xmpp_stanza_release(presence);
 
-            /*
-            // Start listening for advertisements
-            QStatus err = bus->FindAdvertisedName("");
-            if(err != ER_OK)
-            {
-                cout << "Could not find advertised names: " <<
-                        QCC_StatusText(err) << endl;
-            }
-
-            // Listen for announcements
-            err = AnnouncementRegistrar::RegisterAnnounceHandler(*bus,
-                    *((AllJoynHandler*)(xmppConnector->GetBusListener())), NULL, 0);
-            */
-
-            (transport->m_listener->*(transport->m_connectionCallback))(
-                    Listener::XMPP_CONNECT);
+            break;
         }
-        else
+        case XMPP_CONN_DISCONNECT:
+        case XMPP_CONN_FAIL:
+        default:
         {
             cout << "Disconnected from XMPP server." << endl;
 
-            /*
-            // Stop listening for advertisements and announcements
-            //AnnouncementRegistrar::UnRegisterAnnounceHandler(*bus, blahblah);
-            bus->CancelFindAdvertisedName("");
-            */
-
-            (transport->m_listener->*(transport->m_connectionCallback))(
-                    Listener::XMPP_DISCONNECT);
-            //transport->m_connectionCallback(
-            //        *transport->m_listener, Listener::XMPP_DISCONNECT);
-
             // Stop the XMPP event loop
             xmpp_stop(xmpp_conn_get_context(conn));
+            break;
+        }
+        }
+
+        // Call the connection callback
+        if(transport->m_listener && transport->m_connectionCallback)
+        {
+            (transport->m_listener->*(transport->m_connectionCallback))(
+                    (Listener::ConnectionStatus)event,
+                    transport->m_callbackUserdata);
         }
 
         // TODO: send connection status to Gateway Management app
@@ -1013,6 +1046,7 @@ private:
 
 private:
     const string m_jabberId;
+    const string m_password;
     const string m_chatroom;                                                    // TODO: moving away from using chatrooms
     const string m_nickname;
 
@@ -1020,6 +1054,7 @@ private:
     xmpp_conn_t*                 m_xmppConn;
     Listener*                    m_listener;
     Listener::ConnectionCallback m_connectionCallback;
+    void*                        m_callbackUserdata;
 
 
     static const string ALLJOYN_CODE_ADVERTISEMENT;
@@ -1060,7 +1095,7 @@ const string XmppTransport::TR069_ALARM_MESSAGE         = "** Alert **";
 
 
 
-class ProxyBusAttachment :
+class ajn::gw::ProxyBusAttachment :
     public BusAttachment
 {
 public:
@@ -1070,16 +1105,15 @@ public:
         ) :
         BusAttachment(advertiseName.c_str()),
         m_proxyName(proxyName),
-        m_advertiseName(advertiseName)
+        m_advertiseName(advertiseName),
+        m_listener()
     {
-        m_listener = new ProxyBusListener();
-        RegisterBusListener(*m_listener);
+        RegisterBusListener(m_listener);
     }
 
     ~ProxyBusAttachment()
     {
-        UnregisterBusListener(*m_listener);
-        delete m_listener;
+        UnregisterBusListener(m_listener);
     }
 
     QStatus BindSessionPort(
@@ -1087,7 +1121,7 @@ public:
         const SessionOpts& opts
         )
     {
-        return BusAttachment::BindSessionPort(port, opts, *m_listener);
+        return BusAttachment::BindSessionPort(port, opts, m_listener);
     }
 
 private:
@@ -1106,8 +1140,8 @@ private:
 
     string                    m_proxyName;
     string                    m_advertiseName;
-    ProxyBusListener*         m_listener;
-    vector<ProxyBusObject*>   m_objects;
+    ProxyBusListener          m_listener;
+    vector<ProxyBusObject>    m_objects;
     map<SessionId, SessionId> m_sessionIdMap;
 };
 
@@ -1256,38 +1290,66 @@ private:
     map<SessionId, SessionId> m_SessionIdMap;
 };*/
 
-/*class AllJoynHandler :
+class ajn::gw::AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    public ProxyBusObject::Listener,
+    //public ProxyBusObject::Listener,
     public AnnounceHandler
 {
 public:
-    AllJoynHandler(
+    AllJoynListener(
         XMPPConnector* connector,
-        xmpp_conn_t*   xmppConn
+        BusAttachment* bus
         ) :
         BusListener(),
-        m_Connector(connector),
-        m_XmppConn(xmpp_conn_clone(xmppConn)),
-        m_AssociatedBus(0),
-        m_SessionJoinedSignalReceived(false),
-        m_RemoteSessionId(0)
+        m_connector(connector),
+        m_bus(bus)
     {
-        pthread_mutex_init(&m_SessionJoinedMutex, NULL);
-        pthread_cond_init(&m_SessionJoinedWaitCond, NULL);
     }
 
     virtual
-    ~AllJoynHandler()
+    ~AllJoynListener()
     {
-        xmpp_conn_release(m_XmppConn);
-        m_XmppConn = 0;
-        pthread_mutex_destroy(&m_SessionJoinedMutex);
-        pthread_cond_destroy(&m_SessionJoinedWaitCond);
     }
 
     void
+    FoundAdvertisedName(
+        const char*   name,
+        TransportMask transport,
+        const char*   namePrefix
+        )
+    {
+        cout << "Found advertised name: " << name << endl;
+
+        m_bus->EnableConcurrentCallbacks();
+
+        /*ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
+        QStatus err = proxy->IntrospectRemoteObjectAsync(
+                this, static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                &AllJoynHandler::IntrospectCallback), proxy);
+        if(err != ER_OK)
+        {
+            cout << "Could not introspect remote object: " <<
+                    QCC_StatusText(err) << endl;
+        }*/
+    }
+
+    void
+    Announce(
+        uint16_t                  version,
+        uint16_t                  port,
+        const char*               busName,
+        const ObjectDescriptions& objectDescs,
+        const AboutData&          aboutData
+        )
+    {
+    }
+
+private:
+    XMPPConnector* m_connector;
+    BusAttachment* m_bus;
+};
+/*    void
     FoundAdvertisedName(
         const char*   name,
         TransportMask transport,
@@ -2420,7 +2482,7 @@ private:
     vector<const InterfaceDescription*> m_Interfaces;
 };*/
 
-class GenericPropertyStore :
+/*class GenericPropertyStore :
     public PropertyStore
 {
 public:
@@ -2629,38 +2691,37 @@ public:
 
 private:
     PropertyStore* m_PropertyStore;
-};
+};*/
 
 XMPPConnector::XMPPConnector(
     BusAttachment* bus,
     string         appName,
-    string         jabberId,
-    string         password,
-    string         chatroomJabberId
+    string         xmppJid,
+    string         xmppPassword,
+    string         xmppChatroom
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
 #endif // !NO_AJ_GATEWAY
-    m_Bus(bus),
-    m_ProxyAttachments(),
-    m_UnsentAnnouncements(),
-    m_JabberId(jabberId),
-    m_Password(password),
-    m_ChatroomJabberId(chatroomJabberId),
-    m_AboutPropertyStore(NULL),
-    m_NotifService(NULL),
-    m_NotifSender(NULL)
+    m_bus(bus),
+    m_proxyAttachments()
+    //m_JabberId(jabberId),
+    //m_Password(password),
+    //m_ChatroomJabberId(chatroomJabberId),
+    //m_AboutPropertyStore(NULL),
+    //m_NotifService(NULL),
+    //m_NotifSender(NULL)
 {
-    // Initialize our XMPP connection
-    /*xmpp_initialize();
-    m_XmppCtx = xmpp_ctx_new(NULL, NULL);
-    m_XmppConn = xmpp_conn_new(m_XmppCtx);*/
+    m_listener = new AllJoynListener(this, bus);
+    m_xmppTransport = new XmppTransport(
+            xmppJid, xmppPassword, xmppChatroom,
+            bus->GetGlobalGUIDString().c_str());
 
-    m_BusListener = new AllJoynHandler(this, m_XmppConn);
-    m_Bus->RegisterBusListener(*m_BusListener);
+
+    m_bus->RegisterBusListener(*m_listener);
 
     // TODO:
-    String deviceid;
+    /*String deviceid;
     GuidUtil::GetInstance()->GetDeviceIdString(&deviceid);
     String appid;
     GuidUtil::GetInstance()->GenerateGUID(&appid);
@@ -2721,7 +2782,7 @@ XMPPConnector::XMPPConnector(
     SessionPort sp = 900;
     SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false,
             SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
-    m_Bus->BindSessionPort(sp, opts, *(AllJoynHandler*)m_BusListener);
+    m_Bus->BindSessionPort(sp, opts, *m_listener);
     aboutService->Register(sp);
     m_Bus->RegisterBusObject(*aboutService);
     aboutService->Announce();
@@ -2730,56 +2791,96 @@ XMPPConnector::XMPPConnector(
     m_NotifSender = m_NotifService->initSend(m_Bus, m_AboutPropertyStore);
 
     // Well-known ports that we need to bind (temporary)
-    m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
-    m_SessionPorts.push_back(1000); // ControlPanel
+    //m_SessionPorts.push_back(27); // org.alljoyn.bus.samples.chat
+    //m_SessionPorts.push_back(1000); // ControlPanel*/
 }
 
 XMPPConnector::~XMPPConnector()
 {
-    m_Bus->UnregisterBusListener(*m_BusListener);
-    delete m_BusListener;
-
-    /*xmpp_conn_release(m_XmppConn);
-    xmpp_ctx_free(m_XmppCtx);
-    xmpp_shutdown();*/
-
-    vector<BusAttachment*>::iterator it;
-    for(it = m_BusAttachments.begin(); it != m_BusAttachments.end(); ++it)
+    vector<ProxyBusAttachment*>::iterator it;
+    for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
         (*it)->Disconnect();
         (*it)->Stop();
         delete(*it);
     }
+
+    delete m_xmppTransport;
+    delete m_listener;
 }
 
 QStatus
 XMPPConnector::Start()
 {
-    // Set up our xmpp connection
-    xmpp_conn_set_jid(m_XmppConn, m_JabberId.c_str());
-    xmpp_conn_set_pass(m_XmppConn, m_Password.c_str());
-    xmpp_handler_add(
-            m_XmppConn, XmppStanzaHandler, NULL, "message", NULL, this);
-    if(0 != xmpp_connect_client(
-            m_XmppConn, NULL, 0, XmppConnectionHandler, this))
+    class XmppListener :
+        public XmppTransport::Listener
     {
-        cout << "Failed to connect to XMPP server." << endl;
-        return ER_FAIL;
-    }
+    public:
+        void ConnectionCallback(
+            ConnectionStatus status,
+            void*            userdata
+            )
+        {
+            XMPPConnector* connector = static_cast<XMPPConnector*>(userdata);
 
-    // Listen for XMPP
-    xmpp_run(m_XmppCtx);
+            switch(status)
+            {
+            case XMPP_CONNECT:
+            {
+                // Start listening for advertisements
+                QStatus err = connector->m_bus->FindAdvertisedName("");
+                if(err != ER_OK)
+                {
+                    cout << "Could not find advertised names: " <<
+                            QCC_StatusText(err) << endl;
+                }
 
-    return ER_OK;
+                // Listen for announcements
+                err = AnnouncementRegistrar::RegisterAnnounceHandler(
+                        *connector->m_bus, *connector->m_listener, NULL, 0);
+                if(err != ER_OK)
+                {
+                    cout << "Could not register Announcement handler: " <<
+                            QCC_StatusText(err) << endl;
+                }
+
+                break;
+            }
+            case XMPP_DISCONNECT:
+            case XMPP_FAIL:
+            default:
+            {
+                // Stop listening for advertisements and announcements
+                AnnouncementRegistrar::UnRegisterAnnounceHandler(
+                        *connector->m_bus, *connector->m_listener, NULL, 0);
+
+                connector->m_bus->CancelFindAdvertisedName("");
+
+                break;
+            }
+            }
+        }
+    } xmppListener;
+
+    m_xmppTransport->SetConnectionCallback(
+            &xmppListener,
+            static_cast<XmppTransport::Listener::ConnectionCallback>(
+            &XmppListener::ConnectionCallback), this);
+
+    // Listen for XMPP messages. Blocks until transport.Stop() is called.
+    QStatus err = m_xmppTransport->Run();
+
+    m_xmppTransport->RemoveConnectionCallback();
+
+    return err;
 }
 
 void XMPPConnector::Stop()
 {
-    xmpp_disconnect(m_XmppConn);
-    xmpp_handler_delete(m_XmppConn, XmppStanzaHandler);
+    m_xmppTransport->Stop();
 }
 
-QStatus
+/*QStatus
 XMPPConnector::AddRemoteInterface(
     string                  name,
     vector<RemoteBusObject> busObjects,
@@ -2907,9 +3008,9 @@ XMPPConnector::AddRemoteInterface(
         *bus = new_attachment;
     }
     return err;
-}
+}*/
 
-string
+/*string
 XMPPConnector::FindWellKnownName(
     string uniqueName
     )
@@ -3024,9 +3125,9 @@ XMPPConnector::RelayAnnouncement(
     {
         cout << "Failed to relay announcement: " << QCC_StatusText(err) << endl;
     }
-}
+}*/
 
-void
+/*void
 XMPPConnector::HandleIncomingAdvertisement(
     string info
     )
@@ -3951,4 +4052,4 @@ XMPPConnector::HandleIncomingAlarm(
             cout << "Successfully sent Alarm notification!" << endl;
         }
     }
-}
+}*/
