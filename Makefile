@@ -16,7 +16,7 @@ CXX := $(CROSS_COMPILE)g++
 CC  := $(CROSS_COMPILE)gcc
 
 #AJ_BASE_PATH := ../alljoyn-suite-14.06.00a-src/core/alljoyn
-AJ_BASE_PATH := ../allseen
+AJ_BASE_PATH := /home/kevin/dev/allseen
 #AJ_MID_PATH := services/base/sample_apps/build
 AJ_MID_PATH := gateway/gwagent/build
 AJ_PATH := $(AJ_BASE_PATH)/$(AJ_MID_PATH)/linux/x86/debug/dist

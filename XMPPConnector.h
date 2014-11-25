@@ -41,12 +41,23 @@ public:
         std::vector<const InterfaceDescription*> interfaces;
     };*/
 
-    XMPPConnector(BusAttachment* bus, std::string appName, std::string xmppJid, std::string xmppPassword, std::string xmppChatroom);
+    XMPPConnector(
+        BusAttachment* bus,
+        std::string    appName,
+        std::string    xmppJid,
+        std::string    xmppPassword,
+        std::string    xmppChatroom
+        );
+
     virtual ~XMPPConnector();
 
     // Blocks until stop() is called, listens for XMPP
     QStatus Start();
     void Stop();
+
+    bool IsAdvertisingName(
+        std::string name
+        );
 
     //QStatus AddRemoteInterface(std::string name, std::vector<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
     //QStatus RemoveRemoteInterface(std::string name);
@@ -59,8 +70,6 @@ public:
     //std::string GetJabberId();
     //std::string GetPassword();
     //std::string GetChatroomJabberId();
-
-    //bool IsAdvertisingName(std::string name);
 
 /*protected:
 #ifndef NO_AJ_GATEWAY

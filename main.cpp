@@ -15,14 +15,11 @@ static XMPPConnector* s_Conn = 0;
 void cleanup()
 {
     if (s_Conn) {
-        s_Conn->Stop();
         delete s_Conn;
         s_Conn = 0;
     }
 
     if(s_Bus) {
-        s_Bus->Disconnect();
-        s_Bus->Stop();
         delete s_Bus;
         s_Bus = 0;
     }
@@ -30,12 +27,11 @@ void cleanup()
 
 static void SigIntHandler(int sig)
 {
+    cout << "Handling SIGINT" << endl;
     if(s_Conn)
     {
         s_Conn->Stop();
     }
-    cleanup();
-    exit(0);
 }
 
 int main(int argc, char** argv)

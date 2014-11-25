@@ -693,6 +693,12 @@ public:
             );
     };
 
+    struct BusObjectInfo
+    {
+        string                              path;
+        vector<const InterfaceDescription*> interfaces;
+    };
+
     XmppTransport(
         string jabberId,
         string password,
@@ -764,21 +770,171 @@ public:
 
     void
     SendAdvertisement(
-        // TODO: args to pack
+        string                 advertisedName,
+        vector<BusObjectInfo>& busObjects
         )
     {
-        // TODO: pack args, send
+        // Construct the text that will be the body of our message
+        ostringstream msgStream;
+        msgStream << ALLJOYN_CODE_ADVERTISEMENT << "\n";
+        msgStream << advertisedName << "\n";
+        vector<BusObjectInfo>::const_iterator it;                               // TODO: copy-paste code?
+        for(it = busObjects.begin(); it != busObjects.end(); ++it)
+        {
+            msgStream << it->path << "\n";
+            vector<const InterfaceDescription*>::const_iterator if_it;
+            for(if_it = it->interfaces.begin();
+                if_it != it->interfaces.end();
+                ++if_it)
+            {
+                msgStream << (*if_it)->GetName() << "\n";
+                msgStream << (*if_it)->Introspect().c_str() << "\n";
+            }
+
+            msgStream << "\n";
+        }
+
+        SendMessage(msgStream.str());
     }
 
     // TODO: send other stuff
 
 private:
+    void SendMessage(
+        string body
+        )
+    {
+        xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
+        xmpp_stanza_set_name(messageStanza, "message");
+        xmpp_stanza_set_attribute(messageStanza, "to", m_chatroom.c_str());
+        xmpp_stanza_set_type(messageStanza, "groupchat");
+
+        xmpp_stanza_t* bodyStanza = xmpp_stanza_new(m_xmppCtx);
+        xmpp_stanza_set_name(bodyStanza, "body");
+
+        xmpp_stanza_t* textStanza = xmpp_stanza_new(m_xmppCtx);
+        xmpp_stanza_set_text(textStanza, body.c_str());
+
+        xmpp_stanza_add_child(bodyStanza, textStanza);
+        xmpp_stanza_release(textStanza);
+        xmpp_stanza_add_child(messageStanza, bodyStanza);
+        xmpp_stanza_release(bodyStanza);
+
+        char* buf = 0;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(messageStanza, &buf, &buflen);
+        cout << "Sending XMPP advertise message." << endl;
+        xmpp_free(m_xmppCtx, buf);
+
+        xmpp_send(m_xmppConn, messageStanza);
+        xmpp_stanza_release(messageStanza);
+    }
+
+    void ParseBusObjectInfo(
+        istringstream&         msgStream,
+        vector<BusObjectInfo>& busObjects
+        )
+    {
+        BusObjectInfo thisObj;
+        string interfaceName = "";
+        string interfaceDescription = "";
+
+        string line = "";
+        while(getline(msgStream, line))
+        {
+            if(line.empty())
+            {
+                if(!interface_description.empty())
+                {
+                    // We've reached the end of an interface description.
+                    str::UnescapeXml(interface_description);
+                    QStatus err = m_Bus->CreateInterfacesFromXml(
+                            interface_description.c_str());
+                    if(err == ER_OK)
+                    {
+                        const InterfaceDescription* new_interface =
+                                m_Bus->GetInterface(interface_name.c_str());
+                        if(new_interface)
+                        {
+                            new_bus_object.interfaces.push_back(new_interface);
+                        }
+                    }
+                    else
+                    {
+                        cout << "Failed to create InterfaceDescription " <<
+                                interface_name << ": " <<
+                                QCC_StatusText(err) << endl;
+                    }
+
+                    interface_name.clear();
+                    interface_description.clear();
+                }
+                else
+                {
+                    // We've reached the end of a bus object.
+                    bus_objects.push_back(new_bus_object);
+
+                    new_bus_object.objectPath.clear();
+                    new_bus_object.interfaces.clear();
+                }
+            }
+            else
+            {
+                if(new_bus_object.objectPath.empty())
+                {
+                    new_bus_object.objectPath = line;
+                }
+                else if(interface_name.empty())
+                {
+                    interface_name = line;
+                }
+                else
+                {
+                    interface_description.append(line + "/n");
+                }
+            }
+        }
+    }
+
     void
     ReceiveAdvertisement(
         string message
         )
     {
+        // Parse the required information
+        string advertisedName;
+        vector<BusObjectInfo> busObjects;
 
+        istringstream msgStream(message);
+        string line;
+
+        // First line is the type (advertisement)
+        if(0 == getline(msgStream, line)){ return; }
+        if(line != ALLJOYN_CODE_ADVERTISEMENT){ return; }
+
+        // Second line is the name to advertise
+        if(0 == getline(msgStream, advertisedName)){ return; }
+        //cout << "advertise name: " << advertise_name << endl;
+
+        // Now we need to actually implement the interfaces and advertise the name
+        GenericBusAttachment* gen_bus;
+        QStatus err = AddRemoteInterface(advertise_name, bus_objects,
+                true, (BusAttachment**)&gen_bus);
+        if(err != ER_OK)
+        {
+            cout << "Could not implement remote advertisement." << endl;
+        }
+        else
+        {
+            // Is there an announcement waiting to be sent for this new attachment?
+            if(m_UnsentAnnouncements.find(advertise_name) !=
+                    m_UnsentAnnouncements.end())
+            {
+                RelayAnnouncement(
+                        gen_bus, m_UnsentAnnouncements.at(advertise_name));
+                m_UnsentAnnouncements.erase(advertise_name);
+            }
+        }
     }
 
     void
@@ -786,7 +942,6 @@ private:
         string message
         )
     {
-
     }
 
     void
@@ -1101,11 +1256,11 @@ class ajn::gw::ProxyBusAttachment :
 public:
     ProxyBusAttachment(
         string proxyName,
-        string advertiseName
+        string advertisedName
         ) :
-        BusAttachment(advertiseName.c_str()),
+        BusAttachment(advertisedName.c_str()),
         m_proxyName(proxyName),
-        m_advertiseName(advertiseName),
+        m_advertisedName(advertisedName),
         m_listener()
     {
         RegisterBusListener(m_listener);
@@ -1124,6 +1279,8 @@ public:
         return BusAttachment::BindSessionPort(port, opts, m_listener);
     }
 
+    string AdvertisedName() { return m_advertisedName; }
+
 private:
     class ProxyBusListener :
         public BusListener,
@@ -1139,7 +1296,7 @@ private:
     };
 
     string                    m_proxyName;
-    string                    m_advertiseName;
+    string                    m_advertisedName;
     ProxyBusListener          m_listener;
     vector<ProxyBusObject>    m_objects;
     map<SessionId, SessionId> m_sessionIdMap;
@@ -1299,10 +1456,12 @@ class ajn::gw::AllJoynListener :
 public:
     AllJoynListener(
         XMPPConnector* connector,
+        XmppTransport* transport,
         BusAttachment* bus
         ) :
         BusListener(),
         m_connector(connector),
+        m_transport(transport),
         m_bus(bus)
     {
     }
@@ -1310,6 +1469,7 @@ public:
     virtual
     ~AllJoynListener()
     {
+        m_bus->UnregisterAllHandlers(this);
     }
 
     void
@@ -1319,19 +1479,39 @@ public:
         const char*   namePrefix
         )
     {
+        // Do not advertise BusNodes
+        if(name == strstr(name, "org.alljoyn.BusNode"))
+        {
+            return;
+        }
+
+        // Do not send if we are the ones transmitting the advertisement
+        if(m_connector->IsAdvertisingName(name))
+        {
+            return;
+        }
+
         cout << "Found advertised name: " << name << endl;
 
-        m_bus->EnableConcurrentCallbacks();
+        m_bus->EnableConcurrentCallbacks();                                     // TODO: test to see if we still need introspect callback thing
 
-        /*ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
-        QStatus err = proxy->IntrospectRemoteObjectAsync(
-                this, static_cast<ProxyBusObject::Listener::IntrospectCB>(
-                &AllJoynHandler::IntrospectCallback), proxy);
-        if(err != ER_OK)
-        {
-            cout << "Could not introspect remote object: " <<
-                    QCC_StatusText(err) << endl;
-        }*/
+        // Get the objects and interfaces implemented by the advertising device
+        vector<XmppTransport::BusObjectInfo> busObjects;
+        ProxyBusObject proxy(*m_bus, name, "/", 0);                             cout << name << endl;
+        GetBusObjectsRecursive(busObjects, proxy);
+
+        // Send the advertisement via XMPP
+        m_transport->SendAdvertisement(name, busObjects);
+    }
+
+    void
+    LostAdvertisedName(
+        const char*   name,
+        TransportMask transport,
+        const char*   namePrefix
+        )
+    {
+                                                                                // TODO: send via XMPP, on receipt should stop advertising and unregister/delete associated bus objects
     }
 
     void
@@ -1346,78 +1526,77 @@ public:
     }
 
 private:
-    XMPPConnector* m_connector;
-    BusAttachment* m_bus;
-};
-/*    void
-    FoundAdvertisedName(
-        const char*   name,
-        TransportMask transport,
-        const char*   namePrefix
+    void
+    GetBusObjectsRecursive(
+        vector<XmppTransport::BusObjectInfo>& busObjects,
+        ProxyBusObject&                       proxy
         )
     {
-        if(m_AssociatedBus)
-        {
-            // This means we are on a proxy bus attachment.                     // TODO: separate classes for primary AJHandler (BusListener) and proxy ones, m_AssociatedBus and certain callbacks only apply to one or the other
-            // We shouldn't even be looking for advertised names here.
-            return;
-        }
-
-        if(name == strstr(name, "org.alljoyn.BusNode"))
-        {
-            return;
-        }
-
-        // Check to see if we are advertising this name
-        if(m_Connector->IsAdvertisingName(name))
-        {
-            return;
-        }
-
-        cout << "Found advertised name: " << name << endl;
-
-        ProxyBusObject* proxy = new ProxyBusObject(
-                *(m_Connector->GetBusAttachment()), name, "/", 0);
-        QStatus err = proxy->IntrospectRemoteObjectAsync(
-                this, static_cast<ProxyBusObject::Listener::IntrospectCB>(
-                &AllJoynHandler::IntrospectCallback), proxy);
+        QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
-            cout << "Could not introspect remote object: " <<
-                    QCC_StatusText(err) << endl;
+            return;
+        }
+
+        XmppTransport::BusObjectInfo thisObj;
+        thisObj.path = proxy.GetPath().c_str();
+        if(thisObj.path.empty()) {
+            thisObj.path = "/";
+        }
+                                                                                cout << "  " << thisObj.path << endl;
+        // Get the interfaces implemented at this object path
+        size_t numIfaces = proxy.GetInterfaces();
+        if(numIfaces != 0)
+        {
+            InterfaceDescription** ifaceList =
+                    new InterfaceDescription*[numIfaces];
+            numIfaces = proxy.GetInterfaces(
+                    (const InterfaceDescription**)ifaceList, numIfaces);
+
+            // Find the interface(s) being advertised by this AJ device
+            for(uint32_t i = 0; i < numIfaces; ++i)
+            {
+                const char* ifaceName = ifaceList[i]->GetName();
+                string ifaceNameStr(ifaceName);
+                if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
+                   ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
+                   ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
+                   ifaceNameStr != "org.allseen.Introspectable"          )
+                {                                                               cout << "    " << ifaceNameStr << endl;
+                    thisObj.interfaces.push_back(ifaceList[i]);
+                }
+            }
+
+            delete[] ifaceList;
+
+            if(!thisObj.interfaces.empty())
+            {
+                busObjects.push_back(thisObj);
+            }
+        }
+
+        // Get the children of this object path
+        size_t num_children = proxy.GetChildren();
+        if(num_children != 0)
+        {
+            ProxyBusObject** children = new ProxyBusObject*[num_children];
+            num_children = proxy.GetChildren(children, num_children);
+
+            for(uint32_t i = 0; i < num_children; ++i)
+            {
+                GetBusObjectsRecursive(busObjects, *children[i]);
+            }
+
+            delete[] children;
         }
     }
 
-    void
-    LostAdvertisedName(
-        const char*   name,
-        TransportMask transport,
-        const char*   namePrefix
-        )
-    {
-                                                                                // TODO: send via XMPP, on receipt should stop advertising and unregister/delete associated bus objects
-    }
-
-    //void
-    //NameOwnerChanged(
-    //    const char* busName,
-    //    const char* previousOwner,
-    //    const char* newOwner
-    //    )
-    //{
-    //    if(!newOwner)
-    //    {
-    //        return;
-    //    }
-
-    //    m_Connector->GetBusAttachment()->EnableConcurrentCallbacks();
-
-    //    cout << "NameOwnerChanged: " << newOwner << endl;
-    //    vector<XMPPConnector::RemoteBusObject> joiner_ifaces;
-    //    ProxyBusObject proxy(
-    //        *(m_Connector->GetBusAttachment()), newOwner, "/", 0);
-    //    getInterfacesFromAdvertisedNameRecursive(joiner_ifaces, NULL, proxy);
-    //}
+private:
+    XMPPConnector* m_connector;
+    XmppTransport* m_transport;
+    BusAttachment* m_bus;
+};
+/*
 
     bool
     AcceptSessionJoiner(
@@ -2712,10 +2891,10 @@ XMPPConnector::XMPPConnector(
     //m_NotifService(NULL),
     //m_NotifSender(NULL)
 {
-    m_listener = new AllJoynListener(this, bus);
     m_xmppTransport = new XmppTransport(
             xmppJid, xmppPassword, xmppChatroom,
             bus->GetGlobalGUIDString().c_str());
+    m_listener = new AllJoynListener(this, m_xmppTransport, bus);
 
 
     m_bus->RegisterBusListener(*m_listener);
@@ -2800,13 +2979,12 @@ XMPPConnector::~XMPPConnector()
     vector<ProxyBusAttachment*>::iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
-        (*it)->Disconnect();
-        (*it)->Stop();
         delete(*it);
     }
 
-    delete m_xmppTransport;
+    m_bus->UnregisterBusListener(*m_listener);
     delete m_listener;
+    delete m_xmppTransport;
 }
 
 QStatus
@@ -2878,6 +3056,22 @@ XMPPConnector::Start()
 void XMPPConnector::Stop()
 {
     m_xmppTransport->Stop();
+}
+
+bool
+XMPPConnector::IsAdvertisingName(
+    string name
+    )
+{
+    vector<ProxyBusAttachment*>::iterator it;
+    for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
+    {
+        if(name == (*it)->AdvertisedName())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 /*QStatus
@@ -3056,23 +3250,6 @@ string XMPPConnector::GetChatroomJabberId()
     return m_ChatroomJabberId;
 }
 
-bool
-XMPPConnector::IsAdvertisingName(
-    string name
-    )
-{
-    vector<BusAttachment*>::iterator it;
-    for(it = m_BusAttachments.begin(); it != m_BusAttachments.end(); ++it)
-    {
-        GenericBusAttachment* gen_bus = (GenericBusAttachment*)(*it);
-        if(name == gen_bus->GetAdvertisedName())
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 #ifndef NO_AJ_GATEWAY
 void
 XMPPConnector::mergedAclUpdated()
@@ -3127,107 +3304,7 @@ XMPPConnector::RelayAnnouncement(
     }
 }*/
 
-/*void
-XMPPConnector::HandleIncomingAdvertisement(
-    string info
-    )
-{
-    // Parse the required information
-    string advertise_name;
-    vector<RemoteBusObject> bus_objects;
-
-    istringstream info_stream(info);
-    string line;
-
-    // First line is the type (advertisement)
-    if(0 == getline(info_stream, line)){ return; }
-    if(line != ALLJOYN_CODE_ADVERTISEMENT){ return; }
-
-    // Second line is the name to advertise
-    if(0 == getline(info_stream, advertise_name)){ return; }
-    //cout << "advertise name: " << advertise_name << endl;
-
-    // Following are the bus objects and their interfaces separated by newlines // TODO: copy-paste code
-    RemoteBusObject new_bus_object;
-    string interface_name = "";
-    string interface_description = "";
-
-    if(0 == getline(info_stream, line)){ return; }
-    while(getline(info_stream, line))
-    {
-        if(line.empty())
-        {
-            if(!interface_description.empty())
-            {
-                // We've reached the end of an interface description.
-                str::UnescapeXml(interface_description);
-                QStatus err = m_Bus->CreateInterfacesFromXml(
-                        interface_description.c_str());
-                if(err == ER_OK)
-                {
-                    const InterfaceDescription* new_interface =
-                            m_Bus->GetInterface(interface_name.c_str());
-                    if(new_interface)
-                    {
-                        new_bus_object.interfaces.push_back(new_interface);
-                    }
-                }
-                else
-                {
-                    cout << "Failed to create InterfaceDescription " <<
-                            interface_name << ": " <<
-                            QCC_StatusText(err) << endl;
-                }
-
-                interface_name.clear();
-                interface_description.clear();
-            }
-            else
-            {
-                // We've reached the end of a bus object.
-                bus_objects.push_back(new_bus_object);
-
-                new_bus_object.objectPath.clear();
-                new_bus_object.interfaces.clear();
-            }
-        }
-        else
-        {
-            if(new_bus_object.objectPath.empty())
-            {
-                new_bus_object.objectPath = line;
-            }
-            else if(interface_name.empty())
-            {
-                interface_name = line;
-            }
-            else
-            {
-                interface_description.append(line + "/n");
-            }
-        }
-    }
-
-    // Now we need to actually implement the interfaces and advertise the name
-    GenericBusAttachment* gen_bus;
-    QStatus err = AddRemoteInterface(advertise_name, bus_objects,
-            true, (BusAttachment**)&gen_bus);
-    if(err != ER_OK)
-    {
-        cout << "Could not implement remote advertisement." << endl;
-    }
-    else
-    {
-        // Is there an announcement waiting to be sent for this new attachment?
-        if(m_UnsentAnnouncements.find(advertise_name) !=
-                m_UnsentAnnouncements.end())
-        {
-            RelayAnnouncement(
-                    gen_bus, m_UnsentAnnouncements.at(advertise_name));
-            m_UnsentAnnouncements.erase(advertise_name);
-        }
-    }
-}
+/*
 
 void
 XMPPConnector::HandleIncomingMethodCall(
@@ -4003,7 +4080,7 @@ XMPPConnector::HandleIncomingGetAllReply(
 
 void
 XMPPConnector::HandleIncomingAlarm(
-    string info 
+    string info
     )
 {
     // Parse the message
