@@ -12,14 +12,12 @@
 #include <alljoyn/notification/Notification.h>
 #include <alljoyn/notification/NotificationService.h>
 #include <alljoyn/notification/NotificationSender.h>
-//#include <strophe.h>
 #include <string>
 #include <vector>
+#include <list>
 #include <map>
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
-
-// TODO: P5 make naming and capitalization consistent
 
 namespace ajn {
 namespace gw {
@@ -34,19 +32,15 @@ class XMPPConnector
 class XMPPConnector : public GatewayConnector
 #endif // NO_AJ_GATEWAY
 {
-public:
-    /*struct RemoteBusObject
-    {
-        std::string objectPath;
-        std::vector<const InterfaceDescription*> interfaces;
-    };*/
+    friend class XmppTransport;
 
+public:
     XMPPConnector(
-        BusAttachment* bus,
-        std::string    appName,
-        std::string    xmppJid,
-        std::string    xmppPassword,
-        std::string    xmppChatroom
+        BusAttachment*     bus,
+        const std::string& appName,
+        const std::string& xmppJid,
+        const std::string& xmppPassword,
+        const std::string& xmppChatroom
         );
 
     virtual ~XMPPConnector();
@@ -56,57 +50,35 @@ public:
     void Stop();
 
     bool IsAdvertisingName(
-        std::string name
-        );
+        const std::string& name
+        ) const;
 
-    //QStatus AddRemoteInterface(std::string name, std::vector<RemoteBusObject> busObjects, bool advertise, BusAttachment** bus); // TODO: this and AJBusObject could be private or not in here (just need to include strophe.h to also make xmppConnection/StanzaHandler fns private static members)
-    //QStatus RemoveRemoteInterface(std::string name);
-
-    //std::string FindWellKnownName(std::string uniqueName);
-
-    //BusAttachment* GetBusAttachment(); // TODO: maybe make private
-    //BusListener* GetBusListener();
-
-    //std::string GetJabberId();
-    //std::string GetPassword();
-    //std::string GetChatroomJabberId();
-
-/*protected:
+protected:
 #ifndef NO_AJ_GATEWAY
     virtual void mergedAclUpdated();
     virtual void shutdown();
     virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
 #endif // !NO_AJ_GATEWAY
-*/
 
 private:
-    /*void RelayAnnouncement(BusAttachment* bus, std::string info);
+    struct RemoteBusObject
+    {
+        std::string                        path;
+        std::map<std::string, std::string> interfaces;
+    };
 
-    void HandleIncomingAdvertisement(std::string info);
-    void HandleIncomingMethodCall(std::string info);
-    void HandleIncomingMethodReply(std::string info);
-    void HandleIncomingSignal(std::string info);
-    void HandleIncomingJoinRequest(std::string info);
-    void HandleIncomingJoinResponse(std::string info);
-    void HandleIncomingSessionJoined(std::string info);
-    void HandleIncomingAnnounce(std::string info);
-    void HandleIncomingGetRequest(std::string info);
-    void HandleIncomingGetReply(std::string info);
-    void HandleIncomingGetAll(std::string info);
-    void HandleIncomingGetAllReply(std::string info);
-    void HandleIncomingAlarm(std::string info);*/
+    ProxyBusAttachment* GetRemoteProxy(
+        const std::string&                  proxyName,
+        const std::vector<RemoteBusObject>& objects
+        );
+    void DeleteRemoteProxy(
+        ProxyBusAttachment*& proxy
+        );
 
-private:
     BusAttachment* m_bus;
     AllJoynListener* m_listener;
-    //BusListener* m_BusListener;
-    //std::vector<SessionPort> m_SessionPorts;                                  // TODO: how to handle well-known ports we need to bind?
 
-    std::vector<ProxyBusAttachment*> m_proxyAttachments;
-
-    //std::string m_xmppJid;
-    //std::string m_xmppPassword;
-    //std::string m_xmppChatroom;
+    std::list<ProxyBusAttachment*> m_proxyAttachments;
 
     //ajn::services::PropertyStore* m_AboutPropertyStore;
     //ajn::services::NotificationService* m_NotifService;

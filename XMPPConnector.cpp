@@ -19,6 +19,7 @@ using namespace qcc;
 
 using std::string;
 using std::vector;
+using std::list;
 using std::map;
 using std::cout;
 using std::endl;
@@ -672,6 +673,189 @@ namespace msgarg {
 
 using namespace util;
 
+class ajn::gw::ProxyBusAttachment :
+    public BusAttachment
+{
+public:
+    ProxyBusAttachment(
+        string proxyName
+        ) :
+        BusAttachment(proxyName.c_str()),
+        m_proxyName(proxyName),
+        m_wellKnownName(""),
+        m_listener()
+    {
+        RegisterBusListener(m_listener);
+    }
+
+    ~ProxyBusAttachment()
+    {
+        vector<ProxyBusObject*>::iterator it;
+        for(it = m_objects.begin(); it != m_objects.end(); ++it)
+        {
+            UnregisterBusObject(**it);
+            delete(*it);
+        }
+
+        UnregisterBusListener(m_listener);
+    }
+
+    QStatus BindSessionPort(
+        SessionPort&       port,
+        const SessionOpts& opts
+        )
+    {
+        return BusAttachment::BindSessionPort(port, opts, m_listener);
+    }
+
+    QStatus AddRemoteObject(
+        string                              path,
+        vector<const InterfaceDescription*> interfaces
+        )
+    {
+        QStatus err = ER_OK;
+        ProxyBusObject* newObj = new ProxyBusObject(path);
+
+        err = newObj->ImplementInterfaces(interfaces);
+        if(err != ER_OK)
+        {
+            delete newObj;
+            return err;
+        }
+
+        RegisterBusObject(*newObj);
+        m_objects.push_back(newObj);
+
+        return err;
+    }
+
+    string
+    RequestWellKnownName(
+        string proxyName
+        )
+    {
+        if(proxyName.find_first_of(":") != 0)
+        {
+            // Request and advertise the new attachment's name
+            QStatus err = RequestName(proxyName.c_str(),
+                    DBUS_NAME_FLAG_ALLOW_REPLACEMENT|DBUS_NAME_FLAG_DO_NOT_QUEUE
+                    );
+            if(err != ER_OK)
+            {
+                cout << "Could not acquire well known name " << proxyName <<
+                        ": " << QCC_StatusText(err) << endl;
+                m_wellKnownName = "";
+            }
+            else
+            {
+                m_wellKnownName = proxyName;
+            }
+        }
+        else
+        {
+            // We have a device advertising its unique name.
+            m_wellKnownName = GetUniqueName().c_str();
+        }
+
+        return m_wellKnownName;
+    }
+
+    string WellKnownName() const { return m_wellKnownName; }
+    string ProxyName() const { return m_proxyName; }
+
+private:
+    class ProxyBusListener :
+        public BusListener,
+        public SessionPortListener
+    {
+
+    };
+
+    class ProxyBusObject :
+        public BusObject
+    {
+    public:
+        ProxyBusObject(
+            string path
+            ) :
+            BusObject(path.c_str()),
+            m_interfaces()
+        {}
+
+        void
+        AllJoynMethodHandler(
+            const InterfaceDescription::Member* member,
+            Message&                            message
+            )
+        {
+            // TODO
+        }
+
+        QStatus
+        ImplementInterfaces(
+            vector<const InterfaceDescription*> interfaces//,
+            //ProxyBusAttachment* bus
+            )
+        {
+            vector<const InterfaceDescription*>::iterator it;
+            for(it = interfaces.begin(); it != interfaces.end(); ++it)
+            {
+                QStatus err = AddInterface(**it);
+                if(ER_OK != err)
+                {
+                    return err;
+                }
+
+                m_interfaces.push_back(*it);
+
+                // Register method handlers
+                size_t numMembers = (*it)->GetMembers();
+                InterfaceDescription::Member** interfaceMembers =
+                        new InterfaceDescription::Member*[numMembers];
+                numMembers = (*it)->GetMembers(
+                        (const InterfaceDescription::Member**)interfaceMembers,
+                        numMembers);
+
+                for(uint32_t i = 0; i < numMembers; ++i)
+                {
+                    if(interfaceMembers[i]->memberType == MESSAGE_SIGNAL)
+                    {
+                        //err = bus->RegisterSignalHandler(this,
+                        //        static_cast<MessageReceiver::SignalHandler>(
+                        //        &GenericBusObject::AllJoynSignalHandler),
+                        //        interface_members[i], NULL);
+                    }
+                    else
+                    {
+                        err = AddMethodHandler(interfaceMembers[i],
+                                static_cast<MessageReceiver::MethodHandler>(
+                                &ProxyBusObject::AllJoynMethodHandler));
+                    }
+                    if(err != ER_OK)
+                    {
+                        cout << "Failed to add method handler for " <<
+                                interfaceMembers[i]->name.c_str() << ": " <<
+                                QCC_StatusText(err) << endl;
+                    }
+                }
+
+                delete[] interfaceMembers;
+            }
+
+            return ER_OK;
+        }
+
+    private:
+        vector<const InterfaceDescription*> m_interfaces;
+    };
+
+    string                    m_proxyName;
+    string                    m_wellKnownName;
+    ProxyBusListener          m_listener;
+    vector<ProxyBusObject*>   m_objects;
+    map<SessionId, SessionId> m_sessionIdMap;
+};
+
 class ajn::gw::XmppTransport
 {
 public:
@@ -700,16 +884,18 @@ public:
     };
 
     XmppTransport(
-        string jabberId,
-        string password,
-        string chatroom,
-        string nickname
+        XMPPConnector* connector,
+        string         jabberId,
+        string         password,
+        string         chatroom,
+        string         nickname
         ) :
+        m_connector(connector),
         m_jabberId(jabberId),
         m_password(password),
         m_chatroom(chatroom),
         m_nickname(nickname),
-        m_listener(NULL),
+        m_callbackListener(NULL),
         m_connectionCallback(NULL),
         m_callbackUserdata(NULL)
     {
@@ -727,17 +913,17 @@ public:
 
     void SetConnectionCallback(
         XmppTransport::Listener*                    listener,
-        XmppTransport::Listener::ConnectionCallback connectionCallback,
+        XmppTransport::Listener::ConnectionCallback callback,
         void*                                       userdata
         )
     {
-        m_listener = listener;
-        m_connectionCallback = connectionCallback;
+        m_callbackListener = listener;
+        m_connectionCallback = callback;
         m_callbackUserdata = userdata;
     }
     void RemoveConnectionCallback()
     {
-        m_listener = NULL;
+        m_callbackListener = NULL;
         m_connectionCallback = NULL;
         m_callbackUserdata = NULL;
     }
@@ -820,7 +1006,7 @@ private:
         xmpp_stanza_add_child(messageStanza, bodyStanza);
         xmpp_stanza_release(bodyStanza);
 
-        char* buf = 0;
+        char* buf = NULL;
         size_t buflen = 0;
         xmpp_stanza_to_text(messageStanza, &buf, &buflen);
         cout << "Sending XMPP advertise message." << endl;
@@ -830,12 +1016,12 @@ private:
         xmpp_stanza_release(messageStanza);
     }
 
-    void ParseBusObjectInfo(
-        istringstream&         msgStream,
-        vector<BusObjectInfo>& busObjects
+    vector<XMPPConnector::RemoteBusObject> ParseBusObjectInfo(
+        istringstream&         msgStream
         )
     {
-        BusObjectInfo thisObj;
+        vector<XMPPConnector::RemoteBusObject> results;
+        XMPPConnector::RemoteBusObject thisObj;
         string interfaceName = "";
         string interfaceDescription = "";
 
@@ -844,56 +1030,42 @@ private:
         {
             if(line.empty())
             {
-                if(!interface_description.empty())
+                if(!interfaceDescription.empty())
                 {
                     // We've reached the end of an interface description.
-                    str::UnescapeXml(interface_description);
-                    QStatus err = m_Bus->CreateInterfacesFromXml(
-                            interface_description.c_str());
-                    if(err == ER_OK)
-                    {
-                        const InterfaceDescription* new_interface =
-                                m_Bus->GetInterface(interface_name.c_str());
-                        if(new_interface)
-                        {
-                            new_bus_object.interfaces.push_back(new_interface);
-                        }
-                    }
-                    else
-                    {
-                        cout << "Failed to create InterfaceDescription " <<
-                                interface_name << ": " <<
-                                QCC_StatusText(err) << endl;
-                    }
+                    str::UnescapeXml(interfaceDescription);
+                    thisObj.interfaces[interfaceName] = interfaceDescription;
 
-                    interface_name.clear();
-                    interface_description.clear();
+                    interfaceName.clear();
+                    interfaceDescription.clear();
                 }
                 else
                 {
                     // We've reached the end of a bus object.
-                    bus_objects.push_back(new_bus_object);
+                    results.push_back(thisObj);
 
-                    new_bus_object.objectPath.clear();
-                    new_bus_object.interfaces.clear();
+                    thisObj.path.clear();
+                    thisObj.interfaces.clear();
                 }
             }
             else
             {
-                if(new_bus_object.objectPath.empty())
+                if(thisObj.path.empty())
                 {
-                    new_bus_object.objectPath = line;
+                    thisObj.path = line.c_str();
                 }
-                else if(interface_name.empty())
+                else if(interfaceName.empty())
                 {
-                    interface_name = line;
+                    interfaceName = line;
                 }
                 else
                 {
-                    interface_description.append(line + "/n");
+                    interfaceDescription.append(line + "/n");
                 }
             }
         }
+
+        return results;
     }
 
     void
@@ -901,10 +1073,6 @@ private:
         string message
         )
     {
-        // Parse the required information
-        string advertisedName;
-        vector<BusObjectInfo> busObjects;
-
         istringstream msgStream(message);
         string line;
 
@@ -913,28 +1081,30 @@ private:
         if(line != ALLJOYN_CODE_ADVERTISEMENT){ return; }
 
         // Second line is the name to advertise
-        if(0 == getline(msgStream, advertisedName)){ return; }
-        //cout << "advertise name: " << advertise_name << endl;
+        string proxyName = "";
+        if(0 == getline(msgStream, proxyName)){ return; }                       cout << "received XMPP advertised name: " << proxyName << endl;
 
-        // Now we need to actually implement the interfaces and advertise the name
-        GenericBusAttachment* gen_bus;
-        QStatus err = AddRemoteInterface(advertise_name, bus_objects,
-                true, (BusAttachment**)&gen_bus);
-        if(err != ER_OK)
+        vector<XMPPConnector::RemoteBusObject> objects =
+                ParseBusObjectInfo(msgStream);
+        ProxyBusAttachment* bus = m_connector->GetRemoteProxy(
+                proxyName, objects);
+        if(!bus)
         {
-            cout << "Could not implement remote advertisement." << endl;
+            return;
         }
-        else
+
+        // Request and advertise our name
+        string wkn = bus->WellKnownName();
+        if(wkn.empty())
         {
-            // Is there an announcement waiting to be sent for this new attachment?
-            if(m_UnsentAnnouncements.find(advertise_name) !=
-                    m_UnsentAnnouncements.end())
+            wkn = bus->RequestWellKnownName(proxyName);
+            if(wkn.empty())
             {
-                RelayAnnouncement(
-                        gen_bus, m_UnsentAnnouncements.at(advertise_name));
-                m_UnsentAnnouncements.erase(advertise_name);
+                m_connector->DeleteRemoteProxy(bus);
+                return;
             }
         }
+        bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
     }
 
     void
@@ -1052,8 +1222,8 @@ private:
 
         if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) )
         {
-            xmpp_stanza_t* body = 0;
-            char* buf = 0;
+            xmpp_stanza_t* body = NULL;
+            char* buf = NULL;
             size_t bufSize = 0;
             if(0 != (body = xmpp_stanza_get_child_by_name(stanza, "body")) &&
                0 == (bufSize = xmpp_stanza_to_text(body, &buf, &bufSize)))
@@ -1157,7 +1327,7 @@ private:
         case XMPP_CONN_CONNECT:
         {
             // Send presence to chatroom
-            xmpp_stanza_t* presence = 0;
+            xmpp_stanza_t* presence = NULL;
             presence = xmpp_stanza_new(xmpp_conn_get_context(conn));
             xmpp_stanza_set_name(presence, "presence");
             xmpp_stanza_set_attribute(presence, "from",
@@ -1165,7 +1335,7 @@ private:
             xmpp_stanza_set_attribute(presence, "to",
                     (transport->m_chatroom+"/"+transport->m_nickname).c_str());
 
-            char* buf = 0;
+            char* buf = NULL;
             size_t buflen = 0;
             xmpp_stanza_to_text(presence, &buf, &buflen);
             cout << "Sending XMPP presence message" << endl;
@@ -1189,9 +1359,9 @@ private:
         }
 
         // Call the connection callback
-        if(transport->m_listener && transport->m_connectionCallback)
+        if(transport->m_callbackListener && transport->m_connectionCallback)
         {
-            (transport->m_listener->*(transport->m_connectionCallback))(
+            (transport->m_callbackListener->*(transport->m_connectionCallback))(
                     (Listener::ConnectionStatus)event,
                     transport->m_callbackUserdata);
         }
@@ -1200,6 +1370,7 @@ private:
     }
 
 private:
+    XMPPConnector* m_connector;
     const string m_jabberId;
     const string m_password;
     const string m_chatroom;                                                    // TODO: moving away from using chatrooms
@@ -1207,7 +1378,7 @@ private:
 
     xmpp_ctx_t*                  m_xmppCtx;
     xmpp_conn_t*                 m_xmppConn;
-    Listener*                    m_listener;
+    Listener*                    m_callbackListener;
     Listener::ConnectionCallback m_connectionCallback;
     void*                        m_callbackUserdata;
 
@@ -1249,58 +1420,6 @@ const string XmppTransport::ALLJOYN_CODE_GET_ALL_REPLY  = "GET_ALL_REPLY";
 const string XmppTransport::TR069_ALARM_MESSAGE         = "** Alert **";
 
 
-
-class ajn::gw::ProxyBusAttachment :
-    public BusAttachment
-{
-public:
-    ProxyBusAttachment(
-        string proxyName,
-        string advertisedName
-        ) :
-        BusAttachment(advertisedName.c_str()),
-        m_proxyName(proxyName),
-        m_advertisedName(advertisedName),
-        m_listener()
-    {
-        RegisterBusListener(m_listener);
-    }
-
-    ~ProxyBusAttachment()
-    {
-        UnregisterBusListener(m_listener);
-    }
-
-    QStatus BindSessionPort(
-        SessionPort&       port,
-        const SessionOpts& opts
-        )
-    {
-        return BusAttachment::BindSessionPort(port, opts, m_listener);
-    }
-
-    string AdvertisedName() { return m_advertisedName; }
-
-private:
-    class ProxyBusListener :
-        public BusListener,
-        public SessionPortListener
-    {
-
-    };
-
-    class ProxyBusObject :
-        public BusObject
-    {
-
-    };
-
-    string                    m_proxyName;
-    string                    m_advertisedName;
-    ProxyBusListener          m_listener;
-    vector<ProxyBusObject>    m_objects;
-    map<SessionId, SessionId> m_sessionIdMap;
-};
 
 /*class GenericBusAttachment :
     public BusAttachment
@@ -2382,59 +2501,6 @@ public:
     }
 
     QStatus
-    ImplementInterfaces(
-        vector<const InterfaceDescription*> interfaces,
-        BusAttachment*                      busAttachment)
-    {
-        vector<const InterfaceDescription*>::iterator it;
-        for(it = interfaces.begin(); it != interfaces.end(); ++it)
-        {
-            QStatus err = AddInterface(**it);
-            if(ER_OK != err)
-            {
-                return err;
-            }
-
-            m_Interfaces.push_back(*it);
-
-            // Register method handlers
-            size_t num_members = (*it)->GetMembers();
-            InterfaceDescription::Member** interface_members =
-                    new InterfaceDescription::Member*[num_members];
-            num_members = (*it)->GetMembers(
-                    (const InterfaceDescription::Member**)interface_members,
-                    num_members);
-
-            for(uint32_t i = 0; i < num_members; ++i)
-            {
-                if(interface_members[i]->memberType == MESSAGE_SIGNAL)
-                {
-                    //err = busAttachment->RegisterSignalHandler(this,
-                    //        static_cast<MessageReceiver::SignalHandler>(
-                    //        &GenericBusObject::AllJoynSignalHandler),
-                    //        interface_members[i], NULL);
-                }
-                else
-                {
-                    err = AddMethodHandler(interface_members[i],
-                            static_cast<MessageReceiver::MethodHandler>(
-                            &GenericBusObject::AllJoynMethodHandler));
-                }
-                if(err != ER_OK)
-                {
-                    cout << "Failed to add method handler for " <<
-                            interface_members[i]->name.c_str() << ": " <<
-                            QCC_StatusText(err) << endl;
-                }
-            }
-
-            delete[] interface_members;
-        }
-
-        return ER_OK;
-    }
-
-    QStatus
     Get(
         const char* ifcName,
         const char* propName,
@@ -2874,10 +2940,10 @@ private:
 
 XMPPConnector::XMPPConnector(
     BusAttachment* bus,
-    string         appName,
-    string         xmppJid,
-    string         xmppPassword,
-    string         xmppChatroom
+    const string&  appName,
+    const string&  xmppJid,
+    const string&  xmppPassword,
+    const string&  xmppChatroom
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
@@ -2891,7 +2957,7 @@ XMPPConnector::XMPPConnector(
     //m_NotifService(NULL),
     //m_NotifSender(NULL)
 {
-    m_xmppTransport = new XmppTransport(
+    m_xmppTransport = new XmppTransport( this,
             xmppJid, xmppPassword, xmppChatroom,
             bus->GetGlobalGUIDString().c_str());
     m_listener = new AllJoynListener(this, m_xmppTransport, bus);
@@ -2976,7 +3042,7 @@ XMPPConnector::XMPPConnector(
 
 XMPPConnector::~XMPPConnector()
 {
-    vector<ProxyBusAttachment*>::iterator it;
+    list<ProxyBusAttachment*>::iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
         delete(*it);
@@ -3060,18 +3126,129 @@ void XMPPConnector::Stop()
 
 bool
 XMPPConnector::IsAdvertisingName(
-    string name
-    )
+    const string& name
+    ) const
 {
-    vector<ProxyBusAttachment*>::iterator it;
+    list<ProxyBusAttachment*>::const_iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
-        if(name == (*it)->AdvertisedName())
+        if(name == (*it)->WellKnownName())
         {
             return true;
         }
     }
     return false;
+}
+
+/*bool
+XMPPConnector::IsProxyingName(
+    string name
+    )
+{
+    list<ProxyBusAttachment*>::iterator it;
+    for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
+    {
+        if(name == (*it)->ProxyName())
+        {
+            return true;
+        }
+    }
+    return false;
+}*/
+
+ProxyBusAttachment*
+XMPPConnector::GetRemoteProxy(
+    const string&                  proxyName,
+    const vector<RemoteBusObject>& objects
+    )
+{
+    ProxyBusAttachment* result = NULL;
+    // TODO: lock mutex
+
+    list<ProxyBusAttachment*>::iterator it;
+    for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
+    {
+        if(proxyName == (*it)->ProxyName())
+        {
+            result = *it;
+        }
+    }
+
+    if(!result)
+    {
+        // We did not find a match. Create the new attachment.
+        QStatus err = ER_OK;
+        result = new ProxyBusAttachment(proxyName);
+
+        vector<RemoteBusObject>::const_iterator objIter;
+        for(objIter = objects.begin(); objIter != objects.end(); ++objIter)
+        {
+            string objPath = objIter->path;
+            vector<const InterfaceDescription*> interfaces;
+
+            // Get the interface descriptions
+            map<string, string>::const_iterator ifaceIter;
+            for(ifaceIter = objIter->interfaces.begin();
+                ifaceIter != objIter->interfaces.end();
+                ++ifaceIter)
+            {
+                string ifaceName = ifaceIter->first;
+                string ifaceXml  = ifaceIter->second;
+
+                err = result->CreateInterfacesFromXml(ifaceXml.c_str());
+                if(err == ER_OK)
+                {
+                    const InterfaceDescription* newInterface =
+                            result->GetInterface(ifaceName.c_str());
+                    if(newInterface)
+                    {
+                        interfaces.push_back(newInterface);
+                    }
+                    else
+                    {
+                        err = ER_FAIL;
+                    }
+                }
+
+                if(err != ER_OK)
+                {
+                    cout << "Failed to create InterfaceDescription " <<
+                            ifaceName << ": " <<
+                            QCC_StatusText(err) << endl;
+                    delete result;
+                    return NULL;
+                }
+            }
+
+            // Add the bus object.
+            err = result->AddRemoteObject(objPath, interfaces);
+            if(err != ER_OK)
+            {
+                cout << "Failed to add remote object " << objPath << ": " <<
+                        QCC_StatusText(err) << endl;
+                delete result;
+                return NULL;
+            }
+        }
+
+        if(err == ER_OK)
+        {
+            // TODO: bind well-known session ports
+            m_proxyAttachments.push_back(result);
+        }
+    }
+
+    // TODO: unlock mutex
+    return result;
+}
+
+void XMPPConnector::DeleteRemoteProxy(
+    ProxyBusAttachment*& remoteProxy
+    )
+{
+    m_proxyAttachments.remove(remoteProxy);
+    delete(remoteProxy);
+    remoteProxy = NULL;
 }
 
 /*QStatus
