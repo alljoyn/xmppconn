@@ -110,12 +110,21 @@ int main(int argc, char** argv)
     while ( getline( conf_file, line ) )
     {
         vector<string> tokens = split(line, '=');
-        if ( tokens.size() == 2 && trim(tokens[0]) == "CHATROOM" )
+        if ( tokens.size() > 0 && trim(tokens[0]) == "CHATROOM" )
         {
-            s_ChatRoom = trim(tokens[1]);
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                s_ChatRoom = trim(tokens[1]);
+            }
             if ( s_ChatRoom.empty() )
             {
                 cerr << "CHATROOM cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
                 exit(1);
             }
         }
@@ -124,10 +133,12 @@ int main(int argc, char** argv)
             if ( tokens.size() > 2 )
             {
                 cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
             }
             else if ( tokens.size() > 0 )
             {
                 cerr << "Found unknown configuration parameter: " << tokens[0] << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
             }
         }
     }
