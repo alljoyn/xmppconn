@@ -24,7 +24,7 @@ namespace ajn {
 namespace gw {
 
 class AllJoynListener;
-class ProxyBusAttachment;
+class RemoteBusAttachment;
 class XmppTransport;
 
 #ifdef NO_AJ_GATEWAY
@@ -68,19 +68,19 @@ private:
         std::map<std::string, std::string> interfaces;
     };
 
-    ProxyBusAttachment* GetRemoteProxy(
-        const std::string&                  proxyName,
+    RemoteBusAttachment* GetRemoteAttachment(
+        const std::string&                  remoteName,
         const std::vector<RemoteBusObject>* objects = NULL
         );
-    void DeleteRemoteProxy(
-        ProxyBusAttachment*& proxy
+    void DeleteRemoteAttachment(
+        RemoteBusAttachment*& attachment
         );
 
     BusAttachment*   m_bus;
     AllJoynListener* m_listener;
 
-    std::list<ProxyBusAttachment*> m_proxyAttachments;
-    pthread_mutex_t                m_proxyAttachmentsMutex;
+    std::list<RemoteBusAttachment*> m_remoteAttachments;
+    pthread_mutex_t                 m_remoteAttachmentsMutex;
 
 
     // TODO: make stuff like this implement-able from outside this class. need to be able to register xmpp send/receive handlers
