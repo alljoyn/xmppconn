@@ -1,0 +1,29 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+SERVICE_DAEMONIZE=1
+SERVICE_WRITE_PID=1
+
+EXTRA_COMMANDS="status"
+EXTRA_HELP="        status  Returns the status of the daemon"
+
+start() {
+        cd /etc/XMPPConnector
+        service_start /usr/bin/XMPPConnector
+}
+
+stop() {
+        service_stop /usr/bin/XMPPConnector
+        rm -f /tmp/run/XMPPConnector.pid
+}
+
+status() {
+        if [ -f /tmp/run/XMPPConnector.pid ];
+        then
+                echo "Running"
+        else
+                echo "Stopped"
+        fi
+}
+
