@@ -683,7 +683,9 @@ public:
         BusAttachment(proxyName.c_str()),
         m_proxyName(proxyName),
         m_wellKnownName(""),
-        m_listener()
+        m_listener(),
+        m_aboutPropertyStore(),
+        m_aboutBusObject(this, m_aboutPropertyStore)
     {
         RegisterBusListener(m_listener);
     }
@@ -701,10 +703,11 @@ public:
     }
 
     QStatus BindSessionPort(
-        SessionPort&       port,
-        const SessionOpts& opts
+        SessionPort port
         )
     {
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
         return BusAttachment::BindSessionPort(port, opts, m_listener);
     }
 
@@ -714,7 +717,7 @@ public:
         )
     {
         QStatus err = ER_OK;
-        ProxyBusObject* newObj = new ProxyBusObject(path);
+        ProxyBusObject* newObj = new ProxyBusObject(path);                      // TODO: why pointers?
 
         err = newObj->ImplementInterfaces(interfaces);
         if(err != ER_OK)
@@ -760,10 +763,146 @@ public:
         return m_wellKnownName;
     }
 
+    void
+    RelayAnnouncement(
+        uint16_t                                   version,
+        uint16_t                                   port,
+        string                                     busName,
+        const AnnounceHandler::ObjectDescriptions& objectDescs,
+        const AnnounceHandler::AboutData&          aboutData
+        )
+    {
+        QStatus err = ER_OK;
+        cout << "Relaying announcement for " << m_wellKnownName << endl;
+
+        // Set up our About bus object
+        err = m_aboutPropertyStore.SetAnnounceArgs(aboutData);
+        if(err != ER_OK)
+        {
+            cout << "Failed to set About announcement args for " <<
+                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            return;
+        }
+        err = m_aboutBusObject.AddObjectDescriptions(objectDescs);
+        if(err != ER_OK)
+        {
+            cout << "Failed to add About object descriptions for " <<
+                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            return;
+        }
+
+        // Bind and register the announced session port
+        err = BindSessionPort(port);
+        if(err != ER_OK)
+        {
+            cout << "Failed to bind About announcement session port for " <<
+                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            return;
+        }
+        err = m_aboutBusObject.Register(port);
+        if(err != ER_OK)
+        {
+            cout << "Failed to register About announcement port for " <<
+                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            return;
+        }
+
+        // Make the announcement
+        err = m_aboutBusObject.Announce();
+        if(err != ER_OK)
+        {
+            cout << "Failed to relay announcement for " << m_wellKnownName <<
+                    ": " << QCC_StatusText(err) << endl;
+            return;
+        }
+    }
+
     string WellKnownName() const { return m_wellKnownName; }
     string ProxyName() const { return m_proxyName; }
 
 private:
+    class AboutPropertyStore :
+        public PropertyStore
+    {
+    public:
+        AboutPropertyStore()
+        {}
+
+        QStatus
+        SetAnnounceArgs(
+            const AnnounceHandler::AboutData& aboutData
+            )
+        {
+            // Construct the property store args
+            vector<MsgArg> dictArgs;
+            AnnounceHandler::AboutData::const_iterator aboutIter;
+            for(aboutIter = aboutData.begin();
+                aboutIter != aboutData.end();
+                ++aboutIter)
+            {
+                MsgArg dictEntry("{sv}",
+                        aboutIter->first.c_str(), &aboutIter->second);
+                dictEntry.Stabilize();
+
+                dictArgs.push_back(dictEntry);
+            }
+
+            QStatus err = m_announceArgs.Set("a{sv}",
+                    dictArgs.size(), &dictArgs[0]);
+            m_announceArgs.Stabilize();
+
+            return err;
+        }
+
+        QStatus
+        ReadAll(
+            const char* languageTag,
+            Filter      filter,
+            MsgArg&     all
+            )
+        {
+            all = m_announceArgs;
+            return ER_OK;
+        }
+
+    private:
+        MsgArg m_announceArgs;
+    };
+
+    class AboutBusObject :
+        public AboutService
+    {
+    public:
+        AboutBusObject(
+            ProxyBusAttachment*                        bus,
+            AboutPropertyStore&                        propertyStore
+            ) :
+            AboutService(*bus, propertyStore)
+        {}
+
+        QStatus
+        AddObjectDescriptions(
+            const AnnounceHandler::ObjectDescriptions& objectDescs
+            )
+        {
+            QStatus err = ER_OK;
+
+            AnnounceHandler::ObjectDescriptions::const_iterator it;
+            for(it = objectDescs.begin(); it != objectDescs.end(); ++it)
+            {
+                err = AddObjectDescription(it->first, it->second);
+                if(err != ER_OK)
+                {
+                    cout << "Failed to add object description for " <<
+                            it->first << ": " << QCC_StatusText(err) << endl;
+                    break;
+                }
+            }
+
+            return err;
+        }
+    };
+
     class ProxyBusListener :
         public BusListener,
         public SessionPortListener
@@ -854,6 +993,9 @@ private:
     ProxyBusListener          m_listener;
     vector<ProxyBusObject*>   m_objects;
     map<SessionId, SessionId> m_sessionIdMap;
+
+    AboutPropertyStore        m_aboutPropertyStore;
+    AboutBusObject            m_aboutBusObject;
 };
 
 class ajn::gw::XmppTransport
@@ -980,14 +1122,60 @@ public:
             msgStream << "\n";
         }
 
-        SendMessage(msgStream.str());
+        SendMessage(msgStream.str(), ALLJOYN_CODE_ADVERTISEMENT);
+    }
+
+    void
+    SendAnnounce(
+        uint16_t                                   version,
+        uint16_t                                   port,
+        const char*                                busName,
+        const AnnounceHandler::ObjectDescriptions& objectDescs,
+        const AnnounceHandler::AboutData&          aboutData
+        )
+    {
+        // Construct the text that will be the body of our message
+        ostringstream msgStream;
+        msgStream << ALLJOYN_CODE_ANNOUNCE << "\n";
+        msgStream << version << "\n";
+        msgStream << port << "\n";
+        msgStream << busName << "\n";
+
+        AnnounceHandler::ObjectDescriptions::const_iterator objIter;
+        for(objIter = objectDescs.begin();
+            objIter != objectDescs.end();
+            ++objIter)
+        {
+            msgStream << objIter->first.c_str() << "\n";
+            vector<String>::const_iterator val_iter;
+            for(val_iter = objIter->second.begin();
+                val_iter != objIter->second.end();
+                ++val_iter)
+            {
+                msgStream << val_iter->c_str() << "\n";
+            }
+        }
+
+        msgStream << "\n";
+
+        AnnounceHandler::AboutData::const_iterator aboutIter;
+        for(aboutIter = aboutData.begin();
+            aboutIter != aboutData.end();
+            ++aboutIter)
+        {
+            msgStream << aboutIter->first.c_str() << "\n";
+            msgStream << msgarg::ToString(aboutIter->second) << "\n\n";
+        }
+
+        SendMessage(msgStream.str(), ALLJOYN_CODE_ANNOUNCE);
     }
 
     // TODO: send other stuff
 
 private:
     void SendMessage(
-        string body
+        string body,
+        string messageType = ""
         )
     {
         xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
@@ -1009,7 +1197,9 @@ private:
         char* buf = NULL;
         size_t buflen = 0;
         xmpp_stanza_to_text(messageStanza, &buf, &buflen);
-        cout << "Sending XMPP advertise message." << endl;
+        cout << "Sending XMPP " <<
+                (messageType.empty() ? "" : messageType+" ") <<
+                "message." << endl;
         xmpp_free(m_xmppCtx, buf);
 
         xmpp_send(m_xmppConn, messageStanza);
@@ -1087,7 +1277,7 @@ private:
         vector<XMPPConnector::RemoteBusObject> objects =
                 ParseBusObjectInfo(msgStream);
         ProxyBusAttachment* bus = m_connector->GetRemoteProxy(
-                proxyName, objects);
+                proxyName, &objects);
         if(!bus)
         {
             return;
@@ -1105,6 +1295,20 @@ private:
             }
         }
         bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
+
+        // Do we have a pending announcement?                                   // TODO: Create attachment on announce if !exists. no need for this
+        map<string, AnnounceInfo>::iterator announceIter =
+                m_pendingAnnouncements.find(proxyName);
+        if(announceIter != m_pendingAnnouncements.end())
+        {
+            bus->RelayAnnouncement(
+                    announceIter->second.version,
+                    announceIter->second.port,
+                    wkn,
+                    announceIter->second.objectDescs,
+                    announceIter->second.aboutData);
+            m_pendingAnnouncements.erase(announceIter);
+        }
     }
 
     void
@@ -1159,7 +1363,96 @@ private:
         string message
         )
     {
+        istringstream msgStream(message);
+        string line, versionStr, portStr, busName;
 
+        // First line is the type (announcement)
+        if(0 == getline(msgStream, line)){ return; }
+        if(line != ALLJOYN_CODE_ANNOUNCE){ return; }
+
+        // Get the info from the message
+        if(0 == getline(msgStream, versionStr)){ return; }
+        if(0 == getline(msgStream, portStr)){ return; }
+        if(0 == getline(msgStream, busName)){ return; }
+
+        // The object descriptions follow
+        AnnounceHandler::ObjectDescriptions objDescs;
+        qcc::String objectPath = "";
+        vector<qcc::String> interfaceNames;
+        while(0 != getline(msgStream, line))
+        {
+            if(line.empty())
+            {
+                break;
+            }
+
+            if(objectPath.empty())
+            {
+                objectPath = line.c_str();
+            }
+            else
+            {
+                if(line[0] == '/')
+                {
+                    // end of the object description
+                    objDescs[objectPath] = interfaceNames;
+
+                    interfaceNames.clear();
+                    objectPath = line.c_str();
+                }
+                else
+                {
+                    interfaceNames.push_back(line.c_str());
+                }
+            }
+        }
+
+        // Then come the properties
+        AnnounceHandler::AboutData aboutData;
+        string propName = "", propDesc = "";
+        while(0 != getline(msgStream, line))
+        {
+            if(line.empty())
+            {
+                // reached the end of a property
+                aboutData[propName.c_str()] = msgarg::FromString(propDesc);
+
+                propName.clear();
+                propDesc.clear();
+            }
+
+            if(propName.empty())
+            {
+                propName = line;
+            }
+            else
+            {
+                propDesc += line;
+            }
+        }
+
+        // Find the BusAttachment with the given app name
+        ProxyBusAttachment* bus = m_connector->GetRemoteProxy(busName);
+        if(bus)
+        {
+            bus->RelayAnnouncement(
+                static_cast<uint16_t>(strtoul(versionStr.c_str(), NULL, 10)),
+                static_cast<uint16_t>(strtoul(portStr.c_str(), NULL, 10)),
+                bus->WellKnownName(),
+                objDescs,
+                aboutData);                                                     // TODO: Create attachment on announce if !exists. Will have remote proxy info here. no need for else or m_pendingAnnouncements
+        }
+        else
+        {
+            AnnounceInfo info = {
+                static_cast<uint16_t>(strtoul(versionStr.c_str(), NULL, 10)),
+                static_cast<uint16_t>(strtoul(portStr.c_str(), NULL, 10)),
+                busName,
+                objDescs,
+                aboutData
+            };
+            m_pendingAnnouncements[busName] = info;
+        }
     }
 
     void
@@ -1381,6 +1674,16 @@ private:
     Listener*                    m_callbackListener;
     Listener::ConnectionCallback m_connectionCallback;
     void*                        m_callbackUserdata;
+
+    struct AnnounceInfo                                                         // TODO: Create attachment on announce if !exists. No need for AnnounceInfo or m_pendingAnnouncements
+    {
+        uint16_t                            version;
+        uint16_t                            port;
+        string                              busName;
+        AnnounceHandler::ObjectDescriptions objectDescs;
+        AnnounceHandler::AboutData          aboutData;
+    };
+    map<string, AnnounceInfo> m_pendingAnnouncements;
 
 
     static const string ALLJOYN_CODE_ADVERTISEMENT;
@@ -1641,7 +1944,9 @@ public:
         const ObjectDescriptions& objectDescs,
         const AboutData&          aboutData
         )
-    {
+    {                                                                           // TODO: Create attachment on announce if !exists. Have to introspect here.
+        m_transport->SendAnnounce(
+                version, port, busName, objectDescs, aboutData);
     }
 
 private:
@@ -2962,6 +3267,7 @@ XMPPConnector::XMPPConnector(
             bus->GetGlobalGUIDString().c_str());
     m_listener = new AllJoynListener(this, m_xmppTransport, bus);
 
+    pthread_mutex_init(&m_proxyAttachmentsMutex, NULL);
 
     m_bus->RegisterBusListener(*m_listener);
 
@@ -3042,11 +3348,14 @@ XMPPConnector::XMPPConnector(
 
 XMPPConnector::~XMPPConnector()
 {
+    pthread_mutex_lock(&m_proxyAttachmentsMutex);
     list<ProxyBusAttachment*>::iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
         delete(*it);
     }
+    pthread_mutex_unlock(&m_proxyAttachmentsMutex);
+    pthread_mutex_destroy(&m_proxyAttachmentsMutex);
 
     m_bus->UnregisterBusListener(*m_listener);
     delete m_listener;
@@ -3127,8 +3436,9 @@ void XMPPConnector::Stop()
 bool
 XMPPConnector::IsAdvertisingName(
     const string& name
-    ) const
+    )
 {
+    pthread_mutex_lock(&m_proxyAttachmentsMutex);
     list<ProxyBusAttachment*>::const_iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
     {
@@ -3137,6 +3447,7 @@ XMPPConnector::IsAdvertisingName(
             return true;
         }
     }
+    pthread_mutex_unlock(&m_proxyAttachmentsMutex);
     return false;
 }
 
@@ -3159,11 +3470,11 @@ XMPPConnector::IsProxyingName(
 ProxyBusAttachment*
 XMPPConnector::GetRemoteProxy(
     const string&                  proxyName,
-    const vector<RemoteBusObject>& objects
+    const vector<RemoteBusObject>* objects
     )
 {
     ProxyBusAttachment* result = NULL;
-    // TODO: lock mutex
+    pthread_mutex_lock(&m_proxyAttachmentsMutex);
 
     list<ProxyBusAttachment*>::iterator it;
     for(it = m_proxyAttachments.begin(); it != m_proxyAttachments.end(); ++it)
@@ -3174,14 +3485,14 @@ XMPPConnector::GetRemoteProxy(
         }
     }
 
-    if(!result)
+    if(!result && objects)
     {
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
         result = new ProxyBusAttachment(proxyName);
 
         vector<RemoteBusObject>::const_iterator objIter;
-        for(objIter = objects.begin(); objIter != objects.end(); ++objIter)
+        for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
         {
             string objPath = objIter->path;
             vector<const InterfaceDescription*> interfaces;
@@ -3234,11 +3545,13 @@ XMPPConnector::GetRemoteProxy(
         if(err == ER_OK)
         {
             // TODO: bind well-known session ports
+            result->BindSessionPort(1000); // ControlPanel
+
             m_proxyAttachments.push_back(result);
         }
     }
 
-    // TODO: unlock mutex
+    pthread_mutex_unlock(&m_proxyAttachmentsMutex);
     return result;
 }
 
@@ -3246,7 +3559,10 @@ void XMPPConnector::DeleteRemoteProxy(
     ProxyBusAttachment*& remoteProxy
     )
 {
+    pthread_mutex_lock(&m_proxyAttachmentsMutex);
     m_proxyAttachments.remove(remoteProxy);
+    pthread_mutex_unlock(&m_proxyAttachmentsMutex);
+
     delete(remoteProxy);
     remoteProxy = NULL;
 }

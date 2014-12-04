@@ -16,6 +16,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <pthread.h>
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 
@@ -51,7 +52,7 @@ public:
 
     bool IsAdvertisingName(
         const std::string& name
-        ) const;
+        );
 
 protected:
 #ifndef NO_AJ_GATEWAY
@@ -69,17 +70,20 @@ private:
 
     ProxyBusAttachment* GetRemoteProxy(
         const std::string&                  proxyName,
-        const std::vector<RemoteBusObject>& objects
+        const std::vector<RemoteBusObject>* objects = NULL
         );
     void DeleteRemoteProxy(
         ProxyBusAttachment*& proxy
         );
 
-    BusAttachment* m_bus;
+    BusAttachment*   m_bus;
     AllJoynListener* m_listener;
 
     std::list<ProxyBusAttachment*> m_proxyAttachments;
+    pthread_mutex_t                m_proxyAttachmentsMutex;
 
+
+    // TODO: make stuff like this implement-able from outside this class. need to be able to register xmpp send/receive handlers
     //ajn::services::PropertyStore* m_AboutPropertyStore;
     //ajn::services::NotificationService* m_NotifService;
     //ajn::services::NotificationSender* m_NotifSender;
