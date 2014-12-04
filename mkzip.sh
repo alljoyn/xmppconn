@@ -4,7 +4,7 @@
 # utility. This file can be served via HTTP so that, for instance, the OpenWRT build tools
 # can pull and build it.
 
-INPUT_FILES='*.h *.cpp Makefile'
+INPUT_FILES='*.h *.cpp Makefile *.conf *.init'
 STAGING_FOLDER=XMPPConnector
 OUTPUT_FOLDER=output
 OUTPUT_FILE=XMPPConnector.tar.gz
