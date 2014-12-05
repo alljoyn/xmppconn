@@ -1,4 +1,4 @@
-#include "XMPPConnector.h"                                                      // TODO: remove c-style casting
+#include "XMPPConnector.h"                                                      // TODO: internal documentation
 #include <vector>
 #include <iostream>
 #include <sstream>
@@ -34,9 +34,9 @@ namespace str {
     static inline
     void
     ReplaceAll(
-        string& str,
-        string  from,
-        string  to
+        string&       str,
+        const string& from,
+        const string& to
         )
     {
         size_t pos = str.find(from);
@@ -669,15 +669,89 @@ namespace msgarg {
     }
 
 } // namespace msgarg
-} // namespace util
 
-using namespace util;
+namespace bus {
+
+    /* Info needed to make a BusObject */
+    struct BusObjectInfo
+    {
+        string                              path;
+        vector<const InterfaceDescription*> interfaces;
+    };
+
+    /* Recursively get BusObject information from an attachment. */
+    static
+    void
+    GetBusObjectsRecursive(
+        vector<BusObjectInfo>& busObjects,
+        ProxyBusObject&        proxy
+        )
+    {
+        QStatus err = proxy.IntrospectRemoteObject(500);
+        if(err != ER_OK)
+        {
+            return;
+        }
+
+        BusObjectInfo thisObj;
+        thisObj.path = proxy.GetPath().c_str();
+        if(thisObj.path.empty()) {
+            thisObj.path = "/";
+        }
+                                                                                cout << "  " << thisObj.path << endl;
+        // Get the interfaces implemented at this object path
+        size_t numIfaces = proxy.GetInterfaces();
+        if(numIfaces != 0)
+        {
+            InterfaceDescription** ifaceList =
+                    new InterfaceDescription*[numIfaces];
+            numIfaces = proxy.GetInterfaces(
+                    (const InterfaceDescription**)ifaceList, numIfaces);
+
+            // Find the interface(s) being advertised by this AJ device
+            for(uint32_t i = 0; i < numIfaces; ++i)
+            {
+                const char* ifaceName = ifaceList[i]->GetName();
+                string ifaceNameStr(ifaceName);
+                if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
+                   ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
+                   ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
+                   ifaceNameStr != "org.allseen.Introspectable"          )
+                {                                                               cout << "    " << ifaceNameStr << endl;
+                    thisObj.interfaces.push_back(ifaceList[i]);
+                }
+            }
+
+            delete[] ifaceList;
+
+            if(!thisObj.interfaces.empty())
+            {
+                busObjects.push_back(thisObj);
+            }
+        }
+
+        // Get the children of this object path
+        size_t num_children = proxy.GetChildren();
+        if(num_children != 0)
+        {
+            ProxyBusObject** children = new ProxyBusObject*[num_children];
+            num_children = proxy.GetChildren(children, num_children);
+
+            for(uint32_t i = 0; i < num_children; ++i)
+            {
+                GetBusObjectsRecursive(busObjects, *children[i]);
+            }
+
+            delete[] children;
+        }
+    }
+}
+} // namespace util
 
 // Forward declaration of XmppTransport class due to circular dependencies
 class ajn::gw::XmppTransport
 {
 public:
-
     class Listener
     {
     public:
@@ -695,18 +769,12 @@ public:
             );
     };
 
-    struct BusObjectInfo
-    {
-        string                              path;
-        vector<const InterfaceDescription*> interfaces;
-    };
-
     XmppTransport(
         XMPPConnector* connector,
-        string         jabberId,
-        string         password,
-        string         chatroom,
-        string         nickname
+        const string&  jabberId,
+        const string&  password,
+        const string&  chatroom,
+        const string&  nickname
         );
     ~XmppTransport();
 
@@ -724,8 +792,8 @@ public:
 
     void
     SendAdvertisement(
-        string                 advertisedName,
-        vector<BusObjectInfo>& busObjects
+        const string&                           advertisedName,
+        const vector<util::bus::BusObjectInfo>& busObjects
         );
     void
     SendAnnounce(
@@ -736,16 +804,29 @@ public:
         const AnnounceHandler::AboutData&          aboutData
         );
     void
+    SendJoinRequest(
+        const string&                           remoteName,
+        SessionPort                             sessionPort,
+        const char*                             joiner,
+        const SessionOpts&                      opts,
+        const vector<util::bus::BusObjectInfo>& busObjects
+        );
+    void
+    SendJoinResponse(
+        const string& joinee,
+        SessionId     sessionId
+        );
+    void
     SendMethodCall(
         const InterfaceDescription::Member* member,
         Message&                            message,
-        string                              busName,
-        string                              objectPath
+        const string&                       busName,
+        const string&                       objectPath
         );
     void
     SendMethodReply(
-        string   destName,
-        string   destPath,
+        const string& destName,
+        const string& destPath,
         Message& reply
         );
 
@@ -754,28 +835,28 @@ public:
 private:
     void
     SendMessage(
-        string body,
-        string messageType = ""
+        const string& body,
+        const string& messageType = ""
         );
 
-    vector<XMPPConnector::RemoteBusObject>
+    vector<XMPPConnector::RemoteObjectDescription>
     ParseBusObjectInfo(
-        istringstream&         msgStream
+        istringstream& msgStream
         );
 
-    void ReceiveAdvertisement(string message);
-    void ReceiveMethodCall(string message);
-    void ReceiveMethodReply(string message);
-    void ReceiveSignal(string message);
-    void ReceiveJoinRequest(string message);
-    void ReceiveJoinResponse(string message);
-    void ReceiveSessionJoined(string message);
-    void ReceiveAnnounce(string message);
-    void ReceiveGetRequest(string message);
-    void ReceiveGetReply(string message);
-    void ReceiveGetAll(string message);
-    void ReceiveGetAllReply(string message);
-    void ReceiveAlarm(string message);
+    void ReceiveAdvertisement(const string& message);
+    void ReceiveAnnounce(const string& message);
+    void ReceiveJoinRequest(const string& message);
+    void ReceiveJoinResponse(const string& message);
+    void ReceiveSessionJoined(const string& message);
+    void ReceiveMethodCall(const string& message);
+    void ReceiveMethodReply(const string& message);
+    void ReceiveSignal(const string& message);
+    void ReceiveGetRequest(const string& message);
+    void ReceiveGetReply(const string& message);
+    void ReceiveGetAll(const string& message);
+    void ReceiveGetAllReply(const string& message);
+    void ReceiveAlarm(const string& message);
 
     static
     int
@@ -797,10 +878,10 @@ private:
 
 private:
     XMPPConnector* m_connector;
-    const string m_jabberId;
-    const string m_password;
-    const string m_chatroom;                                                    // TODO: moving away from using chatrooms
-    const string m_nickname;
+    const string   m_jabberId;
+    const string   m_password;
+    const string   m_chatroom;                                                  // TODO: moving away from using chatrooms
+    const string   m_nickname;
 
     xmpp_ctx_t*                  m_xmppCtx;
     xmpp_conn_t*                 m_xmppConn;
@@ -820,13 +901,13 @@ private:
 
 
     static const string ALLJOYN_CODE_ADVERTISEMENT;
-    static const string ALLJOYN_CODE_METHOD_CALL;
-    static const string ALLJOYN_CODE_METHOD_REPLY;
-    static const string ALLJOYN_CODE_SIGNAL;
+    static const string ALLJOYN_CODE_ANNOUNCE;
     static const string ALLJOYN_CODE_JOIN_REQUEST;
     static const string ALLJOYN_CODE_JOIN_RESPONSE;
     static const string ALLJOYN_CODE_SESSION_JOINED;
-    static const string ALLJOYN_CODE_ANNOUNCE;
+    static const string ALLJOYN_CODE_METHOD_CALL;
+    static const string ALLJOYN_CODE_METHOD_REPLY;
+    static const string ALLJOYN_CODE_SIGNAL;
     static const string ALLJOYN_CODE_GET_PROPERTY;
     static const string ALLJOYN_CODE_GET_PROP_REPLY;
     static const string ALLJOYN_CODE_SET_PROPERTY;
@@ -843,14 +924,14 @@ class ajn::gw::RemoteBusAttachment :
 {
 public:
     RemoteBusAttachment(
-        string         remoteName,
+        const string&  remoteName,
         XmppTransport* transport
         ) :
         BusAttachment(remoteName.c_str()),
         m_transport(transport),
         m_remoteName(remoteName),
         m_wellKnownName(""),
-        m_listener(),
+        m_listener(this, transport),
         m_aboutPropertyStore(),
         m_aboutBusObject(this, m_aboutPropertyStore)
     {
@@ -869,7 +950,30 @@ public:
         UnregisterBusListener(m_listener);
     }
 
-    QStatus BindSessionPort(
+    void
+    AllJoynSignalHandler(
+        const InterfaceDescription::Member* member,
+        const char*                         srcPath,
+        Message&                            message
+        )
+    {
+        /*// Pack the signal in an XMPP message and send it to the server
+        xmpp_stanza_t* xmpp_message =
+                xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
+        CreateXmppSignalStanza(member, srcPath, message, xmpp_message);
+
+        char* buf = 0;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(xmpp_message, &buf, &buflen);
+        cout << "Sending XMPP AJ signal message:\n" << buf << endl;
+        free(buf);
+
+        xmpp_send(m_XmppConn, xmpp_message);
+        xmpp_stanza_release(xmpp_message);*/
+    }
+
+    QStatus
+    BindSessionPort(
         SessionPort port
         )
     {
@@ -879,7 +983,7 @@ public:
     }
 
     QStatus AddRemoteObject(
-        string                              path,
+        const string&                       path,
         vector<const InterfaceDescription*> interfaces
         )
     {
@@ -901,7 +1005,7 @@ public:
 
     string
     RequestWellKnownName(
-        string remoteName
+        const string& remoteName
         )
     {
         if(remoteName.find_first_of(":") != 0)
@@ -946,7 +1050,7 @@ public:
     RelayAnnouncement(
         uint16_t                                   version,
         uint16_t                                   port,
-        string                                     busName,
+        const string&                              busName,
         const AnnounceHandler::ObjectDescriptions& objectDescs,
         const AnnounceHandler::AboutData&          aboutData
         )
@@ -998,8 +1102,8 @@ public:
 
     void
     SignalReplyReceived(
-        string objectPath,
-        string replyStr
+        const string& objectPath,
+        const string& replyStr
         )
     {
         vector<RemoteBusObject*>::iterator it;
@@ -1103,7 +1207,78 @@ private:
         public BusListener,
         public SessionPortListener
     {
+    public:
+        RemoteBusListener(
+            RemoteBusAttachment* bus,
+            XmppTransport*       transport
+            ) :
+            m_bus(bus),
+            m_transport(transport),
+            m_sessionJoinedSignalReceived(false),
+            m_remoteSessionId(0)
+        {
+            pthread_mutex_init(&m_sessionJoinedMutex, NULL);
+            pthread_cond_init(&m_sessionJoinedWaitCond, NULL);
+        }
 
+        virtual
+        ~RemoteBusListener()
+        {
+            pthread_mutex_destroy(&m_sessionJoinedMutex);
+            pthread_cond_destroy(&m_sessionJoinedWaitCond);
+        }
+
+        bool
+        AcceptSessionJoiner(
+            SessionPort        sessionPort,
+            const char*        joiner,
+            const SessionOpts& opts
+            )
+        {
+            m_bus->EnableConcurrentCallbacks();
+
+            // Gather interfaces to be implemented on the remote end
+            vector<util::bus::BusObjectInfo> busObjects;
+            ProxyBusObject proxy(*m_bus, joiner, "/", 0);
+            util::bus::GetBusObjectsRecursive(busObjects, proxy);
+
+            // Lock the session join mutex
+            pthread_mutex_lock(&m_sessionJoinedMutex);
+            m_sessionJoinedSignalReceived = false;
+            m_remoteSessionId = 0;
+
+            // Send the session join request via XMPP
+            m_transport->SendJoinRequest(
+                    m_bus->RemoteName(), sessionPort, joiner, opts, busObjects);
+
+            // Wait for the XMPP response signal
+            timespec wait_time = {time(NULL)+10, 0};
+            while(!m_sessionJoinedSignalReceived)
+            {
+                if(ETIMEDOUT == pthread_cond_timedwait(
+                        &m_sessionJoinedWaitCond,
+                        &m_sessionJoinedMutex,
+                        &wait_time))
+                {
+                    break;
+                }
+            }
+
+            bool returnVal = (m_remoteSessionId != 0);
+
+            pthread_mutex_unlock(&m_sessionJoinedMutex);
+
+            return returnVal;
+        }
+
+    private:
+        RemoteBusAttachment* m_bus;
+        XmppTransport*       m_transport;
+
+        bool m_sessionJoinedSignalReceived;
+        SessionId m_remoteSessionId;
+        pthread_mutex_t m_sessionJoinedMutex;
+        pthread_cond_t m_sessionJoinedWaitCond;
     };
 
     class RemoteBusObject :
@@ -1112,7 +1287,7 @@ private:
     public:
         RemoteBusObject(
             RemoteBusAttachment* bus,
-            string               path,
+            const string&        path,
             XmppTransport*       transport
             ) :
             BusObject(path.c_str()),
@@ -1153,7 +1328,7 @@ private:
                     member, message, m_bus->RemoteName(), GetPath());
 
             // Wait for the XMPP response signal
-            timespec wait_time = { time(NULL)+10, 0 };
+            timespec wait_time = {time(NULL)+10, 0};
             while(!m_replyReceived)
             {
                 if(ETIMEDOUT == pthread_cond_timedwait(
@@ -1169,7 +1344,7 @@ private:
 
             pthread_mutex_unlock(&m_replyReceivedMutex);
 
-            vector<MsgArg> replyArgs = msgarg::VectorFromString(replyStr);
+            vector<MsgArg> replyArgs = util::msgarg::VectorFromString(replyStr);
             QStatus err = MethodReply(message, &replyArgs[0], replyArgs.size());
             if(err != ER_OK)
             {
@@ -1180,11 +1355,11 @@ private:
 
         QStatus
         ImplementInterfaces(
-            vector<const InterfaceDescription*> interfaces//,
+            const vector<const InterfaceDescription*>& interfaces//,
             //RemoteBusAttachment* bus
             )
         {
-            vector<const InterfaceDescription*>::iterator it;
+            vector<const InterfaceDescription*>::const_iterator it;
             for(it = interfaces.begin(); it != interfaces.end(); ++it)
             {
                 QStatus err = AddInterface(**it);
@@ -1234,7 +1409,7 @@ private:
 
         void
         SignalReplyReceived(
-            string replyStr
+            const string& replyStr
             )
         {
             pthread_mutex_lock(&m_replyReceivedMutex);
@@ -1315,7 +1490,7 @@ public:
         m_bus->EnableConcurrentCallbacks();                                     // TODO: test to see if we still need introspect callback thing
 
         // Get the objects and interfaces implemented by the advertising device
-        vector<XmppTransport::BusObjectInfo> busObjects;
+        vector<util::bus::BusObjectInfo> busObjects;
         ProxyBusObject proxy(*m_bus, name, "/", 0);                             cout << name << endl;
         GetBusObjectsRecursive(busObjects, proxy);
 
@@ -1347,72 +1522,6 @@ public:
     }
 
 private:
-    void
-    GetBusObjectsRecursive(
-        vector<XmppTransport::BusObjectInfo>& busObjects,
-        ProxyBusObject&                       proxy
-        )
-    {
-        QStatus err = proxy.IntrospectRemoteObject(500);
-        if(err != ER_OK)
-        {
-            return;
-        }
-
-        XmppTransport::BusObjectInfo thisObj;
-        thisObj.path = proxy.GetPath().c_str();
-        if(thisObj.path.empty()) {
-            thisObj.path = "/";
-        }
-                                                                                cout << "  " << thisObj.path << endl;
-        // Get the interfaces implemented at this object path
-        size_t numIfaces = proxy.GetInterfaces();
-        if(numIfaces != 0)
-        {
-            InterfaceDescription** ifaceList =
-                    new InterfaceDescription*[numIfaces];
-            numIfaces = proxy.GetInterfaces(
-                    (const InterfaceDescription**)ifaceList, numIfaces);
-
-            // Find the interface(s) being advertised by this AJ device
-            for(uint32_t i = 0; i < numIfaces; ++i)
-            {
-                const char* ifaceName = ifaceList[i]->GetName();
-                string ifaceNameStr(ifaceName);
-                if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
-                   ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
-                   ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
-                   ifaceNameStr != "org.allseen.Introspectable"          )
-                {                                                               cout << "    " << ifaceNameStr << endl;
-                    thisObj.interfaces.push_back(ifaceList[i]);
-                }
-            }
-
-            delete[] ifaceList;
-
-            if(!thisObj.interfaces.empty())
-            {
-                busObjects.push_back(thisObj);
-            }
-        }
-
-        // Get the children of this object path
-        size_t num_children = proxy.GetChildren();
-        if(num_children != 0)
-        {
-            ProxyBusObject** children = new ProxyBusObject*[num_children];
-            num_children = proxy.GetChildren(children, num_children);
-
-            for(uint32_t i = 0; i < num_children; ++i)
-            {
-                GetBusObjectsRecursive(busObjects, *children[i]);
-            }
-
-            delete[] children;
-        }
-    }
-
-private:
     XMPPConnector* m_connector;
     XmppTransport* m_transport;
     BusAttachment* m_bus;
@@ -1421,10 +1530,10 @@ private:
 
 XmppTransport::XmppTransport(
     XMPPConnector* connector,
-    string         jabberId,
-    string         password,
-    string         chatroom,
-    string         nickname
+    const string&  jabberId,
+    const string&  password,
+    const string&  chatroom,
+    const string&  nickname
     ) :
     m_connector(connector),
     m_jabberId(jabberId),
@@ -1496,15 +1605,15 @@ XmppTransport::Stop()
 
 void
 XmppTransport::SendAdvertisement(
-    string                 advertisedName,
-    vector<BusObjectInfo>& busObjects
+    const string&                           advertisedName,
+    const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERTISEMENT << "\n";
     msgStream << advertisedName << "\n";
-    vector<BusObjectInfo>::const_iterator it;
+    vector<util::bus::BusObjectInfo>::const_iterator it;
     for(it = busObjects.begin(); it != busObjects.end(); ++it)
     {
         msgStream << it->path << "\n";
@@ -1560,18 +1669,68 @@ XmppTransport::SendAnnounce(
         ++aboutIter)
     {
         msgStream << aboutIter->first.c_str() << "\n";
-        msgStream << msgarg::ToString(aboutIter->second) << "\n\n";
+        msgStream << util::msgarg::ToString(aboutIter->second) << "\n\n";
     }
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_ANNOUNCE);
 }
 
 void
+XmppTransport::SendJoinRequest(
+    const string&                           remoteName,
+    SessionPort                             sessionPort,
+    const char*                             joiner,
+    const SessionOpts&                      opts,
+    const vector<util::bus::BusObjectInfo>& busObjects
+    )
+{
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_JOIN_REQUEST << "\n";
+    msgStream << remoteName << "\n";
+    msgStream << sessionPort << "\n";
+    msgStream << joiner << "\n";
+
+    vector<util::bus::BusObjectInfo>::const_iterator objIter;
+    for(objIter = busObjects.begin(); objIter != busObjects.end(); ++objIter)
+    {
+        msgStream << objIter->path << "\n";
+        vector<const InterfaceDescription*>::const_iterator ifaceIter;
+        for(ifaceIter = objIter->interfaces.begin();
+            ifaceIter != objIter->interfaces.end();
+            ++ifaceIter)
+        {
+            msgStream << (*ifaceIter)->GetName() << "\n";
+            msgStream << (*ifaceIter)->Introspect().c_str() << "\n";
+        }
+
+        msgStream << "\n";
+    }
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_JOIN_REQUEST);
+}
+
+void
+XmppTransport::SendJoinResponse(
+    const string& joinee,
+    SessionId     sessionId
+    )
+{
+    // Send the status back to the original session joiner
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";                            // TODO: support more than 1 concurrent session request
+    msgStream << joinee << "\n";
+    msgStream << sessionId << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_JOIN_RESPONSE);
+}
+
+void
 XmppTransport::SendMethodCall(
     const InterfaceDescription::Member* member,
     Message&                            message,
-    string                              busName,
-    string                              objectPath
+    const string&                       busName,
+    const string&                       objectPath
     )
 {
     size_t num_args = 0;
@@ -1587,16 +1746,16 @@ XmppTransport::SendMethodCall(
     msgStream << member->iface->GetName() << "\n";
     msgStream << member->name << "\n";
     msgStream << message->GetSessionId() << "\n";
-    msgStream << msgarg::ToString(msgargs, num_args) << "\n";
+    msgStream << util::msgarg::ToString(msgargs, num_args) << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_METHOD_CALL);
 }
 
 void
 XmppTransport::SendMethodReply(
-    string   destName,
-    string   destPath,
-    Message& reply
+    const string& destName,
+    const string& destPath,
+    Message&      reply
     )
 {
     size_t numReplyArgs;
@@ -1607,15 +1766,15 @@ XmppTransport::SendMethodReply(
     msgStream << ALLJOYN_CODE_METHOD_REPLY << "\n";
     msgStream << destName << "\n";
     msgStream << destPath << "\n";
-    msgStream << msgarg::ToString(replyArgs, numReplyArgs) << "\n";
+    msgStream << util::msgarg::ToString(replyArgs, numReplyArgs) << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_METHOD_REPLY);
 }
 
 void
 XmppTransport::SendMessage(
-    string body,
-    string messageType
+    const string& body,
+    const string& messageType
     )
 {
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
@@ -1645,13 +1804,13 @@ XmppTransport::SendMessage(
     xmpp_stanza_release(messageStanza);
 }
 
-vector<XMPPConnector::RemoteBusObject>
+vector<XMPPConnector::RemoteObjectDescription>
 XmppTransport::ParseBusObjectInfo(
     istringstream& msgStream
     )
 {
-    vector<XMPPConnector::RemoteBusObject> results;
-    XMPPConnector::RemoteBusObject thisObj;
+    vector<XMPPConnector::RemoteObjectDescription> results;
+    XMPPConnector::RemoteObjectDescription thisObj;
     string interfaceName = "";
     string interfaceDescription = "";
 
@@ -1663,7 +1822,7 @@ XmppTransport::ParseBusObjectInfo(
             if(!interfaceDescription.empty())
             {
                 // We've reached the end of an interface description.
-                str::UnescapeXml(interfaceDescription);
+                util::str::UnescapeXml(interfaceDescription);
                 thisObj.interfaces[interfaceName] = interfaceDescription;
 
                 interfaceName.clear();
@@ -1700,7 +1859,7 @@ XmppTransport::ParseBusObjectInfo(
 
 void
 XmppTransport::ReceiveAdvertisement(
-    string message
+    const string& message
     )
 {
     istringstream msgStream(message);
@@ -1714,7 +1873,7 @@ XmppTransport::ReceiveAdvertisement(
     string remoteName = "";
     if(0 == getline(msgStream, remoteName)){ return; }                          cout << "received XMPP advertised name: " << remoteName << endl;
 
-    vector<XMPPConnector::RemoteBusObject> objects =
+    vector<XMPPConnector::RemoteObjectDescription> objects =
             ParseBusObjectInfo(msgStream);
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(
             remoteName, &objects);
@@ -1752,137 +1911,8 @@ XmppTransport::ReceiveAdvertisement(
 }
 
 void
-XmppTransport::ReceiveMethodCall(
-    string message
-    )
-{
-    // Parse the required information
-    istringstream msgStream(message);
-    string line, remoteName, destName, destPath,
-            ifaceName, memberName, remoteSessionId;
-
-    // First line is the type (method call)
-    if(0 == getline(msgStream, line)){ return; }
-    if(line != ALLJOYN_CODE_METHOD_CALL){ return; }
-
-    if(0 == getline(msgStream, remoteName)){ return; }
-    if(0 == getline(msgStream, destName)){ return; }
-    if(0 == getline(msgStream, destPath)){ return; }
-    if(0 == getline(msgStream, ifaceName)){ return; }
-    if(0 == getline(msgStream, memberName)){ return; }
-    if(0 == getline(msgStream, remoteSessionId)){ return; }
-
-    // The rest is the message arguments
-    string messageArgsString = "";
-    while(0 != getline(msgStream, line))
-    {
-        messageArgsString += line + "\n";
-    }
-
-    // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
-    if(!bus)
-    {
-        cout << "No bus attachment to handle incoming method call." << endl;
-        return;
-    }
-
-    // Call the method
-    SessionId localSid = bus->GetLocalSessionId(
-            strtol(remoteSessionId.c_str(), NULL, 10));
-    ProxyBusObject proxy(*bus, destName.c_str(), destPath.c_str(), localSid);
-    QStatus err = proxy.IntrospectRemoteObject();
-    if(err != ER_OK)
-    {
-        cout << "Failed to introspect remote object to relay method call: " <<
-                QCC_StatusText(err) << endl;
-        return;
-    }
-
-    vector<MsgArg> messageArgs = msgarg::VectorFromString(messageArgsString);
-    Message reply(*bus);
-    err = proxy.MethodCall(ifaceName.c_str(), memberName.c_str(),
-            &messageArgs[0], messageArgs.size(), reply, 5000);
-    if(err != ER_OK)
-    {
-        cout << "Failed to relay method call: " << QCC_StatusText(err) << endl;
-        return;
-    }
-
-    SendMethodReply(destName, destPath, reply);
-}
-
-void
-XmppTransport::ReceiveMethodReply(
-    string message
-    )
-{
-    // Parse the required information
-    istringstream msgStream(message);
-    string line, remoteName, objPath;
-
-    // First line is the type (method reply)
-    if(0 == getline(msgStream, line)){ return; }
-    if(line != ALLJOYN_CODE_METHOD_REPLY){ return; }
-
-    if(0 == getline(msgStream, remoteName)){ return; }
-    if(0 == getline(msgStream, objPath)){ return; }
-
-    // The rest is the message arguments
-    string messageArgsString = "";
-    while(0 != getline(msgStream, line))
-    {
-        messageArgsString += line + "\n";
-    }
-    str::UnescapeXml(messageArgsString);
-
-    // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
-    if(!bus)
-    {
-        cout << "No bus attachment to handle incoming method call." << endl;
-        return;
-    }
-
-    // Tell the attachment we received a message reply
-    bus->SignalReplyReceived(objPath, messageArgsString);
-}
-
-void
-XmppTransport::ReceiveSignal(
-    string message
-    )
-{
-
-}
-
-void
-XmppTransport::ReceiveJoinRequest(
-    string message
-    )
-{
-
-}
-
-void
-XmppTransport::ReceiveJoinResponse(
-    string message
-    )
-{
-
-}
-
-void
-XmppTransport::ReceiveSessionJoined(
-    string message
-    )
-{
-
-}
-
-void
 XmppTransport::ReceiveAnnounce(
-    string message
+    const string& message
     )
 {
     istringstream msgStream(message);
@@ -1937,7 +1967,7 @@ XmppTransport::ReceiveAnnounce(
         if(line.empty())
         {
             // reached the end of a property
-            aboutData[propName.c_str()] = msgarg::FromString(propDesc);
+            aboutData[propName.c_str()] = util::msgarg::FromString(propDesc);
 
             propName.clear();
             propDesc.clear();
@@ -1958,28 +1988,235 @@ XmppTransport::ReceiveAnnounce(
     if(bus)
     {
         bus->RelayAnnouncement(
-            static_cast<uint16_t>(strtoul(versionStr.c_str(), NULL, 10)),
-            static_cast<uint16_t>(strtoul(portStr.c_str(), NULL, 10)),
-            bus->WellKnownName(),
-            objDescs,
-            aboutData);                                                         // TODO: Create attachment on announce if !exists. Will have remote attachment info here. no need for else or m_pendingAnnouncements
+                strtoul(versionStr.c_str(), NULL, 10),
+                strtoul(portStr.c_str(), NULL, 10),
+                bus->WellKnownName(),
+                objDescs,
+                aboutData);                                                         // TODO: Create attachment on announce if !exists. Will have remote attachment info here. no need for else or m_pendingAnnouncements
     }
     else
     {
         AnnounceInfo info = {
-            static_cast<uint16_t>(strtoul(versionStr.c_str(), NULL, 10)),
-            static_cast<uint16_t>(strtoul(portStr.c_str(), NULL, 10)),
-            busName,
-            objDescs,
-            aboutData
-        };
+                strtoul(versionStr.c_str(), NULL, 10),
+                strtoul(portStr.c_str(), NULL, 10),
+                busName,
+                objDescs,
+                aboutData};
         m_pendingAnnouncements[busName] = info;
     }
 }
 
 void
+XmppTransport::ReceiveJoinRequest(
+    const string& message
+    )
+{
+    istringstream msgStream(message);
+    string line, joiner, joinee, portStr;
+
+    // First line is the type (join request)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_JOIN_REQUEST){ return; }
+
+    // Next is the session port, joinee, and the joiner
+    if(0 == getline(msgStream, joinee)){ return; }
+    if(0 == getline(msgStream, portStr)){ return; }
+    if(0 == getline(msgStream, joiner)){ return; }
+
+    // Then follow the interfaces implemented by the joiner
+    vector<XMPPConnector::RemoteObjectDescription> objects =
+            ParseBusObjectInfo(msgStream);
+
+    // Get or create a bus attachment to join from
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(
+            joiner, &objects);
+
+    SessionId id = 0;
+    if(bus)
+    {
+        // Try to join a session of our own
+        SessionPort port = strtol(portStr.c_str(), NULL, 10);
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+
+        QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);
+        if(err == ER_OK)
+        {
+            // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
+            vector<util::bus::BusObjectInfo> joineeObjects;
+            ProxyBusObject proxy(*bus, joinee.c_str(), "/", id);
+            util::bus::GetBusObjectsRecursive(joineeObjects, proxy);
+
+            vector<util::bus::BusObjectInfo>::iterator objectIter;
+            for(objectIter = joineeObjects.begin();
+                objectIter != joineeObjects.end();
+                ++objectIter)
+            {
+                vector<const InterfaceDescription*>::iterator ifaceIter;
+                for(ifaceIter = objectIter->interfaces.begin();
+                    ifaceIter != objectIter->interfaces.end();
+                    ++ifaceIter)
+                {
+                    string interfaceName = (*ifaceIter)->GetName();
+
+                    // Register signal listeners here.                          // TODO: sessionless signals? register on advertise/announce
+                    size_t numMembers = (*ifaceIter)->GetMembers();
+                    InterfaceDescription::Member** ifaceMembers =
+                            new InterfaceDescription::Member*[numMembers];
+                    numMembers = (*ifaceIter)->GetMembers(
+                            (const InterfaceDescription::Member**)ifaceMembers,
+                            numMembers);
+                    for(uint32_t i = 0; i < numMembers; ++i)
+                    {
+                        if(ifaceMembers[i]->memberType == MESSAGE_SIGNAL)
+                        {
+                            err = bus->RegisterSignalHandler(
+                                    bus,
+                                    static_cast<MessageReceiver::SignalHandler>(
+                                    &RemoteBusAttachment::AllJoynSignalHandler),
+                                    ifaceMembers[i], NULL);
+                            if(err != ER_OK)
+                            {
+                                cout << "Could not register signal handler for "
+                                        << interfaceName << ":" <<
+                                        ifaceMembers[i]->name << endl;
+                            }
+                        }
+                    }
+                    delete[] ifaceMembers;
+                }
+            }
+        }
+    }
+
+    SendJoinResponse(joinee, id);
+}
+
+void
+XmppTransport::ReceiveJoinResponse(
+    const string& message
+    )
+{
+
+}
+
+void
+XmppTransport::ReceiveSessionJoined(
+    const string& message
+    )
+{
+
+}
+
+void
+XmppTransport::ReceiveMethodCall(
+    const string& message
+    )
+{
+    // Parse the required information
+    istringstream msgStream(message);
+    string line, remoteName, destName, destPath,
+            ifaceName, memberName, remoteSessionId;
+
+    // First line is the type (method call)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_METHOD_CALL){ return; }
+
+    if(0 == getline(msgStream, remoteName)){ return; }
+    if(0 == getline(msgStream, destName)){ return; }
+    if(0 == getline(msgStream, destPath)){ return; }
+    if(0 == getline(msgStream, ifaceName)){ return; }
+    if(0 == getline(msgStream, memberName)){ return; }
+    if(0 == getline(msgStream, remoteSessionId)){ return; }
+
+    // The rest is the message arguments
+    string messageArgsString = "";
+    while(0 != getline(msgStream, line))
+    {
+        messageArgsString += line + "\n";
+    }
+
+    // Find the bus attachment with this busName
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    if(!bus)
+    {
+        cout << "No bus attachment to handle incoming method call." << endl;
+        return;
+    }
+
+    // Call the method
+    SessionId localSid = bus->GetLocalSessionId(
+            strtol(remoteSessionId.c_str(), NULL, 10));
+    ProxyBusObject proxy(*bus, destName.c_str(), destPath.c_str(), localSid);
+    QStatus err = proxy.IntrospectRemoteObject();
+    if(err != ER_OK)
+    {
+        cout << "Failed to introspect remote object to relay method call: " <<
+                QCC_StatusText(err) << endl;
+        return;
+    }
+
+    vector<MsgArg> messageArgs =
+            util::msgarg::VectorFromString(messageArgsString);
+    Message reply(*bus);
+    err = proxy.MethodCall(ifaceName.c_str(), memberName.c_str(),
+            &messageArgs[0], messageArgs.size(), reply, 5000);
+    if(err != ER_OK)
+    {
+        cout << "Failed to relay method call: " << QCC_StatusText(err) << endl;
+        return;
+    }
+
+    SendMethodReply(destName, destPath, reply);
+}
+
+void
+XmppTransport::ReceiveMethodReply(
+    const string& message
+    )
+{
+    // Parse the required information
+    istringstream msgStream(message);
+    string line, remoteName, objPath;
+
+    // First line is the type (method reply)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_METHOD_REPLY){ return; }
+
+    if(0 == getline(msgStream, remoteName)){ return; }
+    if(0 == getline(msgStream, objPath)){ return; }
+
+    // The rest is the message arguments
+    string messageArgsString = "";
+    while(0 != getline(msgStream, line))
+    {
+        messageArgsString += line + "\n";
+    }
+    util::str::UnescapeXml(messageArgsString);
+
+    // Find the bus attachment with this busName
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    if(!bus)
+    {
+        cout << "No bus attachment to handle incoming method call." << endl;
+        return;
+    }
+
+    // Tell the attachment we received a message reply
+    bus->SignalReplyReceived(objPath, messageArgsString);
+}
+
+void
+XmppTransport::ReceiveSignal(
+    const string& message
+    )
+{
+
+}
+
+void
 XmppTransport::ReceiveGetRequest(
-    string message
+    const string& message
     )
 {
 
@@ -1987,7 +2224,7 @@ XmppTransport::ReceiveGetRequest(
 
 void
 XmppTransport::ReceiveGetReply(
-    string message
+    const string& message
     )
 {
 
@@ -1995,7 +2232,7 @@ XmppTransport::ReceiveGetReply(
 
 void
 XmppTransport::ReceiveGetAll(
-    string message
+    const string& message
     )
 {
 
@@ -2003,7 +2240,7 @@ XmppTransport::ReceiveGetAll(
 
 void
 XmppTransport::ReceiveGetAllReply(
-    string message
+    const string& message
     )
 {
 
@@ -2011,7 +2248,7 @@ XmppTransport::ReceiveGetAllReply(
 
 void
 XmppTransport::ReceiveAlarm(
-    string message
+    const string& message
     )
 {
 
@@ -3712,8 +3949,8 @@ XMPPConnector::IsAdvertisingName(
 
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(
-    const string&                  remoteName,
-    const vector<RemoteBusObject>* objects
+    const string&                          remoteName,
+    const vector<RemoteObjectDescription>* objects
     )
 {
     RemoteBusAttachment* result = NULL;
@@ -3734,7 +3971,7 @@ XMPPConnector::GetRemoteAttachment(
         QStatus err = ER_OK;
         result = new RemoteBusAttachment(remoteName, m_xmppTransport);
 
-        vector<RemoteBusObject>::const_iterator objIter;
+        vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
         {
             string objPath = objIter->path;

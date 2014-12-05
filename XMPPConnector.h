@@ -62,15 +62,15 @@ protected:
 #endif // !NO_AJ_GATEWAY
 
 private:
-    struct RemoteBusObject
+    struct RemoteObjectDescription
     {
         std::string                        path;
         std::map<std::string, std::string> interfaces;
     };
 
     RemoteBusAttachment* GetRemoteAttachment(
-        const std::string&                  remoteName,
-        const std::vector<RemoteBusObject>* objects = NULL
+        const std::string&                          remoteName,
+        const std::vector<RemoteObjectDescription>* objects = NULL
         );
     void DeleteRemoteAttachment(
         RemoteBusAttachment*& attachment
