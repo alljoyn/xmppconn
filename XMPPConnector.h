@@ -50,7 +50,8 @@ public:
     QStatus Start();
     void Stop();
 
-    bool IsAdvertisingName(
+    bool
+    IsAdvertisingName(
         const std::string& name
         );
 
