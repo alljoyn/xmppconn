@@ -817,6 +817,12 @@ public:
         SessionId     sessionId
         );
     void
+    SendSessionJoined(
+        const string& joiner,
+        SessionId     remoteId,
+        SessionId     localId
+        );
+    void
     SendMethodCall(
         const InterfaceDescription::Member* member,
         Message&                            message,
@@ -856,7 +862,6 @@ private:
     void ReceiveGetReply(const string& message);
     void ReceiveGetAll(const string& message);
     void ReceiveGetAllReply(const string& message);
-    void ReceiveAlarm(const string& message);
 
     static
     int
@@ -957,19 +962,7 @@ public:
         Message&                            message
         )
     {
-        /*// Pack the signal in an XMPP message and send it to the server
-        xmpp_stanza_t* xmpp_message =
-                xmpp_stanza_new(xmpp_conn_get_context(m_XmppConn));
-        CreateXmppSignalStanza(member, srcPath, message, xmpp_message);
-
-        char* buf = 0;
-        size_t buflen = 0;
-        xmpp_stanza_to_text(xmpp_message, &buf, &buflen);
-        cout << "Sending XMPP AJ signal message:\n" << buf << endl;
-        free(buf);
-
-        xmpp_send(m_XmppConn, xmpp_message);
-        xmpp_stanza_release(xmpp_message);*/
+        // TODO
     }
 
     QStatus
@@ -1034,14 +1027,24 @@ public:
         return m_wellKnownName;
     }
 
+    void
+    AddSessionIdPair(
+        SessionId remote,
+        SessionId local
+        )
+    {
+        m_sessionIdMap[remote] = local;
+    }
+
     SessionId
     GetLocalSessionId(
         SessionId remoteId
         )
     {
-        if(m_sessionIdMap.find(remoteId) != m_sessionIdMap.end())
+        map<SessionId, SessionId>::iterator it = m_sessionIdMap.find(remoteId);
+        if(it != m_sessionIdMap.end())
         {
-            return m_sessionIdMap.at(remoteId);
+            return it->second;
         }
         return 0;
     }
@@ -1115,6 +1118,14 @@ public:
                 break;
             }
         }
+    }
+
+    void
+    SignalSessionJoined(
+        SessionId result
+        )
+    {
+        m_listener.SignalSessionJoined(result);
     }
 
     string WellKnownName() const { return m_wellKnownName; }
@@ -1215,7 +1226,8 @@ private:
             m_bus(bus),
             m_transport(transport),
             m_sessionJoinedSignalReceived(false),
-            m_remoteSessionId(0)
+            m_remoteSessionId(0),
+            m_pendingSessionJoiners()
         {
             pthread_mutex_init(&m_sessionJoinedMutex, NULL);
             pthread_cond_init(&m_sessionJoinedWaitCond, NULL);
@@ -1265,10 +1277,51 @@ private:
             }
 
             bool returnVal = (m_remoteSessionId != 0);
+            if(returnVal)
+            {
+                m_pendingSessionJoiners[joiner] = m_remoteSessionId;
+            }
 
             pthread_mutex_unlock(&m_sessionJoinedMutex);
 
             return returnVal;
+        }
+
+        void
+        SessionJoined(
+            SessionPort sessionPort,
+            SessionId   id,
+            const char* joiner)
+        {
+            // Find the id of the remote session
+            SessionId remoteSessionId = 0;
+            pthread_mutex_lock(&m_sessionJoinedMutex);
+            map<string, SessionId>::iterator idIter =
+                    m_pendingSessionJoiners.find(joiner);
+            if(idIter != m_pendingSessionJoiners.end())
+            {
+                remoteSessionId = idIter->second;
+                m_pendingSessionJoiners.erase(idIter);
+            }
+            pthread_mutex_unlock(&m_sessionJoinedMutex);
+
+            // Store the remote/local session id pair
+            m_bus->AddSessionIdPair(remoteSessionId, id);
+
+            // Send the session Id back across the XMPP server
+            m_transport->SendSessionJoined(joiner, remoteSessionId, id);
+        }
+
+        void
+        SignalSessionJoined(
+            SessionId result
+            )
+        {
+            pthread_mutex_lock(&m_sessionJoinedMutex);
+            m_sessionJoinedSignalReceived = true;
+            m_remoteSessionId = result;
+            pthread_cond_signal(&m_sessionJoinedWaitCond);
+            pthread_mutex_unlock(&m_sessionJoinedMutex);
         }
 
     private:
@@ -1279,6 +1332,8 @@ private:
         SessionId m_remoteSessionId;
         pthread_mutex_t m_sessionJoinedMutex;
         pthread_cond_t m_sessionJoinedWaitCond;
+
+        map<string, SessionId> m_pendingSessionJoiners;
     };
 
     class RemoteBusObject :
@@ -1320,7 +1375,7 @@ private:
             const MsgArg* msgargs = 0;
             message->GetArgs(num_args, msgargs);
 
-            pthread_mutex_lock(&m_replyReceivedMutex);                          // TODO: mutexes in the handler function?
+            pthread_mutex_lock(&m_replyReceivedMutex);
             m_replyReceived = false;
             m_replyStr = "";
 
@@ -1491,7 +1546,7 @@ public:
 
         // Get the objects and interfaces implemented by the advertising device
         vector<util::bus::BusObjectInfo> busObjects;
-        ProxyBusObject proxy(*m_bus, name, "/", 0);                             cout << name << endl;
+        ProxyBusObject proxy(*m_bus, name, "/", 0);
         GetBusObjectsRecursive(busObjects, proxy);
 
         // Send the advertisement via XMPP
@@ -1718,11 +1773,28 @@ XmppTransport::SendJoinResponse(
 {
     // Send the status back to the original session joiner
     ostringstream msgStream;
-    msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";                            // TODO: support more than 1 concurrent session request
+    msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";
     msgStream << joinee << "\n";
     msgStream << sessionId << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_JOIN_RESPONSE);
+}
+
+void
+XmppTransport::SendSessionJoined(
+    const string& joiner,
+    SessionId     remoteId,
+    SessionId     localId
+    )
+{
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
+    msgStream << joiner << "\n";
+    msgStream << remoteId << "\n";
+    msgStream << localId << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_SESSION_JOINED);
 }
 
 void
@@ -1992,7 +2064,7 @@ XmppTransport::ReceiveAnnounce(
                 strtoul(portStr.c_str(), NULL, 10),
                 bus->WellKnownName(),
                 objDescs,
-                aboutData);                                                         // TODO: Create attachment on announce if !exists. Will have remote attachment info here. no need for else or m_pendingAnnouncements
+                aboutData);                                                     // TODO: Create attachment on announce if !exists. Will have remote attachment info here. no need for else or m_pendingAnnouncements
     }
     else
     {
@@ -2032,7 +2104,11 @@ XmppTransport::ReceiveJoinRequest(
             joiner, &objects);
 
     SessionId id = 0;
-    if(bus)
+    if(!bus)
+    {
+        cout << "Failed to create bus attachment to proxy session!" << endl;
+    }
+    else
     {
         // Try to join a session of our own
         SessionPort port = strtol(portStr.c_str(), NULL, 10);
@@ -2097,7 +2173,28 @@ XmppTransport::ReceiveJoinResponse(
     const string& message
     )
 {
+    istringstream msgStream(message);
+    string line, appName, remoteSessionId;
 
+    // First line is the type (join response)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_JOIN_RESPONSE){ return; }
+
+    // Get the info from the message
+    if(0 == getline(msgStream, appName)){ return; }
+    if(0 == getline(msgStream, remoteSessionId)){ return; }
+
+    // Find the BusAttachment with the given app name
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(appName);
+    if(!bus)
+    {
+        cout << "Failed to find bus attachment to handle join response!"
+                << endl;
+    }
+    else
+    {
+        bus->SignalSessionJoined(strtol(remoteSessionId.c_str(), NULL, 10));
+    }
 }
 
 void
@@ -2105,7 +2202,36 @@ XmppTransport::ReceiveSessionJoined(
     const string& message
     )
 {
+    istringstream msgStream(message);
+    string line, joiner, remoteIdStr, localIdStr;
 
+    // First line is the type (session joined)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_SESSION_JOINED){ return; }
+
+    // Get the info from the message
+    if(0 == getline(msgStream, joiner)){ return; }
+    if(0 == getline(msgStream, localIdStr)){ return; }
+    if(0 == getline(msgStream, remoteIdStr)){ return; }
+
+    if(localIdStr.empty() || remoteIdStr.empty())
+    {
+        return;
+    }
+
+    // Find the BusAttachment with the given app name
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(joiner);
+    if(!bus)
+    {
+        cout << "Failed to find bus attachment to handle joined session!"
+                << endl;
+    }
+    else
+    {
+        bus->AddSessionIdPair(
+                strtol(remoteIdStr.c_str(), NULL, 10),
+                strtol(localIdStr.c_str(), NULL, 10));
+    }
 }
 
 void
@@ -2246,14 +2372,6 @@ XmppTransport::ReceiveGetAllReply(
 
 }
 
-void
-XmppTransport::ReceiveAlarm(
-    const string& message
-    )
-{
-
-}
-
 int
 XmppTransport::XmppStanzaHandler(
     xmpp_conn_t* const   conn,
@@ -2346,11 +2464,6 @@ XmppTransport::XmppStanzaHandler(
             {
                 transport->ReceiveGetAllReply(message);
             }
-
-            else if(typeCode == TR069_ALARM_MESSAGE)
-            {
-                transport->ReceiveAlarm(message);
-            }
         }
         else
         {
@@ -2434,7 +2547,7 @@ const string XmppTransport::ALLJOYN_CODE_SET_PROP_REPLY = "SET_PROP_REPLY";
 const string XmppTransport::ALLJOYN_CODE_GET_ALL        = "GET_ALL";
 const string XmppTransport::ALLJOYN_CODE_GET_ALL_REPLY  = "GET_ALL_REPLY";
 
-const string XmppTransport::TR069_ALARM_MESSAGE         = "** Alert **";
+//const string XmppTransport::TR069_ALARM_MESSAGE         = "** Alert **";      // TODO: handle this from main.cpp, facilitate that in here
 
 
 
