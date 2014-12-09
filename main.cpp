@@ -1,4 +1,7 @@
 #include <alljoyn/BusAttachment.h>
+#include <alljoyn/about/AnnouncementRegistrar.h>
+#include <alljoyn/services_common/GuidUtil.h>
+#include <qcc/StringUtil.h>
 #include "XMPPConnector.h"
 #include <iostream>
 #include <fstream>
@@ -26,6 +29,8 @@ using std::find_if;
 using std::ptr_fun;
 using std::isspace;
 using std::not1;
+using std::istringstream;
+using std::map;
 
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
@@ -62,6 +67,213 @@ static inline vector<string> split(const string &s, char delim) {
     split(s, delim, elems);
     return elems;
 }
+
+class SimplePropertyStore :
+    public services::PropertyStore
+{
+public:
+    SimplePropertyStore(
+        MsgArg& allProperties
+        ) :
+        m_AllProperties(allProperties)
+    {
+        m_AllProperties.Stabilize();
+    }
+
+    ~SimplePropertyStore()
+    {}
+
+    QStatus
+    ReadAll(
+        const char* languageTag,
+        Filter      filter,
+        MsgArg&     all
+        )
+    {
+        all = m_AllProperties;
+        all.Stabilize();
+        return ER_OK;
+    }
+
+    QStatus
+    Update(
+        const char*   name,
+        const char*   languageTag,
+        const MsgArg* value
+        )
+    {
+        cout << "UPDATE CALLED" << endl;
+        return ER_NOT_IMPLEMENTED;
+    }
+
+    QStatus
+    Delete(
+        const char* name,
+        const char* languageTag
+        )
+    {
+        cout << "DELETE CALLED" << endl;
+        return ER_NOT_IMPLEMENTED;
+    }
+
+    private:
+    MsgArg m_AllProperties;
+};
+
+class AlertReceiver :
+    public XMPPConnector::MessageReceiver,
+    public SessionPortListener
+{
+public:
+    AlertReceiver(
+        BusAttachment* bus
+        ) :
+        m_bus(bus),
+        m_aboutPropertyStore(NULL),
+        m_notifService(NULL),
+        m_notifSender(NULL)
+    {
+        qcc::String deviceid;
+        services::GuidUtil::GetInstance()->GetDeviceIdString(&deviceid);
+        qcc::String appid;
+        services::GuidUtil::GetInstance()->GenerateGUID(&appid);
+        size_t len = appid.length()/2;
+        uint8_t* bytes = new uint8_t[len];
+        qcc::HexStringToBytes(appid, bytes, len);
+        MsgArg appidArg("ay", len, bytes);
+        appidArg.Stabilize();
+
+        // Create our About PropertyStore
+        vector<MsgArg> dictEntries(7);
+        string key, valueStr; MsgArg value;
+
+        key = "AppId";
+        value = appidArg; value.Stabilize();
+        dictEntries[0].Set("{sv}", key.c_str(), &value);
+        dictEntries[0].Stabilize();
+
+        key = "AppName"; valueStr = "Notifier";
+        value.Set("s", valueStr.c_str()); value.Stabilize();
+        dictEntries[1].Set("{sv}", key.c_str(), &value);
+        dictEntries[1].Stabilize();
+
+        key = "DefaultLanguage"; valueStr = "en";
+        value.Set("s", valueStr.c_str()); value.Stabilize();
+        dictEntries[2].Set("{sv}", key.c_str(), &value);
+        dictEntries[2].Stabilize();
+
+        key = "DeviceId";
+        value.Set("s", deviceid.c_str()); value.Stabilize();
+        dictEntries[3].Set("{sv}", key.c_str(), &value);
+        dictEntries[3].Stabilize();
+
+        key = "DeviceName"; valueStr = "Alarm Service";
+        value.Set("s", valueStr.c_str()); value.Stabilize();
+        dictEntries[4].Set("{sv}", key.c_str(), &value);
+        dictEntries[4].Stabilize();
+
+        key = "Manufacturer"; valueStr = "Affinegy";
+        value.Set("s", valueStr.c_str()); value.Stabilize();
+        dictEntries[5].Set("{sv}", key.c_str(), &value);
+        dictEntries[5].Stabilize();
+
+        key = "ModelNumber"; valueStr = "1.0";
+        value.Set("s", valueStr.c_str()); value.Stabilize();
+        dictEntries[6].Set("{sv}", key.c_str(), &value);
+        dictEntries[6].Stabilize();
+
+        MsgArg aboutArgs("a{sv}", dictEntries.size(), &dictEntries[0]);
+
+        m_aboutPropertyStore = new SimplePropertyStore(aboutArgs);
+        services::AboutServiceApi::Init(*m_bus, *m_aboutPropertyStore);
+        services::AboutServiceApi* aboutService = services::AboutServiceApi::getInstance();
+        SessionPort sp = 900;
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+        m_bus->BindSessionPort(sp, opts, *this);
+        aboutService->Register(sp);
+        m_bus->RegisterBusObject(*aboutService);
+        aboutService->Announce();
+
+        m_notifService = services::NotificationService::getInstance();
+        m_notifSender = m_notifService->initSend(m_bus, m_aboutPropertyStore);
+    }
+
+    ~AlertReceiver()
+    {
+        // TODO: delete stuff
+    }
+
+    bool
+    AcceptSessionJoiner(
+        SessionPort        sessionPort,
+        const char*        joiner,
+        const SessionOpts& opts
+        )
+    {
+        return true;
+    }
+
+    void
+    AlertHandler(
+        const string& key,
+        const string& message,
+        void*         userdata
+        )
+    {
+        // Parse the message
+        istringstream msg_stream(message);
+        string token;
+        vector<string> lines;
+        while (getline(msg_stream, token, '\n'))
+        {
+            lines.push_back(token);
+        }
+        map<string,string> alarm_data;
+        for ( vector<string>::iterator it(lines.begin()); lines.end() != it; ++it )
+        {
+            istringstream line_stream(*it);
+            vector<string> tokens;
+            while (getline(line_stream, token, ':'))
+            {
+                tokens.push_back(token);
+            }
+            // Ignore lines with more than one colon
+            if ( tokens.size() == 2 )
+            {
+                // Add the key/value pair
+                alarm_data[tokens.at(0)] = tokens.at(1);
+            }
+        }
+
+        // Send the Description as an AllJoyn Notification
+        if ( alarm_data.end() != alarm_data.find("Description") )
+        {
+            // TODO:
+            cout << "Alarm Description: " << alarm_data.at("Description") << endl;
+            services::NotificationMessageType message_type = services::INFO;
+            services::NotificationText message("en", alarm_data.at("Description").c_str());
+            vector<services::NotificationText> messages;
+            messages.push_back(message);
+            services::Notification notification(message_type, messages);
+            QStatus status = m_notifSender->send(notification, 7200);
+            if (status != ER_OK)
+            {
+                cout << "Failed to send Alarm notification!" << endl;
+            }
+            else
+            {
+                cout << "Successfully sent Alarm notification!" << endl;
+            }
+        }
+    }
+
+private:
+    BusAttachment*                 m_bus;
+    SimplePropertyStore*           m_aboutPropertyStore;
+    services::NotificationService* m_notifService;
+    services::NotificationSender*  m_notifSender;
+};
 
 void cleanup()
 {
@@ -163,6 +375,16 @@ int main(int argc, char** argv)
 
     // Create our XMPP connector
     s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom());
+
+    // Register an alert handler
+    AlertReceiver alertReceiver(s_Bus);
+    s_Conn->RegisterMessageHandler(
+        "** Alert **",
+        &alertReceiver,
+        static_cast<XMPPConnector::MessageReceiver::MessageHandler>(&AlertReceiver::AlertHandler),
+        NULL);
+
+    // Start our XMPP connector (blocking).
     s_Conn->Start();
 
     cleanup();

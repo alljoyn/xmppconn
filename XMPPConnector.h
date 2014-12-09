@@ -1,7 +1,4 @@
-/*******************************************************************/
-// XMPPConnector.h
-/*******************************************************************/
-#ifndef XMPPCONNECTOR_H_
+#ifndef XMPPCONNECTOR_H_                                                        // TODO: document
 #define XMPPCONNECTOR_H_
 
 #ifndef NO_AJ_GATEWAY
@@ -55,11 +52,45 @@ public:
         const std::string& name
         );
 
+
+    // Class to handle custom XMPP messages
+    class MessageReceiver
+    {
+    public:
+        typedef
+        void
+        (XMPPConnector::MessageReceiver::* MessageHandler)(
+            const std::string& key,
+            const std::string& message,
+            void*              userdata
+            );
+    };
+
+    void
+    RegisterMessageHandler(
+        const std::string&                             key,
+        XMPPConnector::MessageReceiver*                receiver,
+        XMPPConnector::MessageReceiver::MessageHandler messageHandler,
+        void*                                          userdata
+        );
+
+    void
+    UnregisterMessageHandler(
+        const std::string& key
+        );
+
+    void
+    SendMessage(
+        const std::string& key,
+        const std::string& message
+        );
+
 protected:
 #ifndef NO_AJ_GATEWAY
     virtual void mergedAclUpdated();
     virtual void shutdown();
-    virtual void receiveGetMergedAclAsync(QStatus unmarshalStatus, GatewayMergedAcl* response);
+    virtual void receiveGetMergedAclAsync(
+        QStatus unmarshalStatus, GatewayMergedAcl* response);
 #endif // !NO_AJ_GATEWAY
 
 private:
@@ -83,11 +114,13 @@ private:
     std::list<RemoteBusAttachment*> m_remoteAttachments;
     pthread_mutex_t                 m_remoteAttachmentsMutex;
 
-
-    // TODO: make stuff like this implement-able from outside this class. need to be able to register xmpp send/receive handlers
-    //ajn::services::PropertyStore* m_AboutPropertyStore;
-    //ajn::services::NotificationService* m_NotifService;
-    //ajn::services::NotificationSender* m_NotifSender;
+    struct MessageCallback
+    {
+        XMPPConnector::MessageReceiver*                receiver;
+        XMPPConnector::MessageReceiver::MessageHandler messageHandler;
+        void*                                          userdata;
+    };
+    std::map<std::string, MessageCallback> m_messageCallbackMap;
 
     XmppTransport* m_xmppTransport;
 };
