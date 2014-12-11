@@ -10,6 +10,8 @@
 #include <alljoyn/about/AnnouncementRegistrar.h>
 #include <qcc/StringUtil.h>
 
+#include <zlib.h>
+
 
 using namespace ajn;
 using namespace ajn::gw;
@@ -46,26 +48,139 @@ namespace str {
         }
     }
 
+    /* Escape certain characters in an XML string. */
+    /*static inline
+    void
+    EscapeXml(
+        string& str
+        )
+    {
+        ReplaceAll(str, "&",  "&amp;");
+        ReplaceAll(str, "\"", "&quot;");
+        ReplaceAll(str, "'",  "&apos;");
+        ReplaceAll(str, "<",  "&lt;");
+        ReplaceAll(str, ">",  "&gt;");
+    }*/
+
     /* Unescape the escape sequences in an XML string. */
-    static inline
+    /*static inline
     void
     UnescapeXml(
         string& str
         )
     {
+        ReplaceAll(str, "&amp;",  "&");
         ReplaceAll(str, "&quot;", "\"");
         ReplaceAll(str, "&apos;", "'");
         ReplaceAll(str, "&lt;",   "<");
         ReplaceAll(str, "&gt;",   ">");
-        ReplaceAll(str, "&amp;",  "&");
-    }
+    }*/
 
     /* Trim the whitespace before and after a string. */
-    string inline Trim(
+    static inline
+    string
+    Trim(
         const string& str
         )
     {
         return qcc::Trim(str.c_str()).c_str();
+    }
+
+    static
+    string
+    Compress(
+        const string& str
+        )
+    {
+        z_stream zs;
+        memset(&zs, 0, sizeof(zs));
+
+        if(deflateInit(&zs, Z_BEST_COMPRESSION) != Z_OK)
+        {
+            return str;
+        }
+
+        zs.next_in = (Bytef*)str.data();
+        zs.avail_in = str.size();
+
+        int ret;
+        uint8_t outBuffer[32768];
+        string byteString;
+        do
+        {
+            zs.next_out = reinterpret_cast<Bytef*>(outBuffer);
+            zs.avail_out = sizeof(outBuffer);
+
+            ret = deflate(&zs, Z_FINISH);
+
+            if(byteString.size() < zs.total_out)
+            {
+                byteString.append(
+                        reinterpret_cast<char*>(outBuffer),
+                        zs.total_out-byteString.size());
+            }
+        } while(ret == Z_OK);
+
+        deflateEnd(&zs);
+
+        if(ret != Z_STREAM_END)
+        {
+            return str;
+        }
+
+        return BytesToHexString(
+                reinterpret_cast<const uint8_t*>(byteString.data()),
+                byteString.size()).c_str();
+    }
+
+    static
+    string
+    Decompress(
+        const string& str
+        )
+    {
+        size_t numBytes = str.length()/2;
+        uint8_t* bytes = new uint8_t[numBytes];
+        if(numBytes != HexStringToBytes(str.c_str(), bytes, numBytes))
+        {
+            return str;
+        }
+
+        z_stream zs;
+        memset(&zs, 0, sizeof(zs));
+
+        if(inflateInit(&zs) != Z_OK)
+        {
+            return str;
+        }
+
+        zs.next_in = (Bytef*)bytes;
+        zs.avail_in = numBytes;
+
+        int ret;
+        char outBuffer[32768];
+        string outString;
+        do
+        {
+            zs.next_out = reinterpret_cast<Bytef*>(outBuffer);
+            zs.avail_out = sizeof(outBuffer);
+
+            ret = inflate(&zs, 0);
+
+            if(outString.size() < zs.total_out)
+            {
+                outString.append(outBuffer, zs.total_out-outString.size());
+            }
+        } while(ret == Z_OK);
+
+        inflateEnd(&zs);
+
+        if(ret != Z_STREAM_END)
+        {
+            return str;
+        }
+
+        return outString;
     }
 
 } // namespace str
@@ -697,7 +812,7 @@ namespace bus {
         if(thisObj.path.empty()) {
             thisObj.path = "/";
         }
-                                                                                cout << "  " << thisObj.path << endl;
+                                                                                //cout << "  " << thisObj.path << endl;
         // Get the interfaces implemented at this object path
         size_t numIfaces = proxy.GetInterfaces();
         if(numIfaces != 0)
@@ -716,7 +831,7 @@ namespace bus {
                    ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
                    ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
                    ifaceNameStr != "org.allseen.Introspectable"          )
-                {                                                               cout << "    " << ifaceNameStr << endl;
+                {                                                               //cout << "    " << ifaceNameStr << endl;
                     thisObj.interfaces.push_back(ifaceList[i]);
                 }
             }
@@ -931,6 +1046,7 @@ private:
         AnnounceHandler::AboutData          aboutData;
     };
     map<string, AnnounceInfo> m_pendingAnnouncements;
+    pthread_mutex_t           m_pendingAnnouncementsMutex;
 
     BusAttachment m_propertyBus;
 
@@ -949,8 +1065,6 @@ private:
     static const string ALLJOYN_CODE_SET_PROP_REPLY;
     static const string ALLJOYN_CODE_GET_ALL;
     static const string ALLJOYN_CODE_GET_ALL_REPLY;
-
-    static const string TR069_ALARM_MESSAGE;
 };
 
 
@@ -971,6 +1085,7 @@ public:
         m_aboutBusObject(this, m_aboutPropertyStore)
     {
         RegisterBusListener(m_listener);
+        RegisterBusObject(m_aboutBusObject);
     }
 
     ~RemoteBusAttachment()
@@ -982,6 +1097,7 @@ public:
             delete(*it);
         }
 
+        UnregisterBusObject(m_aboutBusObject);
         UnregisterBusListener(m_listener);
     }
 
@@ -1020,9 +1136,16 @@ public:
             return err;
         }
 
-        RegisterBusObject(*newObj);
-        m_objects.push_back(newObj);
+        err = RegisterBusObject(*newObj);
+        if(err != ER_OK)
+        {
+            cout << "Failed to register remote bus object: " <<
+                    QCC_StatusText(err) << endl;
+            delete newObj;
+            return err;
+        }
 
+        m_objects.push_back(newObj);
         return err;
     }
 
@@ -1216,14 +1339,14 @@ private:
             {
                 MsgArg dictEntry("{sv}",
                         aboutIter->first.c_str(), &aboutIter->second);
-                dictEntry.Stabilize();
+                dictEntry.Stabilize();                                          //cout << dictEntry.ToString(4) << endl;
 
                 dictArgs.push_back(dictEntry);
             }
 
             QStatus err = m_announceArgs.Set("a{sv}",
                     dictArgs.size(), &dictArgs[0]);
-            m_announceArgs.Stabilize();
+            m_announceArgs.Stabilize();                                         //cout << m_announceArgs.ToString(4) << endl;
 
             return err;
         }
@@ -1235,7 +1358,7 @@ private:
             MsgArg&     all
             )
         {
-            all = m_announceArgs;
+            all = m_announceArgs;                                               //cout << "ReadAll called:\n" << all.ToString(2) << endl;
             return ER_OK;
         }
 
@@ -1504,7 +1627,7 @@ private:
                     {
                         err = AddMethodHandler(interfaceMembers[i],
                                 static_cast<MessageReceiver::MethodHandler>(
-                                &RemoteBusObject::AllJoynMethodHandler));
+                                &RemoteBusObject::AllJoynMethodHandler));       //cout << "      " << interfaceMembers[i]->name << endl;
                     }
                     if(err != ER_OK)
                     {
@@ -1710,8 +1833,8 @@ private:
                 QStatus err = MethodReply(msg, &result, 1);
                 if(err != ER_OK)
                 {
-                    cout << "Failed to send method reply to GetAllProps request: "
-                            << QCC_StatusText(err) << endl;
+                    cout << "Failed to send method reply to GetAllProps " <<
+                            "request: " << QCC_StatusText(err) << endl;
                 }
             }
         }
@@ -1847,14 +1970,18 @@ XmppTransport::XmppTransport(
     m_xmppCtx = xmpp_ctx_new(NULL, NULL);
     m_xmppConn = xmpp_conn_new(m_xmppCtx);
 
-    m_propertyBus.Connect();
     m_propertyBus.Start();
+    m_propertyBus.Connect();
+
+    pthread_mutex_init(&m_pendingAnnouncementsMutex, NULL);
 }
 
 XmppTransport::~XmppTransport()
 {
-    m_propertyBus.Stop();
+    pthread_mutex_destroy(&m_pendingAnnouncementsMutex);
+
     m_propertyBus.Disconnect();
+    m_propertyBus.Stop();
 
     xmpp_conn_release(m_xmppConn);
     xmpp_ctx_free(m_xmppCtx);
@@ -1946,6 +2073,13 @@ XmppTransport::SendAnnounce(
     const AnnounceHandler::AboutData&          aboutData
     )
 {
+    if(m_connector->IsAdvertisingName(busName) ||
+       m_connector->GetRemoteAttachment(busName) != NULL )
+    {
+        // This is our own announcement.
+        return;
+    }
+
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ANNOUNCE << "\n";
@@ -2194,6 +2328,8 @@ XmppTransport::SendMessage(
     const string& messageType
     )
 {
+    string bodyHex = util::str::Compress(body);
+
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
     xmpp_stanza_set_name(messageStanza, "message");
     xmpp_stanza_set_attribute(messageStanza, "to", m_chatroom.c_str());
@@ -2203,19 +2339,19 @@ XmppTransport::SendMessage(
     xmpp_stanza_set_name(bodyStanza, "body");
 
     xmpp_stanza_t* textStanza = xmpp_stanza_new(m_xmppCtx);
-    xmpp_stanza_set_text(textStanza, body.c_str());
+    xmpp_stanza_set_text(textStanza, bodyHex.c_str());
 
     xmpp_stanza_add_child(bodyStanza, textStanza);
     xmpp_stanza_release(textStanza);
     xmpp_stanza_add_child(messageStanza, bodyStanza);
     xmpp_stanza_release(bodyStanza);
 
-    char* buf = NULL;
-    size_t buflen = 0;
-    xmpp_stanza_to_text(messageStanza, &buf, &buflen);
+    //char* buf = NULL;
+    //size_t buflen = 0;
+    //xmpp_stanza_to_text(messageStanza, &buf, &buflen);
     cout << "Sending XMPP " << (messageType.empty() ? "" : messageType+" ") <<
             "message." << endl;
-    xmpp_free(m_xmppCtx, buf);
+    //xmpp_free(m_xmppCtx, buf);
 
     xmpp_send(m_xmppConn, messageStanza);
     xmpp_stanza_release(messageStanza);
@@ -2239,7 +2375,7 @@ XmppTransport::ParseBusObjectInfo(
             if(!interfaceDescription.empty())
             {
                 // We've reached the end of an interface description.
-                util::str::UnescapeXml(interfaceDescription);
+                //util::str::UnescapeXml(interfaceDescription);
                 thisObj.interfaces[interfaceName] = interfaceDescription;
 
                 interfaceName.clear();
@@ -2288,7 +2424,9 @@ XmppTransport::ReceiveAdvertisement(
 
     // Second line is the name to advertise
     string remoteName = "";
-    if(0 == getline(msgStream, remoteName)){ return; }                          cout << "received XMPP advertised name: " << remoteName << endl;
+    if(0 == getline(msgStream, remoteName)){ return; }                          //cout << "received XMPP advertised name: " << remoteName << endl; cout << message << endl;
+
+    cout << "Received remote advertisement: " << remoteName << endl;
 
     vector<XMPPConnector::RemoteObjectDescription> objects =
             ParseBusObjectInfo(msgStream);
@@ -2310,9 +2448,19 @@ XmppTransport::ReceiveAdvertisement(
             return;
         }
     }
-    bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
+
+    cout << "Advertising name: " << wkn << endl;
+    QStatus err = bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
+    if(err != ER_OK)
+    {
+        cout << "Failed to advertise " << wkn << ": " <<
+                QCC_StatusText(err) << endl;
+        m_connector->DeleteRemoteAttachment(bus);
+        return;
+    }
 
     // Do we have a pending announcement?                                       // TODO: Create attachment on announce if !exists. no need for this
+    pthread_mutex_lock(&m_pendingAnnouncementsMutex);
     map<string, AnnounceInfo>::iterator announceIter =
             m_pendingAnnouncements.find(remoteName);
     if(announceIter != m_pendingAnnouncements.end())
@@ -2324,7 +2472,8 @@ XmppTransport::ReceiveAdvertisement(
                 announceIter->second.objectDescs,
                 announceIter->second.aboutData);
         m_pendingAnnouncements.erase(announceIter);
-    }
+    }                                                                           //else{cout << "No pending announcement found for " << wkn << endl;}
+    pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
 }
 
 void
@@ -2343,6 +2492,8 @@ XmppTransport::ReceiveAnnounce(
     if(0 == getline(msgStream, versionStr)){ return; }
     if(0 == getline(msgStream, portStr)){ return; }
     if(0 == getline(msgStream, busName)){ return; }
+
+    cout << "Received remote announcement: " << busName << endl;
 
     // The object descriptions follow
     AnnounceHandler::ObjectDescriptions objDescs;
@@ -2413,6 +2564,7 @@ XmppTransport::ReceiveAnnounce(
     }
     else
     {
+        pthread_mutex_lock(&m_pendingAnnouncementsMutex);                       //cout << "Storing pending announcement for " << busName << endl;
         AnnounceInfo info = {
                 strtoul(versionStr.c_str(), NULL, 10),
                 strtoul(portStr.c_str(), NULL, 10),
@@ -2420,6 +2572,7 @@ XmppTransport::ReceiveAnnounce(
                 objDescs,
                 aboutData};
         m_pendingAnnouncements[busName] = info;
+        pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
     }
 }
 
@@ -2606,7 +2759,7 @@ XmppTransport::ReceiveMethodCall(
     {
         messageArgsString += line + "\n";
     }
-    util::str::UnescapeXml(messageArgsString);
+    //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
@@ -2664,7 +2817,7 @@ XmppTransport::ReceiveMethodReply(
     {
         messageArgsString += line + "\n";
     }
-    util::str::UnescapeXml(messageArgsString);
+    //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
@@ -2705,7 +2858,7 @@ XmppTransport::ReceiveSignal(
     {
         messageArgsString += line + "\n";
     }
-    util::str::UnescapeXml(messageArgsString);
+    //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(senderName);
@@ -2785,7 +2938,7 @@ XmppTransport::ReceiveGetReply(
     {
         messageArgString += line + "\n";
     }
-    util::str::UnescapeXml(messageArgString);
+    //util::str::UnescapeXml(messageArgString);
 
     // Find the bus attachment with this busName
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
@@ -2861,7 +3014,7 @@ XmppTransport::ReceiveGetAllReply(
     {
         messageArgsString += line + "\n";
     }
-    util::str::UnescapeXml(messageArgsString);
+    //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
@@ -2914,6 +3067,9 @@ XmppTransport::XmppStanzaHandler(
             message = message.substr(strlen("<body>"),
                     message.length()-strlen("<body></body>"));
 
+            // Decompress the message
+            message = util::str::Decompress(message);
+
             // Handle the content of the message
             string typeCode =
                     message.substr(0, message.find_first_of('\n'));
@@ -2922,6 +3078,10 @@ XmppTransport::XmppStanzaHandler(
             if(typeCode == ALLJOYN_CODE_ADVERTISEMENT)
             {
                 transport->ReceiveAdvertisement(message);
+            }
+            else if(typeCode == ALLJOYN_CODE_ANNOUNCE)
+            {
+                transport->ReceiveAnnounce(message);
             }
             else if(typeCode == ALLJOYN_CODE_METHOD_CALL)
             {
@@ -2946,10 +3106,6 @@ XmppTransport::XmppStanzaHandler(
             else if(typeCode == ALLJOYN_CODE_SESSION_JOINED)
             {
                 transport->ReceiveSessionJoined(message);
-            }
-            else if(typeCode == ALLJOYN_CODE_ANNOUNCE)
-            {
-                transport->ReceiveAnnounce(message);
             }
             else if(typeCode == ALLJOYN_CODE_GET_PROPERTY)
             {
@@ -3058,13 +3214,13 @@ XmppTransport::XmppConnectionHandler(
 }
 
 const string XmppTransport::ALLJOYN_CODE_ADVERTISEMENT  = "__ADVERTISEMENT";
+const string XmppTransport::ALLJOYN_CODE_ANNOUNCE       = "__ANNOUNCE";
 const string XmppTransport::ALLJOYN_CODE_METHOD_CALL    = "__METHOD_CALL";
 const string XmppTransport::ALLJOYN_CODE_METHOD_REPLY   = "__METHOD_REPLY";
 const string XmppTransport::ALLJOYN_CODE_SIGNAL         = "__SIGNAL";
 const string XmppTransport::ALLJOYN_CODE_JOIN_REQUEST   = "__JOIN_REQUEST";
 const string XmppTransport::ALLJOYN_CODE_JOIN_RESPONSE  = "__JOIN_RESPONSE";
 const string XmppTransport::ALLJOYN_CODE_SESSION_JOINED = "__SESSION_JOINED";
-const string XmppTransport::ALLJOYN_CODE_ANNOUNCE       = "__ANNOUNCE";
 const string XmppTransport::ALLJOYN_CODE_GET_PROPERTY   = "__GET_PROPERTY";
 const string XmppTransport::ALLJOYN_CODE_GET_PROP_REPLY = "__GET_PROP_REPLY";
 const string XmppTransport::ALLJOYN_CODE_SET_PROPERTY   = "__SET_PROPERTY";
@@ -3088,7 +3244,7 @@ XMPPConnector::XMPPConnector(
 {
     m_xmppTransport = new XmppTransport( this,
             xmppJid, xmppPassword, xmppChatroom,
-            bus->GetGlobalGUIDString().c_str());
+            bus->GetGlobalGUIDString().c_str());                                //cout << xmppChatroom << endl;
     m_listener = new AllJoynListener(this, m_xmppTransport, bus);
 
     pthread_mutex_init(&m_remoteAttachmentsMutex, NULL);
@@ -3188,17 +3344,20 @@ XMPPConnector::IsAdvertisingName(
     const string& name
     )
 {
+    bool result = false;
+
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
     list<RemoteBusAttachment*>::const_iterator it;
     for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
     {
         if(name == (*it)->WellKnownName())
         {
-            return true;
+            result = true;
+            break;
         }
     }
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
-    return false;
+    return result;
 }
 
 void
@@ -3259,7 +3418,7 @@ XMPPConnector::GetRemoteAttachment(
     {
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
-        result = new RemoteBusAttachment(remoteName, m_xmppTransport);
+        result = new RemoteBusAttachment(remoteName, m_xmppTransport);          //cout << "  " << remoteName << endl;
 
         vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
@@ -3296,9 +3455,12 @@ XMPPConnector::GetRemoteAttachment(
                     cout << "Failed to create InterfaceDescription " <<
                             ifaceName << ": " <<
                             QCC_StatusText(err) << endl;
-                    delete result;
-                    return NULL;
+                    break;
                 }
+            }
+            if(err != ER_OK)
+            {
+                break;
             }
 
             // Add the bus object.
@@ -3307,8 +3469,27 @@ XMPPConnector::GetRemoteAttachment(
             {
                 cout << "Failed to add remote object " << objPath << ": " <<
                         QCC_StatusText(err) << endl;
-                delete result;
-                return NULL;
+                break;
+            }                                                                   //else{cout << "    " << objPath << endl;}
+        }
+
+        // Start and connect the new attachment.
+        if(err == ER_OK)
+        {
+            err = result->Start();
+            if(err != ER_OK)
+            {
+                cout << "Failed to start new bus attachment " << remoteName <<
+                        ": " << QCC_StatusText(err) << endl;
+            }
+        }
+        if(err == ER_OK)
+        {
+            err = result->Connect();
+            if(err != ER_OK)
+            {
+                cout << "Failed to connect new bus attachment " << remoteName <<
+                        ": " << QCC_StatusText(err) << endl;
             }
         }
 
@@ -3318,6 +3499,11 @@ XMPPConnector::GetRemoteAttachment(
             result->BindSessionPort(1000); // ControlPanel
 
             m_remoteAttachments.push_back(result);
+        }
+        else
+        {
+            delete result;
+            result = NULL;
         }
     }
 

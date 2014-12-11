@@ -36,6 +36,7 @@ static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
 const string CONF_FILE = "/etc/XMPPConnector/XMPPConnector.conf";
 static string s_Server = "swiftnet.acs.affinegy.com";
+static string s_ServiceName = "muc";
 static string s_User = "alljoyn";
 static string s_ChatRoom;
 
@@ -295,6 +296,7 @@ static void SigIntHandler(int sig)
     {
         s_Conn->Stop();
     }
+    exit(1);
 }
 
 string getJID()
@@ -304,7 +306,7 @@ string getJID()
 
 string getChatRoom()
 {
-    return s_User + "@" + s_ChatRoom + "." + s_Server;
+    return s_ChatRoom + "@" + s_ServiceName + "." + s_Server;
 }
 
 int main(int argc, char** argv)
