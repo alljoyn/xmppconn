@@ -1085,7 +1085,12 @@ public:
         m_aboutBusObject(this, m_aboutPropertyStore)
     {
         RegisterBusListener(m_listener);
-        RegisterBusObject(m_aboutBusObject);
+        QStatus err = RegisterBusObject(m_aboutBusObject);
+        if(err != ER_OK)
+        {
+            cout << "Failed to register AboutService bus object: " <<
+                    QCC_StatusText(err) << endl;
+        }
     }
 
     ~RemoteBusAttachment()
@@ -1108,7 +1113,7 @@ public:
         Message&                            message
         )
     {
-        m_transport->SendSignal(member, srcPath, message);
+        m_transport->SendSignal(member, srcPath, message);                      // TODO: need to be able to find WKN of message sender. May have to catch and save bus NameOwnerChanges
     }
 
     QStatus
@@ -1387,6 +1392,11 @@ private:
             AnnounceHandler::ObjectDescriptions::const_iterator it;
             for(it = objectDescs.begin(); it != objectDescs.end(); ++it)
             {
+                if(it->first == "/About")
+                {
+                    continue;
+                }
+
                 err = AddObjectDescription(it->first, it->second);
                 if(err != ER_OK)
                 {
@@ -1591,8 +1601,7 @@ private:
 
         QStatus
         ImplementInterfaces(
-            const vector<const InterfaceDescription*>& interfaces//,
-            //RemoteBusAttachment* bus
+            const vector<const InterfaceDescription*>& interfaces
             )
         {
             vector<const InterfaceDescription*>::const_iterator it;
@@ -1618,16 +1627,17 @@ private:
                 {
                     if(interfaceMembers[i]->memberType == MESSAGE_SIGNAL)
                     {
-                        //err = bus->RegisterSignalHandler(this,
-                        //        static_cast<MessageReceiver::SignalHandler>(
-                        //        &GenericBusObject::AllJoynSignalHandler),
-                        //        interface_members[i], NULL);
+                        err = m_bus->RegisterSignalHandler(
+                                m_bus,
+                                static_cast<MessageReceiver::SignalHandler>(
+                                &RemoteBusAttachment::AllJoynSignalHandler),
+                                interfaceMembers[i], NULL);
                     }
                     else
                     {
                         err = AddMethodHandler(interfaceMembers[i],
                                 static_cast<MessageReceiver::MethodHandler>(
-                                &RemoteBusObject::AllJoynMethodHandler));       //cout << "      " << interfaceMembers[i]->name << endl;
+                                &RemoteBusObject::AllJoynMethodHandler));       //cout << "Registered method handler for " << m_bus->RemoteName() << GetPath() << ":" << interfaceMembers[i]->name << endl;
                     }
                     if(err != ER_OK)
                     {
@@ -1837,6 +1847,15 @@ private:
                             "request: " << QCC_StatusText(err) << endl;
                 }
             }
+        }
+
+        void
+        ObjectRegistered()
+        {
+            string remoteName = m_bus->RemoteName();
+            cout << (remoteName.at(0) == ':' ?
+                    bus->GetUniqueName().c_str() : remoteName)
+                    << GetPath() << " registered" << endl;
         }
 
     private:
@@ -2402,7 +2421,7 @@ XmppTransport::ParseBusObjectInfo(
             }
             else
             {
-                interfaceDescription.append(line + "/n");
+                interfaceDescription.append(line + "\n");
             }
         }
     }
@@ -2503,6 +2522,7 @@ XmppTransport::ReceiveAnnounce(
     {
         if(line.empty())
         {
+            objDescs[objectPath] = interfaceNames;
             break;
         }
 
@@ -2614,7 +2634,12 @@ XmppTransport::ReceiveJoinRequest(
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
 
         QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);
-        if(err == ER_OK)
+        if(err != ER_OK)
+        {
+            cout << "Join session request rejected: " <<
+                    QCC_StatusText(err) << endl;
+        }
+        else
         {
             // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
             vector<util::bus::BusObjectInfo> joineeObjects;
@@ -2864,7 +2889,8 @@ XmppTransport::ReceiveSignal(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(senderName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming signal." << endl;
+        cout << "No bus attachment to handle incoming signal. Sender: " <<
+                senderName << endl;
         return;
     }
 
@@ -3418,7 +3444,7 @@ XMPPConnector::GetRemoteAttachment(
     {
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
-        result = new RemoteBusAttachment(remoteName, m_xmppTransport);          //cout << "  " << remoteName << endl;
+        result = new RemoteBusAttachment(remoteName, m_xmppTransport);          cout << "Creating new remote bus attachment: " << remoteName << endl;
 
         vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
