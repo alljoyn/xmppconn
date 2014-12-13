@@ -901,6 +901,12 @@ public:
     void
     RemoveConnectionCallback();
 
+    void
+    NameOwnerChanged(
+        const char* wellKnownName,
+        const char* uniqueName
+        );
+
     QStatus Run();
     void Stop();
 
@@ -1048,6 +1054,8 @@ private:
     map<string, AnnounceInfo> m_pendingAnnouncements;
     pthread_mutex_t           m_pendingAnnouncementsMutex;
 
+    map<string, string> m_wellKnownNameMap;
+
     BusAttachment m_propertyBus;
 
 
@@ -1081,6 +1089,8 @@ public:
         m_remoteName(remoteName),
         m_wellKnownName(""),
         m_listener(this, transport),
+        m_objects(),
+        m_sessionIdMap(),
         m_aboutPropertyStore(),
         m_aboutBusObject(this, m_aboutPropertyStore)
     {
@@ -1113,7 +1123,8 @@ public:
         Message&                            message
         )
     {
-        m_transport->SendSignal(member, srcPath, message);                      // TODO: need to be able to find WKN of message sender. May have to catch and save bus NameOwnerChanges
+        cout << "Received signal from " << message->GetSender() << endl;
+        m_transport->SendSignal(member, srcPath, message);
     }
 
     QStatus
@@ -1183,6 +1194,26 @@ public:
         }
 
         return m_wellKnownName;
+    }
+
+    QStatus
+    RegisterSignalHandler(
+        const InterfaceDescription::Member* member
+        )
+    {
+        // Unregister first in case we already registered for this particular
+        //  interface member.
+        UnregisterSignalHandler(
+                this,
+                static_cast<MessageReceiver::SignalHandler>(
+                &RemoteBusAttachment::AllJoynSignalHandler),
+                member, NULL);
+
+        return BusAttachment::RegisterSignalHandler(
+                this,
+                static_cast<MessageReceiver::SignalHandler>(
+                &RemoteBusAttachment::AllJoynSignalHandler),
+                member, NULL);
     }
 
     void
@@ -1627,11 +1658,7 @@ private:
                 {
                     if(interfaceMembers[i]->memberType == MESSAGE_SIGNAL)
                     {
-                        err = m_bus->RegisterSignalHandler(
-                                m_bus,
-                                static_cast<MessageReceiver::SignalHandler>(
-                                &RemoteBusAttachment::AllJoynSignalHandler),
-                                interfaceMembers[i], NULL);
+                        err = m_bus->RegisterSignalHandler(interfaceMembers[i]);
                     }
                     else
                     {
@@ -1948,6 +1975,19 @@ public:
     }
 
     void
+    NameOwnerChanged(
+        const char* busName,
+        const char* previousOwner,
+        const char* newOwner
+        )
+    {
+        if(!busName) { return; }
+
+        //cout << "Detected name owner change: " << busName << endl;
+        m_transport->NameOwnerChanged(busName, newOwner);
+    }
+
+    void
     Announce(
         uint16_t                  version,
         uint16_t                  port,
@@ -2026,6 +2066,27 @@ XmppTransport::RemoveConnectionCallback()
     m_callbackUserdata = NULL;
 }
 
+void
+XmppTransport::NameOwnerChanged(
+    const char* wellKnownName,
+    const char* uniqueName
+    )
+{
+    if(!wellKnownName)
+    {
+        return;
+    }
+
+    if(!uniqueName)
+    {
+        m_wellKnownNameMap.erase(wellKnownName);
+    }
+    else
+    {
+        m_wellKnownNameMap[wellKnownName] = uniqueName;
+    }
+}
+
 QStatus
 XmppTransport::Run()
 {
@@ -2060,9 +2121,19 @@ XmppTransport::SendAdvertisement(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
+    // Find the unique name of the advertising attachment
+    string uniqueName = advertisedName;
+    map<string, string>::iterator wknIter =
+            m_wellKnownNameMap.find(advertisedName);
+    if(wknIter != m_wellKnownNameMap.end())
+    {
+        uniqueName = wknIter->second;
+    }
+
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERTISEMENT << "\n";
+    msgStream << uniqueName << "\n";
     msgStream << advertisedName << "\n";
     vector<util::bus::BusObjectInfo>::const_iterator it;
     for(it = busObjects.begin(); it != busObjects.end(); ++it)
@@ -2092,8 +2163,17 @@ XmppTransport::SendAnnounce(
     const AnnounceHandler::AboutData&          aboutData
     )
 {
-    if(m_connector->IsAdvertisingName(busName) ||
-       m_connector->GetRemoteAttachment(busName) != NULL )
+    // Find the unique name of the announcing attachment
+    string uniqueName = busName;
+    map<string, string>::iterator wknIter =
+            m_wellKnownNameMap.find(busName);
+    if(wknIter != m_wellKnownNameMap.end())
+    {
+        uniqueName = wknIter->second;
+    }
+
+    if(//m_connector->IsAdvertisingName(busName) ||
+       m_connector->GetRemoteAttachment(uniqueName) != NULL)
     {
         // This is our own announcement.
         return;
@@ -2102,6 +2182,7 @@ XmppTransport::SendAnnounce(
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ANNOUNCE << "\n";
+    msgStream << uniqueName << "\n";
     msgStream << version << "\n";
     msgStream << port << "\n";
     msgStream << busName << "\n";
@@ -2253,6 +2334,16 @@ XmppTransport::SendSignal(
     Message&                            message
     )
 {
+    // Find the unique name of the signal sender
+    string senderUniqueName = message->GetSender();
+    map<string, string>::iterator wknIter =
+            m_wellKnownNameMap.find(senderUniqueName);
+    if(wknIter != m_wellKnownNameMap.end())
+    {
+        senderUniqueName = wknIter->second;
+    }
+
+    // Get the MsgArgs
     size_t numArgs = 0;
     const MsgArg* msgArgs = 0;
     message->GetArgs(numArgs, msgArgs);
@@ -2260,7 +2351,7 @@ XmppTransport::SendSignal(
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SIGNAL << "\n";
-    msgStream << message->GetSender() << "\n";
+    msgStream << senderUniqueName << "\n";
     msgStream << message->GetDestination() << "\n";
     msgStream << message->GetSessionId() << "\n";
     msgStream << member->iface->GetName() << "\n";
@@ -2442,8 +2533,9 @@ XmppTransport::ReceiveAdvertisement(
     if(line != ALLJOYN_CODE_ADVERTISEMENT){ return; }
 
     // Second line is the name to advertise
-    string remoteName = "";
+    string remoteName, advertisedName;
     if(0 == getline(msgStream, remoteName)){ return; }                          //cout << "received XMPP advertised name: " << remoteName << endl; cout << message << endl;
+    if(0 == getline(msgStream, advertisedName)){ return; }
 
     cout << "Received remote advertisement: " << remoteName << endl;
 
@@ -2460,7 +2552,7 @@ XmppTransport::ReceiveAdvertisement(
     string wkn = bus->WellKnownName();
     if(wkn.empty())
     {
-        wkn = bus->RequestWellKnownName(remoteName);
+        wkn = bus->RequestWellKnownName(advertisedName);
         if(wkn.empty())
         {
             m_connector->DeleteRemoteAttachment(bus);
@@ -2501,13 +2593,14 @@ XmppTransport::ReceiveAnnounce(
     )
 {
     istringstream msgStream(message);
-    string line, versionStr, portStr, busName;
+    string line, remoteName, versionStr, portStr, busName;
 
     // First line is the type (announcement)
     if(0 == getline(msgStream, line)){ return; }
     if(line != ALLJOYN_CODE_ANNOUNCE){ return; }
 
     // Get the info from the message
+    if(0 == getline(msgStream, remoteName)){ return; }
     if(0 == getline(msgStream, versionStr)){ return; }
     if(0 == getline(msgStream, portStr)){ return; }
     if(0 == getline(msgStream, busName)){ return; }
@@ -2572,7 +2665,7 @@ XmppTransport::ReceiveAnnounce(
     }
 
     // Find the BusAttachment with the given app name
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(busName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(bus)
     {
         bus->RelayAnnouncement(
@@ -2591,7 +2684,7 @@ XmppTransport::ReceiveAnnounce(
                 busName,
                 objDescs,
                 aboutData};
-        m_pendingAnnouncements[busName] = info;
+        m_pendingAnnouncements[remoteName] = info;
         pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
     }
 }
@@ -2669,11 +2762,7 @@ XmppTransport::ReceiveJoinRequest(
                     {
                         if(ifaceMembers[i]->memberType == MESSAGE_SIGNAL)
                         {
-                            err = bus->RegisterSignalHandler(
-                                    bus,
-                                    static_cast<MessageReceiver::SignalHandler>(
-                                    &RemoteBusAttachment::AllJoynSignalHandler),
-                                    ifaceMembers[i], NULL);
+                            err = bus->RegisterSignalHandler(ifaceMembers[i]);
                             if(err != ER_OK)
                             {
                                 cout << "Could not register signal handler for "
