@@ -1316,7 +1316,7 @@ public:
         if(busObject)
         {
             busObject->SendSignal(
-                    destination.c_str(), sessionId,
+                    destination, sessionId,
                     ifaceName, ifaceMember, msgArgs);
         }
         else
@@ -1747,7 +1747,8 @@ private:
                         if(ifaceMember == members[i]->name.c_str())
                         {
                             QStatus err = Signal(
-                                    destination.c_str(), sessionId,
+                                    (destination.empty() ?
+                                    NULL : destination.c_str()), sessionId,
                                     *members[i], &msgArgs[0], msgArgs.size());
                             if(err != ER_OK)
                             {
