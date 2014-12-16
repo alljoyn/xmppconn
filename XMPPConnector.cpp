@@ -1084,23 +1084,17 @@ public:
         const string&  remoteName,
         XmppTransport* transport
         ) :
-        BusAttachment(remoteName.c_str()),
+        BusAttachment(remoteName.c_str(), true),
         m_transport(transport),
         m_remoteName(remoteName),
         m_wellKnownName(""),
         m_listener(this, transport),
         m_objects(),
         m_sessionIdMap(),
-        m_aboutPropertyStore(),
-        m_aboutBusObject(this, m_aboutPropertyStore)
+        m_aboutPropertyStore(NULL),
+        m_aboutBusObject(NULL)
     {
         RegisterBusListener(m_listener);
-        QStatus err = RegisterBusObject(m_aboutBusObject);
-        if(err != ER_OK)
-        {
-            cout << "Failed to register AboutService bus object: " <<
-                    QCC_StatusText(err) << endl;
-        }
     }
 
     ~RemoteBusAttachment()
@@ -1112,7 +1106,13 @@ public:
             delete(*it);
         }
 
-        UnregisterBusObject(m_aboutBusObject);
+        if(m_aboutBusObject)
+        {
+            UnregisterBusObject(*m_aboutBusObject);
+            delete m_aboutBusObject;
+            delete m_aboutPropertyStore;
+        }
+
         UnregisterBusListener(m_listener);
     }
 
@@ -1250,15 +1250,28 @@ public:
         QStatus err = ER_OK;
         cout << "Relaying announcement for " << m_wellKnownName << endl;
 
+        if(m_aboutBusObject)
+        {
+            // Already announced. Announcement must have been updated.
+            UnregisterBusObject(*m_aboutBusObject);
+            delete m_aboutBusObject;
+            delete m_aboutPropertyStore;
+        }
+
         // Set up our About bus object
-        err = m_aboutPropertyStore.SetAnnounceArgs(aboutData);
+        m_aboutPropertyStore = new AboutPropertyStore();
+        err = m_aboutPropertyStore->SetAnnounceArgs(aboutData);
         if(err != ER_OK)
         {
             cout << "Failed to set About announcement args for " <<
                     m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            delete m_aboutPropertyStore;
+            m_aboutPropertyStore = 0;
             return;
         }
-        err = m_aboutBusObject.AddObjectDescriptions(objectDescs);
+
+        m_aboutBusObject = new AboutBusObject(this, *m_aboutPropertyStore);
+        err = m_aboutBusObject->AddObjectDescriptions(objectDescs);
         if(err != ER_OK)
         {
             cout << "Failed to add About object descriptions for " <<
@@ -1274,7 +1287,7 @@ public:
                     m_wellKnownName << ": " << QCC_StatusText(err) << endl;
             return;
         }
-        err = m_aboutBusObject.Register(port);
+        err = m_aboutBusObject->Register(port);
         if(err != ER_OK)
         {
             cout << "Failed to register About announcement port for " <<
@@ -1282,8 +1295,16 @@ public:
             return;
         }
 
+        // Register the bus object
+        err = RegisterBusObject(*m_aboutBusObject);
+        if(err != ER_OK)
+        {
+            cout << "Failed to register AboutService bus object: " <<
+                    QCC_StatusText(err) << endl;
+        }
+
         // Make the announcement
-        err = m_aboutBusObject.Announce();
+        err = m_aboutBusObject->Announce();
         if(err != ER_OK)
         {
             cout << "Failed to relay announcement for " << m_wellKnownName <<
@@ -1394,7 +1415,7 @@ private:
             MsgArg&     all
             )
         {
-            all = m_announceArgs;                                               //cout << "ReadAll called:\n" << all.ToString(2) << endl;
+            all = m_announceArgs;                                               //cout << "ReadAll called:\n" << all.ToString() << endl;
             return ER_OK;
         }
 
@@ -1537,6 +1558,10 @@ private:
 
             // Send the session Id back across the XMPP server
             m_transport->SendSessionJoined(joiner, remoteSessionId, id);
+
+            cout << "Session joined between " << joiner << " (remote) and " <<
+                    m_bus->WellKnownName() << " (local). Port: " << sessionPort
+                    << " Id: " << id << endl;
         }
 
         void
@@ -1641,6 +1666,8 @@ private:
                 QStatus err = AddInterface(**it);
                 if(ER_OK != err)
                 {
+                    cout << "Failed to add interface " << (*it)->GetName() <<
+                            ": " << QCC_StatusText(err) << endl;
                     return err;
                 }
 
@@ -1813,15 +1840,12 @@ private:
 
             if(replyReceived)
             {
-                /*MsgArg why(util::msgarg::FromString(replyStr));
+                MsgArg why(util::msgarg::FromString(replyStr));
                 if(why.Signature() == "v") {
-                    val = *why.v_variant.val;                                   // TODO: still have to do this? and why?
+                    val = *why.v_variant.val;                                   // TODO: why is this necessary?
                 } else {
                     val = why;
                 }
-                val.Stabilize();*/
-
-                val = util::msgarg::FromString(replyStr);
                 val.Stabilize();
                 return ER_OK;
             }
@@ -1891,10 +1915,10 @@ private:
         XmppTransport*                      m_transport;
         vector<const InterfaceDescription*> m_interfaces;
 
-        bool m_replyReceived;
-        string m_replyStr;
+        bool            m_replyReceived;
+        string          m_replyStr;
         pthread_mutex_t m_replyReceivedMutex;
-        pthread_cond_t m_replyReceivedWaitCond;
+        pthread_cond_t  m_replyReceivedWaitCond;
     };
 
     XmppTransport*            m_transport;
@@ -1904,8 +1928,8 @@ private:
     vector<RemoteBusObject*>  m_objects;
     map<SessionId, SessionId> m_sessionIdMap;
 
-    AboutPropertyStore        m_aboutPropertyStore;
-    AboutBusObject            m_aboutBusObject;
+    AboutPropertyStore*       m_aboutPropertyStore;
+    AboutBusObject*           m_aboutBusObject;
 };
 
 class ajn::gw::AllJoynListener :
@@ -2231,6 +2255,7 @@ XmppTransport::SendJoinRequest(
     msgStream << sessionPort << "\n";
     msgStream << joiner << "\n";
 
+    // Send the objects/interfaces to be implemented on the remote end
     vector<util::bus::BusObjectInfo>::const_iterator objIter;
     for(objIter = busObjects.begin(); objIter != busObjects.end(); ++objIter)
     {
@@ -2240,8 +2265,15 @@ XmppTransport::SendJoinRequest(
             ifaceIter != objIter->interfaces.end();
             ++ifaceIter)
         {
-            msgStream << (*ifaceIter)->GetName() << "\n";
-            msgStream << (*ifaceIter)->Introspect().c_str() << "\n";
+            string ifaceNameStr = (*ifaceIter)->GetName();
+            if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
+               ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
+               ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
+               ifaceNameStr != "org.allseen.Introspectable"          )
+            {
+                msgStream << ifaceNameStr << "\n";
+                msgStream << (*ifaceIter)->Introspect().c_str() << "\n";
+            }
         }
 
         msgStream << "\n";
@@ -2727,7 +2759,7 @@ XmppTransport::ReceiveJoinRequest(
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
 
-        QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);
+        QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);   // TODO: handle session already joined
         if(err != ER_OK)
         {
             cout << "Join session request rejected: " <<
@@ -2735,6 +2767,10 @@ XmppTransport::ReceiveJoinRequest(
         }
         else
         {
+            cout << "Session joined between " << joiner << " (remote) and " <<
+                    bus->RemoteName() << " (local). Port: " << port
+                    << " Id: " << id << endl;
+
             // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
             vector<util::bus::BusObjectInfo> joineeObjects;
             ProxyBusObject proxy(*bus, joinee.c_str(), "/", id);
@@ -3009,6 +3045,9 @@ XmppTransport::ReceiveGetRequest(
     if(0 == getline(msgStream, destPath)){ return; }
     if(0 == getline(msgStream, ifaceName)){ return; }
     if(0 == getline(msgStream, propName)){ return; }
+
+    cout << "Retrieving property:\n  " << destName << destPath << "\n  " <<
+            ifaceName << ":" << propName << endl;
 
     // Get the property
     ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
