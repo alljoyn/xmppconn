@@ -35,7 +35,7 @@ using std::map;
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
 const string CONF_FILE = "/etc/XMPPConnector/XMPPConnector.conf";
-static string s_Server = "swiftnet.acs.affinegy.com";
+static string s_Server = "xmpp.affinegy.com";
 static string s_ServiceName = "muc";
 static string s_User = "alljoyn";
 static string s_ChatRoom;
