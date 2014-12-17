@@ -947,6 +947,7 @@ public:
     void
     SendSessionJoined(
         const string& joiner,
+        const string& joinee,
         SessionId     remoteId,
         SessionId     localId
         );
@@ -1100,6 +1101,7 @@ public:
         m_listener(this, transport),
         m_objects(),
         m_sessionIdMap(),
+        m_activeSessions(),
         m_aboutPropertyStore(NULL),
         m_aboutBusObject(NULL)
     {
@@ -1227,11 +1229,13 @@ public:
 
     void
     AddSessionIdPair(
-        SessionId remote,
-        SessionId local
+        const string& peer,
+        SessionId     remoteId,
+        SessionId     localId
         )
     {
-        m_sessionIdMap[remote] = local;
+        m_activeSessions[peer] = localId;
+        m_sessionIdMap[remoteId] = localId;
     }
 
     SessionId
@@ -1241,6 +1245,19 @@ public:
     {
         map<SessionId, SessionId>::iterator it = m_sessionIdMap.find(remoteId);
         if(it != m_sessionIdMap.end())
+        {
+            return it->second;
+        }
+        return 0;
+    }
+
+    SessionId
+    GetLocalSessionIdByPeer(
+        const string& peer
+        )
+    {
+        map<string, SessionId>::iterator it = m_activeSessions.find(peer);
+        if(it != m_activeSessions.end())
         {
             return it->second;
         }
@@ -1563,10 +1580,11 @@ private:
             pthread_mutex_unlock(&m_sessionJoinedMutex);
 
             // Store the remote/local session id pair
-            m_bus->AddSessionIdPair(remoteSessionId, id);
+            m_bus->AddSessionIdPair(joiner, remoteSessionId, id);
 
             // Send the session Id back across the XMPP server
-            m_transport->SendSessionJoined(joiner, remoteSessionId, id);
+            m_transport->SendSessionJoined(
+                    joiner, m_bus->RemoteName(), remoteSessionId, id);
 
             cout << "Session joined between " << joiner << " (remote) and " <<
                     m_bus->WellKnownName() << " (local). Port: " << sessionPort
@@ -1849,11 +1867,11 @@ private:
 
             if(replyReceived)
             {
-                MsgArg why(util::msgarg::FromString(replyStr));
-                if(why.Signature() == "v") {
-                    val = *why.v_variant.val;                                   // TODO: why is this necessary?
+                MsgArg arg(util::msgarg::FromString(replyStr));                 //cout << "Received remote property value:\n" << util::msgarg::ToString(why) << endl;
+                if(arg.Signature() == "v") {
+                    val = *arg.v_variant.val;                                   // TODO: why is this necessary?
                 } else {
-                    val = why;
+                    val = arg;
                 }
                 val.Stabilize();
                 return ER_OK;
@@ -1936,6 +1954,7 @@ private:
     RemoteBusListener         m_listener;
     vector<RemoteBusObject*>  m_objects;
     map<SessionId, SessionId> m_sessionIdMap;
+    map<string, SessionId>    m_activeSessions;
 
     AboutPropertyStore*       m_aboutPropertyStore;
     AboutBusObject*           m_aboutBusObject;
@@ -2054,11 +2073,11 @@ XmppTransport::XmppTransport(
     m_password(password),
     m_chatroom(chatroom),
     m_nickname(nickname),
+    m_connectionState(xmpp_uninitialized),
     m_callbackListener(NULL),
     m_connectionCallback(NULL),
     m_callbackUserdata(NULL),
-    m_propertyBus("propertyBus"),
-    m_connectionState(xmpp_uninitialized)
+    m_propertyBus("propertyBus")
 {
     xmpp_initialize();
     m_xmppCtx = xmpp_ctx_new(NULL, NULL);
@@ -2311,6 +2330,7 @@ XmppTransport::SendJoinResponse(
 void
 XmppTransport::SendSessionJoined(
     const string& joiner,
+    const string& joinee,
     SessionId     remoteId,
     SessionId     localId
     )
@@ -2319,6 +2339,7 @@ XmppTransport::SendSessionJoined(
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
     msgStream << joiner << "\n";
+    msgStream << joinee << "\n";
     msgStream << remoteId << "\n";
     msgStream << localId << "\n";
 
@@ -2770,20 +2791,27 @@ XmppTransport::ReceiveJoinRequest(
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
 
-        QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);   // TODO: handle session already joined
-        if(err != ER_OK)
+        QStatus err = bus->JoinSession(joinee.c_str(), port, NULL, id, opts);
+        if(err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
+        {
+            id = bus->GetLocalSessionIdByPeer(joinee);
+            cout << "Session already joined between " << joiner <<
+                    " (local) and " << joinee << " (remote). Port: "
+                    << port << " Id: " << id << endl;
+        }
+        else if(err != ER_OK)
         {
             cout << "Join session request rejected: " <<
                     QCC_StatusText(err) << endl;
         }
         else
         {
-            cout << "Session joined between " << joiner << " (remote) and " <<
-                    bus->RemoteName() << " (local). Port: " << port
+            cout << "Session joined between " << joiner << " (local) and " <<
+                    joinee << " (remote). Port: " << port
                     << " Id: " << id << endl;
 
             // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
-            vector<util::bus::BusObjectInfo> joineeObjects;
+            vector<util::bus::BusObjectInfo> joineeObjects;                     // TODO: do this before joining?
             ProxyBusObject proxy(*bus, joinee.c_str(), "/", id);
             util::bus::GetBusObjectsRecursive(joineeObjects, proxy);
 
@@ -2863,7 +2891,7 @@ XmppTransport::ReceiveSessionJoined(
     )
 {
     istringstream msgStream(message);
-    string line, joiner, remoteIdStr, localIdStr;
+    string line, joiner, joinee, remoteIdStr, localIdStr;
 
     // First line is the type (session joined)
     if(0 == getline(msgStream, line)){ return; }
@@ -2871,6 +2899,7 @@ XmppTransport::ReceiveSessionJoined(
 
     // Get the info from the message
     if(0 == getline(msgStream, joiner)){ return; }
+    if(0 == getline(msgStream, joinee)){ return; }
     if(0 == getline(msgStream, localIdStr)){ return; }
     if(0 == getline(msgStream, remoteIdStr)){ return; }
 
@@ -2889,6 +2918,7 @@ XmppTransport::ReceiveSessionJoined(
     else
     {
         bus->AddSessionIdPair(
+                joinee,
                 strtol(remoteIdStr.c_str(), NULL, 10),
                 strtol(localIdStr.c_str(), NULL, 10));
     }
@@ -3071,7 +3101,7 @@ XmppTransport::ReceiveGetRequest(
     }
 
     MsgArg value;
-    err = proxy.GetProperty(ifaceName.c_str(), propName.c_str(), value, 5000);
+    err = proxy.GetProperty(ifaceName.c_str(), propName.c_str(), value, 5000);  //cout << "Got property value:\n" << util::msgarg::ToString(value) << endl;
     if(err != ER_OK)
     {
         cout << "Failed to relay Get request: " << QCC_StatusText(err) << endl;
@@ -3136,6 +3166,9 @@ XmppTransport::ReceiveGetAllRequest(
     if(0 == getline(msgStream, ifaceName)){ return; }
     if(0 == getline(msgStream, memberName)){ return; }
 
+    cout << "Retrieving properties:\n  " << destName << destPath << "\n  " <<
+            ifaceName << ":" << memberName << endl;
+
     // Call the method
     ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
     QStatus err = proxy.IntrospectRemoteObject();
@@ -3147,7 +3180,7 @@ XmppTransport::ReceiveGetAllRequest(
     }
 
     MsgArg values;
-    err = proxy.GetAllProperties(ifaceName.c_str(), values, 5000);
+    err = proxy.GetAllProperties(ifaceName.c_str(), values, 5000);              //cout << "Got all properties:\n" << util::msgarg::ToString(values, 2) << endl;
     if(err != ER_OK)
     {
         cout << "Failed to get all properties: " << QCC_StatusText(err) << endl;
