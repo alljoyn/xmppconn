@@ -3331,7 +3331,7 @@ XmppTransport::XmppConnectionHandler(
     )
 {
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
-    XMPPConnectionState prevConnState = transport->m_connectionState;
+    XmppConnectionState prevConnState = transport->m_connectionState;
 
     switch(event)
     {
@@ -3373,7 +3373,7 @@ XmppTransport::XmppConnectionHandler(
         {
             if ( prevConnState != xmpp_uninitialized )
             {
-                xmppConnector->m_connectionState = xmpp_disconnected;
+                transport->m_connectionState = xmpp_disconnected;
             }
         }
         break;
