@@ -17,7 +17,7 @@ else
   CXXFLAGS += -DNO_AJ_GATEWAY
 endif
 
-LIBS += -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lcrypto -lpthread -lrt
+LIBS += -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
 
 ifdef AJ_PATH
   INCLUDES += -I$(AJ_PATH)/cpp/inc -I$(AJ_PATH)/about/inc -I$(AJ_PATH)/notification/inc -I$(AJ_PATH)/services_common/inc

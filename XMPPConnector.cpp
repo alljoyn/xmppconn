@@ -882,6 +882,14 @@ public:
             void*            userdata
             );
     };
+	
+    typedef enum {
+        xmpp_uninitialized,
+        xmpp_disconnected,
+        xmpp_connected,
+        xmpp_error,
+        xmpp_aborting
+    } XmppConnectionState;
 
     XmppTransport(
         XMPPConnector* connector,
@@ -1036,6 +1044,7 @@ private:
     const string   m_password;
     const string   m_chatroom;                                                  // TODO: moving away from using chatrooms
     const string   m_nickname;
+    XmppConnectionState m_connectionState;
 
     xmpp_ctx_t*                  m_xmppCtx;
     xmpp_conn_t*                 m_xmppConn;
@@ -2048,7 +2057,8 @@ XmppTransport::XmppTransport(
     m_callbackListener(NULL),
     m_connectionCallback(NULL),
     m_callbackUserdata(NULL),
-    m_propertyBus("propertyBus")
+    m_propertyBus("propertyBus"),
+    m_connectionState(xmpp_uninitialized)
 {
     xmpp_initialize();
     m_xmppCtx = xmpp_ctx_new(NULL, NULL);
@@ -2136,6 +2146,7 @@ XmppTransport::Run()
 void
 XmppTransport::Stop()
 {
+    m_connectionState = xmpp_aborting;
     xmpp_disconnect(m_xmppConn);
     xmpp_handler_delete(m_xmppConn, XmppStanzaHandler);
 }
@@ -3320,11 +3331,14 @@ XmppTransport::XmppConnectionHandler(
     )
 {
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+    XMPPConnectionState prevConnState = transport->m_connectionState;
 
     switch(event)
     {
     case XMPP_CONN_CONNECT:
     {
+        transport->m_connectionState = xmpp_connected;
+
         // Send presence to chatroom
         xmpp_stanza_t* presence = NULL;
         presence = xmpp_stanza_new(xmpp_conn_get_context(conn));
@@ -3346,10 +3360,30 @@ XmppTransport::XmppConnectionHandler(
         break;
     }
     case XMPP_CONN_DISCONNECT:
+    {
+        cout << "Disconnected from XMPP server." << endl;
+        if ( xmpp_aborting == transport->m_connectionState )
+        {
+            cout << "Exiting." << endl;
+ 
+            // Stop the XMPP event loop
+            xmpp_stop(xmpp_conn_get_context(conn));
+        }
+        else
+        {
+            if ( prevConnState != xmpp_uninitialized )
+            {
+                xmppConnector->m_connectionState = xmpp_disconnected;
+            }
+        }
+        break;
+    }
     case XMPP_CONN_FAIL:
     default:
     {
-        cout << "Disconnected from XMPP server." << endl;
+        cout << "XMPP error occurred. Exiting." << endl;
+
+        transport->m_connectionState = xmpp_error;
 
         // Stop the XMPP event loop
         xmpp_stop(xmpp_conn_get_context(conn));
