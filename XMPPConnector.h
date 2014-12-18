@@ -104,6 +104,9 @@ private:
         const std::string&                          remoteName,
         const std::vector<RemoteObjectDescription>* objects = NULL
         );
+    RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
+        const std::string& advertisedName
+        );
     void DeleteRemoteAttachment(
         RemoteBusAttachment*& attachment
         );

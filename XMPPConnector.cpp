@@ -920,8 +920,12 @@ public:
 
     void
     SendAdvertisement(
-        const string&                           advertisedName,
+        const string&                           name,
         const vector<util::bus::BusObjectInfo>& busObjects
+        );
+    void
+    SendAdvertisementLost(
+        const string& name
         );
     void
     SendAnnounce(
@@ -1014,6 +1018,7 @@ private:
         );
 
     void ReceiveAdvertisement(const string& message);
+    void ReceiveAdvertisementLost(const string& message);
     void ReceiveAnnounce(const string& message);
     void ReceiveJoinRequest(const string& message);
     void ReceiveJoinResponse(const string& message);
@@ -1076,6 +1081,7 @@ private:
 
 
     static const string ALLJOYN_CODE_ADVERTISEMENT;
+    static const string ALLJOYN_CODE_ADVERT_LOST;
     static const string ALLJOYN_CODE_ANNOUNCE;
     static const string ALLJOYN_CODE_JOIN_REQUEST;
     static const string ALLJOYN_CODE_JOIN_RESPONSE;
@@ -1129,6 +1135,7 @@ public:
         if(m_aboutBusObject)
         {
             UnregisterBusObject(*m_aboutBusObject);
+            m_aboutBusObject->Unregister();
             delete m_aboutBusObject;
             delete m_aboutPropertyStore;
         }
@@ -2100,7 +2107,6 @@ private:
 class ajn::gw::AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    //public ProxyBusObject::Listener,
     public AnnounceHandler
 {
 public:
@@ -2143,7 +2149,7 @@ public:
 
         cout << "Found advertised name: " << name << endl;
 
-        m_bus->EnableConcurrentCallbacks();                                     // TODO: test to see if we still need introspect callback thing
+        m_bus->EnableConcurrentCallbacks();
 
         // Get the objects and interfaces implemented by the advertising device
         vector<util::bus::BusObjectInfo> busObjects;
@@ -2161,7 +2167,8 @@ public:
         const char*   namePrefix
         )
     {
-                                                                                // TODO: send via XMPP, on receipt should stop advertising and unregister/delete associated bus objects
+        cout << "Lost advertised name: " << name << endl;
+        m_transport->SendAdvertisementLost(name);
     }
 
     void
@@ -2309,14 +2316,13 @@ XmppTransport::Stop()
 
 void
 XmppTransport::SendAdvertisement(
-    const string&                           advertisedName,
+    const string&                           name,
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
     // Find the unique name of the advertising attachment
-    string uniqueName = advertisedName;
-    map<string, string>::iterator wknIter =
-            m_wellKnownNameMap.find(advertisedName);
+    string uniqueName = name;
+    map<string, string>::iterator wknIter = m_wellKnownNameMap.find(name);
     if(wknIter != m_wellKnownNameMap.end())
     {
         uniqueName = wknIter->second;
@@ -2326,7 +2332,7 @@ XmppTransport::SendAdvertisement(
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERTISEMENT << "\n";
     msgStream << uniqueName << "\n";
-    msgStream << advertisedName << "\n";
+    msgStream << name << "\n";
     vector<util::bus::BusObjectInfo>::const_iterator it;
     for(it = busObjects.begin(); it != busObjects.end(); ++it)
     {
@@ -2344,6 +2350,19 @@ XmppTransport::SendAdvertisement(
     }
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_ADVERTISEMENT);
+}
+
+void
+XmppTransport::SendAdvertisementLost(
+    const string& name
+    )
+{
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_ADVERT_LOST << "\n";
+    msgStream << name << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_ADVERT_LOST);
 }
 
 void
@@ -2802,6 +2821,30 @@ XmppTransport::ReceiveAdvertisement(
         m_pendingAnnouncements.erase(announceIter);
     }                                                                           //else{cout << "No pending announcement found for " << wkn << endl;}
     pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
+}
+
+void
+XmppTransport::ReceiveAdvertisementLost(
+    const string& message
+    )
+{
+    istringstream msgStream(message);
+    string line, name;
+
+    // First line is the type (advertisement)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_ADVERT_LOST){ return; }
+
+    // Second line is the advertisement lost
+    if(0 == getline(msgStream, name)){ return; }
+
+    // Get the local bus attachment advertising this name
+    RemoteBusAttachment* bus =
+            m_connector->GetRemoteAttachmentByAdvertisedName(name);
+    if(bus)
+    {
+        m_connector->DeleteRemoteAttachment(bus);
+    }
 }
 
 void
@@ -3466,6 +3509,10 @@ XmppTransport::XmppStanzaHandler(
             {
                 transport->ReceiveAdvertisement(message);
             }
+            else if(typeCode == ALLJOYN_CODE_ADVERT_LOST)
+            {
+                transport->ReceiveAdvertisementLost(message);
+            }
             else if(typeCode == ALLJOYN_CODE_ANNOUNCE)
             {
                 transport->ReceiveAnnounce(message);
@@ -3628,6 +3675,7 @@ XmppTransport::XmppConnectionHandler(
 }
 
 const string XmppTransport::ALLJOYN_CODE_ADVERTISEMENT  = "__ADVERTISEMENT";
+const string XmppTransport::ALLJOYN_CODE_ADVERT_LOST    = "__ADVERT_LOST";
 const string XmppTransport::ALLJOYN_CODE_ANNOUNCE       = "__ANNOUNCE";
 const string XmppTransport::ALLJOYN_CODE_METHOD_CALL    = "__METHOD_CALL";
 const string XmppTransport::ALLJOYN_CODE_METHOD_REPLY   = "__METHOD_REPLY";
@@ -3826,14 +3874,17 @@ XMPPConnector::GetRemoteAttachment(
         if(remoteName == (*it)->RemoteName())
         {
             result = *it;
+            break;
         }
     }
 
     if(!result && objects)
     {
+        cout << "Creating new remote bus attachment: " << remoteName << endl;
+
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
-        result = new RemoteBusAttachment(remoteName, m_xmppTransport);          cout << "Creating new remote bus attachment: " << remoteName << endl;
+        result = new RemoteBusAttachment(remoteName, m_xmppTransport);
 
         vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
@@ -3910,8 +3961,9 @@ XMPPConnector::GetRemoteAttachment(
 
         if(err == ER_OK)
         {
-            // TODO: bind well-known session ports
+            // TODO: bind well-known session ports (make this doable from main)
             result->BindSessionPort(1000); // ControlPanel
+            //result->BindSessionPort(27); // AJ sample Chat app (for testing)
 
             m_remoteAttachments.push_back(result);
         }
@@ -3926,14 +3978,49 @@ XMPPConnector::GetRemoteAttachment(
     return result;
 }
 
+RemoteBusAttachment*
+XMPPConnector::GetRemoteAttachmentByAdvertisedName(
+    const string&                          advertisedName
+    )
+{
+    RemoteBusAttachment* result = NULL;
+
+    pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    list<RemoteBusAttachment*>::iterator it;
+    for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
+    {
+        if(advertisedName == (*it)->WellKnownName())
+        {
+            result = *it;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+
+    return result;
+}
+
 void XMPPConnector::DeleteRemoteAttachment(
     RemoteBusAttachment*& attachment
     )
 {
+    if(!attachment)
+    {
+        return;
+    }
+
+    string name = attachment->RemoteName();
+
+    m_bus->Disconnect();
+    m_bus->Stop();
+    m_bus->Join();
+
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
     m_remoteAttachments.remove(attachment);
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
     delete(attachment);
     attachment = NULL;
+
+    cout << "Deleted remote bus attachment: " << name << endl;
 }
