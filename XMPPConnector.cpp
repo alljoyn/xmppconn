@@ -2978,7 +2978,7 @@ XmppTransport::ReceiveJoinRequest(
     else
     {
         // Try to join a session of our own
-        SessionPort port = strtol(portStr.c_str(), NULL, 10);
+        SessionPort port = strtoul(portStr.c_str(), NULL, 10);
 
         QStatus err = bus->JoinSession(joinee, port, id);
         if(err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
@@ -3070,7 +3070,7 @@ XmppTransport::ReceiveJoinResponse(
     }
     else
     {
-        bus->SignalSessionJoined(strtol(remoteSessionId.c_str(), NULL, 10));
+        bus->SignalSessionJoined(strtoul(remoteSessionId.c_str(), NULL, 10));
     }
 }
 
@@ -3108,10 +3108,10 @@ XmppTransport::ReceiveSessionJoined(
     else
     {
         bus->AddSession(
-                strtol(localIdStr.c_str(), NULL, 10),
+                strtoul(localIdStr.c_str(), NULL, 10),
                 joinee,
-                strtol(portStr.c_str(), NULL, 10),
-                strtol(remoteIdStr.c_str(), NULL, 10));
+                strtoul(portStr.c_str(), NULL, 10),
+                strtoul(remoteIdStr.c_str(), NULL, 10));
     }
 }
 
@@ -3136,7 +3136,7 @@ XmppTransport::ReceiveSessionLost(
     if(bus)
     {
         SessionId localId = bus->GetLocalSessionId(
-                strtol(idStr.c_str(), NULL, 10));
+                strtoul(idStr.c_str(), NULL, 10));
 
         cout << "Ending session. Attachment: " << appName << " Id: " << localId
                 << endl;
@@ -3192,7 +3192,7 @@ XmppTransport::ReceiveMethodCall(
 
     // Call the method
     SessionId localSid = bus->GetLocalSessionId(
-            strtol(remoteSessionId.c_str(), NULL, 10));
+            strtoul(remoteSessionId.c_str(), NULL, 10));
     ProxyBusObject proxy(*bus, destName.c_str(), destPath.c_str(), localSid);
     QStatus err = proxy.IntrospectRemoteObject();
     if(err != ER_OK)
@@ -3293,7 +3293,7 @@ XmppTransport::ReceiveSignal(
     // Relay the signal
     vector<MsgArg> msgArgs = util::msgarg::VectorFromString(messageArgsString);
     SessionId localSessionId = bus->GetLocalSessionId(
-            strtol(remoteSessionId.c_str(), NULL, 10));
+            strtoul(remoteSessionId.c_str(), NULL, 10));
     bus->RelaySignal(
             destination, localSessionId, ifaceName, ifaceMember, msgArgs);
 }
