@@ -4054,9 +4054,9 @@ void XMPPConnector::DeleteRemoteAttachment(
 
     string name = attachment->RemoteName();
 
-    m_bus->Disconnect();                                                        // TODO: figure out ER_BUS_BUS_NOT_STARTED error when chat host is stopped/restarted/stopped again
-    m_bus->Stop();
-    m_bus->Join();
+    attachment->Disconnect();
+    attachment->Stop();
+    attachment->Join();
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
     m_remoteAttachments.remove(attachment);
