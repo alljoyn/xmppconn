@@ -952,6 +952,7 @@ public:
     SendSessionJoined(
         const string& joiner,
         const string& joinee,
+        SessionPort   port,
         SessionId     remoteId,
         SessionId     localId
         );
@@ -1113,12 +1114,11 @@ public:
         m_wellKnownName(""),
         m_listener(this, transport),
         m_objects(),
-        m_sessionIdMap(),
         m_activeSessions(),
         m_aboutPropertyStore(NULL),
         m_aboutBusObject(NULL)
     {
-        pthread_mutex_init(&m_sessionMapMutex, NULL);
+        pthread_mutex_init(&m_activeSessionsMutex, NULL);
 
         RegisterBusListener(m_listener);
     }
@@ -1142,7 +1142,7 @@ public:
 
         UnregisterBusListener(m_listener);
 
-        pthread_mutex_destroy(&m_sessionMapMutex);
+        pthread_mutex_destroy(&m_activeSessionsMutex);
     }
 
     QStatus
@@ -1260,48 +1260,28 @@ public:
     }
 
     void
-    AddSessionId(
+    AddSession(
+        SessionId     localId,
         const string& peer,
-        SessionId     remoteId,
-        SessionId     localId
+        SessionPort   port,
+        SessionId     remoteId
         )
     {
-        pthread_mutex_lock(&m_sessionMapMutex);
-        m_activeSessions[peer] = localId;
-        m_sessionIdMap[remoteId] = localId;
-        pthread_mutex_unlock(&m_sessionMapMutex);
+        SessionInfo info = {peer, port, remoteId};
+
+        pthread_mutex_lock(&m_activeSessionsMutex);
+        m_activeSessions[localId] = info;
+        pthread_mutex_unlock(&m_activeSessionsMutex);
     }
 
     void
-    RemoveSessionId(
+    RemoveSession(
         SessionId localId
         )
     {
-        pthread_mutex_lock(&m_sessionMapMutex);
-        map<string, SessionId>::iterator activeIter;
-        for(activeIter = m_activeSessions.begin();
-            activeIter != m_activeSessions.end();
-            ++activeIter)
-        {
-            if(activeIter->second == localId)
-            {
-                m_activeSessions.erase(activeIter);
-                break;
-            }
-        }
-
-        map<SessionId, SessionId>::iterator mapIter;
-        for(mapIter = m_sessionIdMap.begin();
-            mapIter != m_sessionIdMap.end();
-            ++mapIter)
-        {
-            if(mapIter->second == localId)
-            {
-                m_sessionIdMap.erase(mapIter);
-                break;
-            }
-        }
-        pthread_mutex_unlock(&m_sessionMapMutex);
+        pthread_mutex_lock(&m_activeSessionsMutex);
+        m_activeSessions.erase(localId);
+        pthread_mutex_unlock(&m_activeSessionsMutex);
     }
 
     SessionId
@@ -1311,13 +1291,17 @@ public:
     {
         SessionId retval = 0;
 
-        pthread_mutex_lock(&m_sessionMapMutex);
-        map<SessionId, SessionId>::iterator it = m_sessionIdMap.find(remoteId);
-        if(it != m_sessionIdMap.end())
+        pthread_mutex_lock(&m_activeSessionsMutex);
+        map<SessionId, SessionInfo>::iterator it;
+        for(it = m_activeSessions.begin(); it != m_activeSessions.end(); ++it)
         {
-            retval = it->second;
+            if(it->second.remoteId == remoteId)
+            {
+                retval = it->first;
+                break;
+            }
         }
-        pthread_mutex_unlock(&m_sessionMapMutex);
+        pthread_mutex_unlock(&m_activeSessionsMutex);
 
         return retval;
     }
@@ -1329,13 +1313,17 @@ public:
     {
         SessionId retval = 0;
 
-        pthread_mutex_lock(&m_sessionMapMutex);
-        map<string, SessionId>::iterator it = m_activeSessions.find(peer);
-        if(it != m_activeSessions.end())
+        pthread_mutex_lock(&m_activeSessionsMutex);
+        map<SessionId, SessionInfo>::iterator it;
+        for(it = m_activeSessions.begin(); it != m_activeSessions.end(); ++it)
         {
-            retval = it->second;
+            if(it->second.peer == peer)
+            {
+                retval = it->first;
+                break;
+            }
         }
-        pthread_mutex_unlock(&m_sessionMapMutex);
+        pthread_mutex_unlock(&m_activeSessionsMutex);
 
         return retval;
     }
@@ -1347,17 +1335,13 @@ public:
     {
         string retval = "";
 
-        pthread_mutex_lock(&m_sessionMapMutex);
-        map<string, SessionId>::iterator it;
-        for(it = m_activeSessions.begin(); it != m_activeSessions.end(); ++it)
+        pthread_mutex_lock(&m_activeSessionsMutex);
+        map<SessionId, SessionInfo>::iterator it = m_activeSessions.find(id);
+        if(it != m_activeSessions.end())
         {
-            if(it->second == id)
-            {
-                retval = it->first;
-                break;
-            }
+            retval = it->second.peer;
         }
-        pthread_mutex_unlock(&m_sessionMapMutex);
+        pthread_mutex_unlock(&m_activeSessionsMutex);
 
         return retval;
     }
@@ -1664,7 +1648,7 @@ private:
 
         void
         SessionJoined(
-            SessionPort sessionPort,
+            SessionPort port,
             SessionId   id,
             const char* joiner)
         {
@@ -1684,14 +1668,14 @@ private:
             m_bus->SetSessionListener(id, this);
 
             // Store the remote/local session id pair
-            m_bus->AddSessionId(joiner, remoteSessionId, id);
+            m_bus->AddSession(id, joiner, port, remoteSessionId);
 
             // Send the session Id back across the XMPP server
             m_transport->SendSessionJoined(
-                    joiner, m_bus->RemoteName(), remoteSessionId, id);
+                    joiner, m_bus->RemoteName(), port, remoteSessionId, id);
 
             cout << "Session joined between " << joiner << " (remote) and " <<
-                    m_bus->RemoteName() << " (local). Port: " << sessionPort
+                    m_bus->RemoteName() << " (local). Port: " << port
                     << " Id: " << id << endl;
         }
 
@@ -1707,7 +1691,7 @@ private:
             string peer = m_bus->GetPeerBySessionId(id);
             if(!peer.empty())
             {
-                m_bus->RemoveSessionId(id);
+                m_bus->RemoveSession(id);
                 m_transport->SendSessionLost(peer, id);
             }
         }
@@ -2096,9 +2080,14 @@ private:
     RemoteBusListener        m_listener;
     vector<RemoteBusObject*> m_objects;
 
-    map<SessionId, SessionId> m_sessionIdMap;
-    map<string, SessionId>    m_activeSessions;
-    pthread_mutex_t           m_sessionMapMutex;
+    struct SessionInfo
+    {
+        string      peer;
+        SessionPort port;
+        SessionId   remoteId;
+    };
+    map<SessionId, SessionInfo> m_activeSessions;
+    pthread_mutex_t             m_activeSessionsMutex;
 
     AboutPropertyStore*       m_aboutPropertyStore;
     AboutBusObject*           m_aboutBusObject;
@@ -2167,6 +2156,12 @@ public:
         const char*   namePrefix
         )
     {
+        // BusNodes not advertised
+        if(name == strstr(name, "org.alljoyn.BusNode"))
+        {
+            return;
+        }
+
         cout << "Lost advertised name: " << name << endl;
         m_transport->SendAdvertisementLost(name);
     }
@@ -2193,6 +2188,12 @@ public:
         const AboutData&          aboutData
         )
     {                                                                           // TODO: Create attachment on announce if !exists. Have to introspect here.
+        if(m_connector->IsAdvertisingName(busName))
+        {
+            // This is our own announcement.
+            return;
+        }
+
         cout << "Received Announce: " << busName << endl;
         m_transport->SendAnnounce(
                 version, port, busName, objectDescs, aboutData);
@@ -2383,13 +2384,6 @@ XmppTransport::SendAnnounce(
         uniqueName = wknIter->second;
     }
 
-    if(//m_connector->IsAdvertisingName(busName) ||
-       m_connector->GetRemoteAttachment(uniqueName) != NULL)
-    {
-        // This is our own announcement.
-        return;
-    }
-
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ANNOUNCE << "\n";
@@ -2487,6 +2481,7 @@ void
 XmppTransport::SendSessionJoined(
     const string& joiner,
     const string& joinee,
+    SessionPort   port,
     SessionId     remoteId,
     SessionId     localId
     )
@@ -2496,6 +2491,7 @@ XmppTransport::SendSessionJoined(
     msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
     msgStream << joiner << "\n";
     msgStream << joinee << "\n";
+    msgStream << port << "\n";
     msgStream << remoteId << "\n";
     msgStream << localId << "\n";
 
@@ -3084,7 +3080,7 @@ XmppTransport::ReceiveSessionJoined(
     )
 {
     istringstream msgStream(message);
-    string line, joiner, joinee, remoteIdStr, localIdStr;
+    string line, joiner, joinee, portStr, remoteIdStr, localIdStr;
 
     // First line is the type (session joined)
     if(0 == getline(msgStream, line)){ return; }
@@ -3093,6 +3089,7 @@ XmppTransport::ReceiveSessionJoined(
     // Get the info from the message
     if(0 == getline(msgStream, joiner)){ return; }
     if(0 == getline(msgStream, joinee)){ return; }
+    if(0 == getline(msgStream, portStr)){ return; }
     if(0 == getline(msgStream, localIdStr)){ return; }
     if(0 == getline(msgStream, remoteIdStr)){ return; }
 
@@ -3110,10 +3107,11 @@ XmppTransport::ReceiveSessionJoined(
     }
     else
     {
-        bus->AddSessionId(
+        bus->AddSession(
+                strtol(localIdStr.c_str(), NULL, 10),
                 joinee,
-                strtol(remoteIdStr.c_str(), NULL, 10),
-                strtol(localIdStr.c_str(), NULL, 10));
+                strtol(portStr.c_str(), NULL, 10),
+                strtol(remoteIdStr.c_str(), NULL, 10));
     }
 }
 
@@ -3150,7 +3148,7 @@ XmppTransport::ReceiveSessionLost(
         }
         else
         {
-            bus->RemoveSessionId(localId);
+            bus->RemoveSession(localId);
         }
     }
 }
@@ -3731,6 +3729,15 @@ XMPPConnector::~XMPPConnector()
     delete m_xmppTransport;
 }
 
+void
+XMPPConnector::AddSessionPortMatch(
+    const string& interfaceName,
+    SessionPort   port
+    )
+{
+    m_sessionPortMap[interfaceName].push_back(port);
+}
+
 QStatus
 XMPPConnector::Start()
 {
@@ -3884,6 +3891,7 @@ XMPPConnector::GetRemoteAttachment(
 
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
+        map<string, vector<SessionPort> > portsToBind;
         result = new RemoteBusAttachment(remoteName, m_xmppTransport);
 
         vector<RemoteObjectDescription>::const_iterator objIter;
@@ -3909,6 +3917,14 @@ XMPPConnector::GetRemoteAttachment(
                     if(newInterface)
                     {
                         interfaces.push_back(newInterface);
+
+                        // Any SessionPorts to bind?
+                        map<string, vector<SessionPort> >::iterator spMapIter =
+                                m_sessionPortMap.find(ifaceName);
+                        if(spMapIter != m_sessionPortMap.end())
+                        {
+                            portsToBind[ifaceName] = spMapIter->second;
+                        }
                     }
                     else
                     {
@@ -3936,7 +3952,7 @@ XMPPConnector::GetRemoteAttachment(
                 cout << "Failed to add remote object " << objPath << ": " <<
                         QCC_StatusText(err) << endl;
                 break;
-            }                                                                   //else{cout << "    " << objPath << endl;}
+            }
         }
 
         // Start and connect the new attachment.
@@ -3959,12 +3975,39 @@ XMPPConnector::GetRemoteAttachment(
             }
         }
 
+        // Bind any necessary SessionPorts
         if(err == ER_OK)
         {
-            // TODO: bind well-known session ports (make this doable from main)
-            result->BindSessionPort(1000); // ControlPanel
-            //result->BindSessionPort(27); // AJ sample Chat app (for testing)
+            map<string, vector<SessionPort> >::iterator spMapIter;
+            for(spMapIter = portsToBind.begin();
+                spMapIter != portsToBind.end();
+                ++spMapIter)
+            {
+                vector<SessionPort>::iterator spIter;
+                for(spIter = spMapIter->second.begin();
+                    spIter != spMapIter->second.end();
+                    ++spIter)
+                {
+                    cout << "Binding session port " << *spIter <<
+                            " for interface " << spMapIter->first << endl;
+                    err = result->BindSessionPort(*spIter);
+                    if(err != ER_OK)
+                    {
+                        cout << "Failed to bind session port: " <<
+                                QCC_StatusText(err) << endl;
+                        break;
+                    }
+                }
 
+                if(err != ER_OK)
+                {
+                    break;
+                }
+            }
+        }
+
+        if(err == ER_OK)
+        {
             m_remoteAttachments.push_back(result);
         }
         else
@@ -4011,7 +4054,7 @@ void XMPPConnector::DeleteRemoteAttachment(
 
     string name = attachment->RemoteName();
 
-    m_bus->Disconnect();
+    m_bus->Disconnect();                                                        // TODO: figure out ER_BUS_BUS_NOT_STARTED error when chat host is stopped/restarted/stopped again
     m_bus->Stop();
     m_bus->Join();
 
