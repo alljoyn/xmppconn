@@ -3618,11 +3618,24 @@ XmppTransport::XmppConnectionHandler(
         xmpp_stanza_set_attribute(presence, "to",
                 (transport->m_chatroom+"/"+transport->m_nickname).c_str());
 
-        char* buf = NULL;
-        size_t buflen = 0;
-        xmpp_stanza_to_text(presence, &buf, &buflen);
+        xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(conn));
+        xmpp_stanza_set_name(x, "x");
+        xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
+
+        xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(conn));
+        xmpp_stanza_set_name(history, "history");
+        xmpp_stanza_set_attribute(history, "maxchars", "0");
+
+        xmpp_stanza_add_child(x, history);
+        xmpp_stanza_release(history);
+        xmpp_stanza_add_child(presence, x);
+        xmpp_stanza_release(x);
+
+        //char* buf = NULL;
+        //size_t buflen = 0;
+        //xmpp_stanza_to_text(presence, &buf, &buflen);
         cout << "Sending XMPP presence message" << endl;
-        free(buf);
+        //free(buf);
 
         xmpp_send(conn, presence);
         xmpp_stanza_release(presence);
