@@ -32,7 +32,7 @@ namespace util {
 namespace str {
 
     /* Replace all occurances in 'str' of string 'from' with string 'to'. */
-    static inline
+    /*static inline
     void
     ReplaceAll(
         string&       str,
@@ -46,7 +46,7 @@ namespace str {
             str.replace(pos, from.length(), to);
             pos = str.find(from, pos+to.length());
         }
-    }
+    }*/
 
     /* Escape certain characters in an XML string. */
     /*static inline
@@ -994,6 +994,20 @@ public:
         const MsgArg& replyArg
         );
     void
+    SendSetRequest(
+        const string& ifaceName,
+        const string& propName,
+        const MsgArg& msgArg,
+        const string& destName,
+        const string& destPath
+        );
+    void
+    SendSetReply(
+        const string& destName,
+        const string& destPath,
+        QStatus       replyStatus
+        );
+    void
     SendGetAllRequest(
         const InterfaceDescription::Member* member,
         const string& destName,
@@ -1030,6 +1044,8 @@ private:
     void ReceiveSignal(const string& message);
     void ReceiveGetRequest(const string& message);
     void ReceiveGetReply(const string& message);
+    void ReceiveSetRequest(const string& message);
+    void ReceiveSetReply(const string& message);
     void ReceiveGetAllRequest(const string& message);
     void ReceiveGetAllReply(const string& message);
 
@@ -1173,6 +1189,12 @@ public:
         const InterfaceDescription::Member* member
         )
     {
+        const char* ifaceName = member->iface->GetName();
+        if(ifaceName == strstr(ifaceName, "org.alljoyn.Bus."))
+        {
+            return ER_OK;
+        }
+
         // Unregister first in case we already registered for this particular
         //  interface member.
         UnregisterSignalHandler(
@@ -1983,9 +2005,9 @@ private:
 
             if(replyReceived)
             {
-                MsgArg arg(util::msgarg::FromString(replyStr));                 //cout << "Received remote property value:\n" << util::msgarg::ToString(why) << endl;
+                MsgArg arg(util::msgarg::FromString(replyStr));
                 if(arg.Signature() == "v") {
-                    val = *arg.v_variant.val;                                   // TODO: why is this necessary?
+                    val = *arg.v_variant.val;
                 } else {
                     val = arg;
                 }
@@ -2005,7 +2027,42 @@ private:
             MsgArg&     val
             )
         {
-            return ER_BUS_NO_SUCH_PROPERTY;                                     // TODO: handle this
+            cout << "Received AllJoyn Set request for " << ifaceName << ":" <<
+                    propName << endl;
+
+            pthread_mutex_lock(&m_replyReceivedMutex);
+            m_replyReceived = false;
+            m_replyStr = "";
+
+            m_transport->SendSetRequest(
+                    ifaceName, propName, val, m_bus->RemoteName(), GetPath());
+
+            // Wait for the XMPP response signal
+            timespec wait_time = {time(NULL)+10, 0};
+            while(!m_replyReceived)
+            {
+                if(ETIMEDOUT == pthread_cond_timedwait(
+                        &m_replyReceivedWaitCond,
+                        &m_replyReceivedMutex,
+                        &wait_time))
+                {
+                    break;
+                }
+            }
+
+            bool replyReceived = m_replyReceived;
+            string replyStr = m_replyStr;
+
+            pthread_mutex_unlock(&m_replyReceivedMutex);
+
+            if(replyReceived)
+            {
+                return static_cast<QStatus>(strtol(replyStr.c_str(), NULL, 10));
+            }
+            else
+            {
+                return ER_BUS_NO_SUCH_PROPERTY;
+            }
         }
 
         void
@@ -2627,6 +2684,44 @@ XmppTransport::SendGetReply(
     msgStream << util::msgarg::ToString(replyArg) << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_GET_PROP_REPLY);
+}
+
+void
+XmppTransport::SendSetRequest(
+    const string& ifaceName,
+    const string& propName,
+    const MsgArg& msgArg,
+    const string& destName,
+    const string& destPath
+    )
+{
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_SET_PROPERTY << "\n";
+    msgStream << destName << "\n";
+    msgStream << destPath << "\n";
+    msgStream << ifaceName << "\n";
+    msgStream << propName << "\n";
+    msgStream << util::msgarg::ToString(msgArg) << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_SET_PROPERTY);
+}
+
+void
+XmppTransport::SendSetReply(
+    const string& destName,
+    const string& destPath,
+    QStatus       replyStatus
+    )
+{
+    // Return the reply
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_SET_PROP_REPLY << "\n";
+    msgStream << destName << "\n";
+    msgStream << destPath << "\n";
+    msgStream << static_cast<uint32_t>(replyStatus) << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_SET_PROP_REPLY);
 }
 
 void
@@ -3378,6 +3473,88 @@ XmppTransport::ReceiveGetReply(
 }
 
 void
+XmppTransport::ReceiveSetRequest(
+    const string& message
+    )
+{
+    // Parse the required information
+    istringstream msgStream(message);
+    string line, destName, destPath, ifaceName, propName;
+
+    // First line is the type (get request)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_SET_PROPERTY){ return; }
+
+    if(0 == getline(msgStream, destName)){ return; }
+    if(0 == getline(msgStream, destPath)){ return; }
+    if(0 == getline(msgStream, ifaceName)){ return; }
+    if(0 == getline(msgStream, propName)){ return; }
+
+    // The rest is the property value
+    string messageArgString = "";
+    while(0 != getline(msgStream, line))
+    {
+        messageArgString += line + "\n";
+    }
+
+    cout << "Setting property:\n  " << destName << destPath << "\n  " <<
+            ifaceName << ":" << propName << endl;
+
+    // Set the property
+    ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
+    QStatus err = proxy.IntrospectRemoteObject();
+    if(err != ER_OK)
+    {
+        cout << "Failed to introspect remote object to relay set request: " <<
+                QCC_StatusText(err) << endl;
+    }
+
+    if(err == ER_OK)
+    {
+        MsgArg value = util::msgarg::FromString(messageArgString);
+        err = proxy.SetProperty(
+                ifaceName.c_str(), propName.c_str(), value, 5000);
+        if(err != ER_OK)
+        {
+            cout << "Failed to relay Set request: " <<
+                    QCC_StatusText(err) << endl;
+        }
+    }
+
+    // Return the reply
+    SendSetReply(destName, destPath, err);
+}
+
+void
+XmppTransport::ReceiveSetReply(
+    const string& message
+    )
+{
+    // Parse the required information
+    istringstream msgStream(message);
+    string line, remoteName, objPath, status;
+
+    // First line is the type (get reply)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_SET_PROP_REPLY){ return; }
+
+    if(0 == getline(msgStream, remoteName)){ return; }
+    if(0 == getline(msgStream, objPath)){ return; }
+    if(0 == getline(msgStream, status)){ return; }
+
+    // Find the bus attachment with this busName
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    if(!bus)
+    {
+        cout << "No bus attachment to handle incoming Get reply." << endl;
+        return;
+    }
+
+    // Tell the attachment we received a message reply
+    bus->SignalReplyReceived(objPath, status);
+}
+
+void
 XmppTransport::ReceiveGetAllRequest(
     const string& message
     )
@@ -4036,7 +4213,7 @@ XMPPConnector::GetRemoteAttachment(
 
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachmentByAdvertisedName(
-    const string&                          advertisedName
+    const string& advertisedName
     )
 {
     RemoteBusAttachment* result = NULL;
