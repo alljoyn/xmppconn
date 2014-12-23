@@ -414,6 +414,10 @@ int main(int argc, char** argv)
     // Create our XMPP connector
     s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom());
 
+    // Add SessionPorts to support
+    s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
+    s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
+
     // Register an alert handler
     AlertReceiver alertReceiver(s_Bus);
     s_Conn->RegisterMessageHandler(

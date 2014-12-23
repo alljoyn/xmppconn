@@ -43,6 +43,20 @@ public:
 
     virtual ~XMPPConnector();
 
+    /**
+     *  Add a SessionPort to bind when proxying the given interface. Needed to
+     *  support well-known interfaces such as ControlPanel (port 1000) and any
+     *  other interfaces that require bound SessionPorts.
+     *
+     *  @param[in] interfaceName  The name of the interface
+     *  @param[in] port           The SessionPort to bind
+     */
+    void
+    AddSessionPortMatch(
+        const std::string& interfaceName,
+        SessionPort        port
+        );
+
     // Blocks until stop() is called, listens for XMPP
     QStatus Start();
     void Stop();
@@ -104,6 +118,9 @@ private:
         const std::string&                          remoteName,
         const std::vector<RemoteObjectDescription>* objects = NULL
         );
+    RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
+        const std::string& advertisedName
+        );
     void DeleteRemoteAttachment(
         RemoteBusAttachment*& attachment
         );
@@ -113,6 +130,8 @@ private:
 
     std::list<RemoteBusAttachment*> m_remoteAttachments;
     pthread_mutex_t                 m_remoteAttachmentsMutex;
+
+    std::map<std::string, std::vector<SessionPort> > m_sessionPortMap;
 
     struct MessageCallback
     {
