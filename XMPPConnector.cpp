@@ -1447,6 +1447,7 @@ public:
     RelaySignal(
         const string&         destination,
         SessionId             sessionId,
+        const string&         objectPath,
         const string&         ifaceName,
         const string&         ifaceMember,
         const vector<MsgArg>& msgArgs
@@ -1459,7 +1460,7 @@ public:
         vector<RemoteBusObject*>::iterator objIter;
         for(objIter = m_objects.begin(); objIter != m_objects.end(); ++objIter)
         {
-            if((*objIter)->HasInterface(ifaceName, ifaceMember))
+            if(objectPath == (*objIter)->GetPath())
             {
                 busObject = *objIter;
                 break;
@@ -1859,45 +1860,6 @@ private:
             }
 
             return ER_OK;
-        }
-
-        bool
-        HasInterface(
-            const string& ifaceName,
-            const string& memberName = ""
-            )
-        {
-            vector<const InterfaceDescription*>::iterator ifaceIter;
-            for(ifaceIter = m_interfaces.begin();
-                ifaceIter != m_interfaces.end();
-                ++ifaceIter)
-            {
-                if(ifaceName == (*ifaceIter)->GetName())
-                {
-                    if(memberName.empty())
-                    {
-                        return true;
-                    }
-
-                    size_t numMembers = (*ifaceIter)->GetMembers();
-                    InterfaceDescription::Member** members =
-                            new InterfaceDescription::Member*[numMembers];
-                    numMembers = (*ifaceIter)->GetMembers(
-                            (const InterfaceDescription::Member**)members,
-                            numMembers);
-                    for(uint32_t i = 0; i < numMembers; ++i)
-                    {
-                        if(memberName == members[i]->name.c_str())
-                        {
-                            delete[] members;
-                            return true;
-                        }
-                    }
-                    delete[] members;
-                }
-            }
-
-            return false;
         }
 
         void
@@ -2643,6 +2605,7 @@ XmppTransport::SendSignal(
     msgStream << senderUniqueName << "\n";
     msgStream << message->GetDestination() << "\n";
     msgStream << message->GetSessionId() << "\n";
+    msgStream << message->GetObjectPath() << "\n";
     msgStream << member->iface->GetName() << "\n";
     msgStream << member->name << "\n";
     msgStream << util::msgarg::ToString(msgArgs, numArgs) << "\n";
@@ -3355,7 +3318,7 @@ XmppTransport::ReceiveSignal(
     // Parse the required information
     istringstream msgStream(message);
     string line, senderName, destination,
-            remoteSessionId, ifaceName, ifaceMember;
+            remoteSessionId, objectPath, ifaceName, ifaceMember;
 
     // First line is the type (signal)
     if(0 == getline(msgStream, line)){ return; }
@@ -3365,6 +3328,7 @@ XmppTransport::ReceiveSignal(
     if(0 == getline(msgStream, senderName)){ return; }
     if(0 == getline(msgStream, destination)){ return; }
     if(0 == getline(msgStream, remoteSessionId)){ return; }
+    if(0 == getline(msgStream, objectPath)){ return; }
     if(0 == getline(msgStream, ifaceName)){ return; }
     if(0 == getline(msgStream, ifaceMember)){ return; }
 
@@ -3390,7 +3354,8 @@ XmppTransport::ReceiveSignal(
     SessionId localSessionId = bus->GetLocalSessionId(
             strtoul(remoteSessionId.c_str(), NULL, 10));
     bus->RelaySignal(
-            destination, localSessionId, ifaceName, ifaceMember, msgArgs);
+            destination, localSessionId, objectPath,
+            ifaceName, ifaceMember, msgArgs);
 }
 
 void
