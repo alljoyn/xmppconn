@@ -804,6 +804,8 @@ namespace bus {
         QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
+            cout << "Failed to introspect remote object: " <<
+                    QCC_StatusText(err) << endl;
             return;
         }
 
@@ -2115,7 +2117,8 @@ private:
 class ajn::gw::AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    public AnnounceHandler
+    public AnnounceHandler,
+    public ProxyBusObject::Listener
 {
 public:
     AllJoynListener(
@@ -2134,6 +2137,35 @@ public:
     ~AllJoynListener()
     {
         m_bus->UnregisterAllHandlers(this);
+    }
+
+    void
+    AdvertisementIntrospectCallback(
+        QStatus         status,
+        ProxyBusObject* obj,
+        void*           context
+        )
+    {
+        // Proxy as context is redundant, but it must be freed
+        ProxyBusObject* proxy = static_cast<ProxyBusObject*>(context);
+        if(status != ER_OK)
+        {
+            cout << "Failed to introspect advertised attachment " <<
+                    proxy->GetServiceName() << ": " <<
+                    QCC_StatusText(status) << endl;
+            delete proxy;
+            return;
+        }
+
+        m_bus->EnableConcurrentCallbacks();
+
+        vector<util::bus::BusObjectInfo> busObjects;
+        GetBusObjectsRecursive(busObjects, *proxy);
+        delete proxy;
+
+        // Send the advertisement via XMPP
+        m_transport->SendAdvertisement(
+                proxy->GetServiceName().c_str(), busObjects);
     }
 
     void
@@ -2157,15 +2189,19 @@ public:
 
         cout << "Found advertised name: " << name << endl;
 
-        m_bus->EnableConcurrentCallbacks();
-
         // Get the objects and interfaces implemented by the advertising device
-        vector<util::bus::BusObjectInfo> busObjects;
-        ProxyBusObject proxy(*m_bus, name, "/", 0);
-        GetBusObjectsRecursive(busObjects, proxy);
-
-        // Send the advertisement via XMPP
-        m_transport->SendAdvertisement(name, busObjects);
+        ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
+        QStatus err = proxy->IntrospectRemoteObjectAsync(
+                this,
+                static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                &AllJoynListener::AdvertisementIntrospectCallback),
+                proxy);
+        if(err != ER_OK)
+        {
+            cout << "Failed asynchronous introspect for advertised attachment: "
+                    << QCC_StatusText(err) << endl;
+            return;
+        }
     }
 
     void
