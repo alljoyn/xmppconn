@@ -27,7 +27,6 @@ using std::endl;
 using std::istringstream;
 using std::ostringstream;
 
-
 namespace util {
 namespace str {
 
@@ -1597,6 +1596,62 @@ private:
         }
     };
 
+    class ReplyHelper
+    {
+    public:
+        ReplyHelper()
+        {
+            pthread_mutex_lock(&m_replyReceivedMutex);
+        }
+        ~ReplyHelper()
+        {
+            pthread_mutex_unlock(&m_replyReceivedMutex);
+        }
+        static void Init()
+        {
+            pthread_mutex_init(&m_replyReceivedMutex, NULL);
+            pthread_cond_init(&m_replyReceivedWaitCond, NULL);
+        }
+        static void Destroy()
+        {
+            pthread_mutex_destroy(&m_replyReceivedMutex);
+            pthread_cond_destroy(&m_replyReceivedWaitCond);
+        }
+
+        void SetReply( string const& replyStr )
+        {
+            m_replyReceived = true;
+            m_replyStr = replyStr;
+            pthread_cond_signal(&m_replyReceivedWaitCond);
+        }
+
+        void ReceiveReply( bool& replyReceived, string& replyStr )
+        {
+            timespec wait_time = {time(NULL)+10, 0};
+            while(!m_replyReceived)
+            {
+                if(ETIMEDOUT == pthread_cond_timedwait(
+                        &m_replyReceivedWaitCond,
+                        &m_replyReceivedMutex,
+                        &wait_time))
+                {
+                    break;
+                }
+            }
+
+            replyReceived = m_replyReceived;
+            replyStr = m_replyStr;
+
+            m_replyReceived = false;
+            m_replyStr.clear();
+        }
+    private:
+        static pthread_mutex_t m_replyReceivedMutex;
+        static pthread_cond_t m_replyReceivedWaitCond;
+        static bool m_replyReceived;
+        static string m_replyStr;
+    };
+
     class RemoteBusListener :
         public BusListener,
         public SessionListener,
@@ -1757,19 +1812,15 @@ private:
             BusObject(path.c_str()),
             m_bus(bus),
             m_transport(transport),
-            m_interfaces(),
-            m_replyReceived(false),
-            m_replyStr("")
+            m_interfaces()
         {
-            pthread_mutex_init(&m_replyReceivedMutex, NULL);
-            pthread_cond_init(&m_replyReceivedWaitCond, NULL);
+            ReplyHelper::Init();
         }
 
         virtual
         ~RemoteBusObject()
         {
-            pthread_mutex_destroy(&m_replyReceivedMutex);
-            pthread_cond_destroy(&m_replyReceivedWaitCond);
+            ReplyHelper::Destroy();
         }
 
         void
@@ -1780,28 +1831,15 @@ private:
         {
             cout << "Received method call: " << member->name << endl;
 
-            pthread_mutex_lock(&m_replyReceivedMutex);
-            m_replyReceived = false;
-            m_replyStr = "";
+            ReplyHelper reply;
+            bool replyReceived = false;
+            string replyStr;
 
             m_transport->SendMethodCall(
                     member, message, m_bus->RemoteName(), GetPath());
 
             // Wait for the XMPP response signal
-            timespec wait_time = {time(NULL)+10, 0};
-            while(!m_replyReceived)
-            {
-                if(ETIMEDOUT == pthread_cond_timedwait(
-                        &m_replyReceivedWaitCond,
-                        &m_replyReceivedMutex,
-                        &wait_time))
-                {
-                    break;
-                }
-            }
-
-            string replyStr = m_replyStr;
-            pthread_mutex_unlock(&m_replyReceivedMutex);
+            reply.ReceiveReply( replyReceived, replyStr );
 
             vector<MsgArg> replyArgs = util::msgarg::VectorFromString(replyStr);
             QStatus err = MethodReply(message, &replyArgs[0], replyArgs.size());
@@ -1924,11 +1962,8 @@ private:
             const string& replyStr
             )
         {
-            pthread_mutex_lock(&m_replyReceivedMutex);
-            m_replyReceived = true;
-            m_replyStr = replyStr;
-            pthread_cond_signal(&m_replyReceivedWaitCond);
-            pthread_mutex_unlock(&m_replyReceivedMutex);
+            ReplyHelper reply;
+            reply.SetReply( replyStr );
         }
 
     protected:
@@ -1942,30 +1977,15 @@ private:
             cout << "Received AllJoyn Get request for " << ifaceName << ":" <<
                     propName << endl;
 
-            pthread_mutex_lock(&m_replyReceivedMutex);
-            m_replyReceived = false;
-            m_replyStr = "";
+            ReplyHelper reply;
+            bool replyReceived = false;
+            string replyStr;
 
             m_transport->SendGetRequest(
                     ifaceName, propName, m_bus->RemoteName(), GetPath());
 
             // Wait for the XMPP response signal
-            timespec wait_time = {time(NULL)+10, 0};
-            while(!m_replyReceived)
-            {
-                if(ETIMEDOUT == pthread_cond_timedwait(
-                        &m_replyReceivedWaitCond,
-                        &m_replyReceivedMutex,
-                        &wait_time))
-                {
-                    break;
-                }
-            }
-
-            bool replyReceived = m_replyReceived;
-            string replyStr = m_replyStr;
-
-            pthread_mutex_unlock(&m_replyReceivedMutex);
+            reply.ReceiveReply( replyReceived, replyStr );
 
             if(replyReceived)
             {
@@ -1994,30 +2014,15 @@ private:
             cout << "Received AllJoyn Set request for " << ifaceName << ":" <<
                     propName << endl;
 
-            pthread_mutex_lock(&m_replyReceivedMutex);
-            m_replyReceived = false;
-            m_replyStr = "";
+            ReplyHelper reply;
+            bool replyReceived = false;
+            string replyStr;
 
             m_transport->SendSetRequest(
                     ifaceName, propName, val, m_bus->RemoteName(), GetPath());
 
             // Wait for the XMPP response signal
-            timespec wait_time = {time(NULL)+10, 0};
-            while(!m_replyReceived)
-            {
-                if(ETIMEDOUT == pthread_cond_timedwait(
-                        &m_replyReceivedWaitCond,
-                        &m_replyReceivedMutex,
-                        &wait_time))
-                {
-                    break;
-                }
-            }
-
-            bool replyReceived = m_replyReceived;
-            string replyStr = m_replyStr;
-
-            pthread_mutex_unlock(&m_replyReceivedMutex);
+            reply.ReceiveReply( replyReceived, replyStr );
 
             if(replyReceived)
             {
@@ -2038,30 +2043,15 @@ private:
             cout << "Received AllJoyn GetAllProps request for " <<
                     member->iface->GetName() << ":" << member->name << endl;
 
-            pthread_mutex_lock(&m_replyReceivedMutex);
-            m_replyReceived = false;
-            m_replyStr = "";
+            ReplyHelper reply;
+            bool replyReceived = false;
+            string replyStr;
 
             m_transport->SendGetAllRequest(
                     member, m_bus->RemoteName(), GetPath());
 
             // Wait for the XMPP response signal
-            timespec wait_time = {time(NULL)+10, 0};
-            while(!m_replyReceived)
-            {
-                if(ETIMEDOUT == pthread_cond_timedwait(
-                        &m_replyReceivedWaitCond,
-                        &m_replyReceivedMutex,
-                        &wait_time))
-                {
-                    break;
-                }
-            }
-
-            bool replyReceived = m_replyReceived;
-            string replyStr = m_replyStr;
-
-            pthread_mutex_unlock(&m_replyReceivedMutex);
+            reply.ReceiveReply( replyReceived, replyStr );
 
             if(replyReceived)
             {
@@ -2088,11 +2078,6 @@ private:
         RemoteBusAttachment*                m_bus;
         XmppTransport*                      m_transport;
         vector<const InterfaceDescription*> m_interfaces;
-
-        bool            m_replyReceived;
-        string          m_replyStr;
-        pthread_mutex_t m_replyReceivedMutex;
-        pthread_cond_t  m_replyReceivedWaitCond;
     };
 
     XmppTransport*           m_transport;
@@ -2113,6 +2098,11 @@ private:
     AboutPropertyStore*       m_aboutPropertyStore;
     AboutBusObject*           m_aboutBusObject;
 };
+
+pthread_mutex_t ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceivedMutex;
+pthread_cond_t ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceivedWaitCond;
+bool ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceived = false;
+string ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyStr;
 
 class ajn::gw::AllJoynListener :
     public BusListener,
