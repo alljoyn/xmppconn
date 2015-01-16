@@ -1587,62 +1587,6 @@ private:
         }
     };
 
-    class ReplyHelper
-    {
-    public:
-        ReplyHelper()
-        {
-            pthread_mutex_lock(&m_replyReceivedMutex);
-        }
-        ~ReplyHelper()
-        {
-            pthread_mutex_unlock(&m_replyReceivedMutex);
-        }
-        static void Init()
-        {
-            pthread_mutex_init(&m_replyReceivedMutex, NULL);
-            pthread_cond_init(&m_replyReceivedWaitCond, NULL);
-        }
-        static void Destroy()
-        {
-            pthread_mutex_destroy(&m_replyReceivedMutex);
-            pthread_cond_destroy(&m_replyReceivedWaitCond);
-        }
-
-        void SetReply( string const& replyStr )
-        {
-            m_replyReceived = true;
-            m_replyStr = replyStr;
-            pthread_cond_signal(&m_replyReceivedWaitCond);
-        }
-
-        void ReceiveReply( bool& replyReceived, string& replyStr )
-        {
-            timespec wait_time = {time(NULL)+10, 0};
-            while(!m_replyReceived)
-            {
-                if(ETIMEDOUT == pthread_cond_timedwait(
-                        &m_replyReceivedWaitCond,
-                        &m_replyReceivedMutex,
-                        &wait_time))
-                {
-                    break;
-                }
-            }
-
-            replyReceived = m_replyReceived;
-            replyStr = m_replyStr;
-
-            m_replyReceived = false;
-            m_replyStr.clear();
-        }
-    private:
-        static pthread_mutex_t m_replyReceivedMutex;
-        static pthread_cond_t m_replyReceivedWaitCond;
-        static bool m_replyReceived;
-        static string m_replyStr;
-    };
-
     class RemoteBusListener :
         public BusListener,
         public SessionListener,
@@ -1803,16 +1747,13 @@ private:
             BusObject(path.c_str()),
             m_bus(bus),
             m_transport(transport),
-            m_interfaces()
-        {
-            ReplyHelper::Init();
-        }
+            m_interfaces(),
+            m_replyHandler()
+        {}
 
         virtual
         ~RemoteBusObject()
-        {
-            ReplyHelper::Destroy();
-        }
+        {}
 
         void
         AllJoynMethodHandler(
@@ -1821,23 +1762,30 @@ private:
             )
         {
             cout << "Received method call: " << member->name << endl;
-
-            ReplyHelper reply;
             bool replyReceived = false;
             string replyStr;
 
-            m_transport->SendMethodCall(
-                    member, message, m_bus->RemoteName(), GetPath());
-
-            // Wait for the XMPP response signal
-            reply.ReceiveReply( replyReceived, replyStr );
-
-            vector<MsgArg> replyArgs = util::msgarg::VectorFromString(replyStr);
-            QStatus err = MethodReply(message, &replyArgs[0], replyArgs.size());
-            if(err != ER_OK)
             {
-                cout << "Failed to reply to method call: " <<
-                        QCC_StatusText(err) << endl;
+                ScopedTransactionLocker transLock(&m_replyHandler);
+
+                m_transport->SendMethodCall(
+                        member, message, m_bus->RemoteName(), GetPath());
+
+                // Wait for the XMPP response signal
+                transLock.ReceiveReply(replyReceived, replyStr);
+            }
+
+            if(replyReceived)
+            {
+                vector<MsgArg> replyArgs =
+                        util::msgarg::VectorFromString(replyStr);
+                QStatus err = MethodReply(
+                        message, &replyArgs[0], replyArgs.size());
+                if(err != ER_OK)
+                {
+                    cout << "Failed to reply to method call: " <<
+                            QCC_StatusText(err) << endl;
+                }
             }
         }
 
@@ -1953,8 +1901,7 @@ private:
             const string& replyStr
             )
         {
-            ReplyHelper reply;
-            reply.SetReply( replyStr );
+            m_replyHandler.SetReply(replyStr);
         }
 
     protected:
@@ -1967,16 +1914,18 @@ private:
         {
             cout << "Received AllJoyn Get request for " << ifaceName << ":" <<
                     propName << endl;
-
-            ReplyHelper reply;
             bool replyReceived = false;
             string replyStr;
 
-            m_transport->SendGetRequest(
-                    ifaceName, propName, m_bus->RemoteName(), GetPath());
+            {
+                ScopedTransactionLocker transLock(&m_replyHandler);
 
-            // Wait for the XMPP response signal
-            reply.ReceiveReply( replyReceived, replyStr );
+                m_transport->SendGetRequest(
+                        ifaceName, propName, m_bus->RemoteName(), GetPath());
+
+                // Wait for the XMPP response signal
+                transLock.ReceiveReply(replyReceived, replyStr);
+            }
 
             if(replyReceived)
             {
@@ -2004,16 +1953,18 @@ private:
         {
             cout << "Received AllJoyn Set request for " << ifaceName << ":" <<
                     propName << endl;
-
-            ReplyHelper reply;
             bool replyReceived = false;
             string replyStr;
 
-            m_transport->SendSetRequest(
-                    ifaceName, propName, val, m_bus->RemoteName(), GetPath());
+            {
+                ScopedTransactionLocker transLock(&m_replyHandler);
 
-            // Wait for the XMPP response signal
-            reply.ReceiveReply( replyReceived, replyStr );
+                m_transport->SendSetRequest(
+                        ifaceName, propName, val, m_bus->RemoteName(), GetPath());
+
+                // Wait for the XMPP response signal
+                transLock.ReceiveReply(replyReceived, replyStr);
+            }
 
             if(replyReceived)
             {
@@ -2033,16 +1984,18 @@ private:
         {
             cout << "Received AllJoyn GetAllProps request for " <<
                     member->iface->GetName() << ":" << member->name << endl;
-
-            ReplyHelper reply;
             bool replyReceived = false;
             string replyStr;
 
-            m_transport->SendGetAllRequest(
-                    member, m_bus->RemoteName(), GetPath());
+            {
+                ScopedTransactionLocker transLock(&m_replyHandler);
 
-            // Wait for the XMPP response signal
-            reply.ReceiveReply( replyReceived, replyStr );
+                m_transport->SendGetAllRequest(
+                        member, m_bus->RemoteName(), GetPath());
+
+                // Wait for the XMPP response signal
+                transLock.ReceiveReply(replyReceived, replyStr);
+            }
 
             if(replyReceived)
             {
@@ -2066,9 +2019,103 @@ private:
         }
 
     private:
+        // Forward declaration for friend class status
+        class ScopedTransactionLocker;
+
+        // Holds the mutexes needed to perform AllJoyn conversations over XMPP
+        class ReplyHandler
+        {
+            friend class ScopedTransactionLocker;
+
+        public:
+            ReplyHandler() :
+                m_replyReceived(false),
+                m_replyStr()
+            {
+                pthread_mutex_init(&m_transactionMutex, NULL);
+                pthread_mutex_init(&m_replyReceivedMutex, NULL);
+                pthread_cond_init(&m_replyReceivedWaitCond, NULL);
+            }
+            ~ReplyHandler()
+            {
+                pthread_cond_destroy(&m_replyReceivedWaitCond);
+                pthread_mutex_destroy(&m_replyReceivedMutex);
+                pthread_mutex_destroy(&m_transactionMutex);
+            }
+
+            void
+            SetReply(
+                string const& replyStr
+                )
+            {
+                pthread_mutex_lock(&m_replyReceivedMutex);
+                m_replyReceived = true;
+                m_replyStr = replyStr;
+                pthread_cond_signal(&m_replyReceivedWaitCond);
+                pthread_mutex_unlock(&m_replyReceivedMutex);
+            }
+
+        private:
+            bool   m_replyReceived;
+            string m_replyStr;
+
+            pthread_mutex_t m_transactionMutex;
+            pthread_mutex_t m_replyReceivedMutex;
+            pthread_cond_t  m_replyReceivedWaitCond;
+        };
+
+        // Facilitates AllJoyn transactions over XMPP via scoped mutex locking
+        class ScopedTransactionLocker
+        {
+        public:
+            ScopedTransactionLocker(
+                ReplyHandler* replyHandler
+                ) :
+                m_replyHandler(replyHandler)
+            {
+                pthread_mutex_lock(&m_replyHandler->m_transactionMutex);
+                pthread_mutex_lock(&m_replyHandler->m_replyReceivedMutex);
+            }
+            ~ScopedTransactionLocker()
+            {
+                pthread_mutex_unlock(&m_replyHandler->m_replyReceivedMutex);
+                pthread_mutex_unlock(&m_replyHandler->m_transactionMutex);
+            }
+
+            void
+            ReceiveReply(
+                bool&   replyReceived,
+                string& replyStr
+                )
+            {
+                timespec wait_time = {time(NULL)+10, 0};
+                while(!m_replyHandler->m_replyReceived)
+                {
+                    if(ETIMEDOUT == pthread_cond_timedwait(
+                            &m_replyHandler->m_replyReceivedWaitCond,
+                            &m_replyHandler->m_replyReceivedMutex,
+                            &wait_time))
+                    {
+                        break;
+                    }
+                }
+
+                replyReceived = m_replyHandler->m_replyReceived;
+                replyStr = m_replyHandler->m_replyStr;
+
+                m_replyHandler->m_replyReceived = false;
+                m_replyHandler->m_replyStr.clear();
+            }
+
+        private:
+            ReplyHandler* m_replyHandler;
+        };
+
+
         RemoteBusAttachment*                m_bus;
         XmppTransport*                      m_transport;
         vector<const InterfaceDescription*> m_interfaces;
+        ReplyHandler                        m_replyHandler;
     };
 
     XmppTransport*           m_transport;
@@ -2089,11 +2136,6 @@ private:
     AboutPropertyStore*       m_aboutPropertyStore;
     AboutBusObject*           m_aboutBusObject;
 };
-
-pthread_mutex_t ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceivedMutex;
-pthread_cond_t ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceivedWaitCond;
-bool ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyReceived = false;
-string ajn::gw::RemoteBusAttachment::ReplyHelper::m_replyStr;
 
 class ajn::gw::AllJoynListener :
     public BusListener,
@@ -2236,8 +2278,10 @@ public:
         const char*   namePrefix
         )
     {
-        // BusNodes not advertised
-        if(name == strstr(name, "org.alljoyn.BusNode"))
+        // These are not re-advertised by us
+        if(name == strstr(name, "org.alljoyn.BusNode") ||
+           name == strstr(name, "org.alljoyn.sl")     ||
+           name == strstr(name, "org.alljoyn.About.sl"))
         {
             return;
         }
