@@ -804,7 +804,8 @@ namespace bus {
         QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
-            cout << "Failed to introspect remote object: " <<
+            cout << "Failed to introspect remote object " <<
+                    proxy.GetServiceName() << proxy.GetPath() << ": " <<
                     QCC_StatusText(err) << endl;
             return;
         }
@@ -933,9 +934,10 @@ public:
     SendAnnounce(
         uint16_t                                   version,
         uint16_t                                   port,
-        const char*                                busName,
+        const string&                              busName,
         const AnnounceHandler::ObjectDescriptions& objectDescs,
-        const AnnounceHandler::AboutData&          aboutData
+        const AnnounceHandler::AboutData&          aboutData,
+        const vector<util::bus::BusObjectInfo>&    busObjects
         );
     void
     SendJoinRequest(
@@ -1082,17 +1084,6 @@ private:
     Listener*                    m_callbackListener;
     Listener::ConnectionCallback m_connectionCallback;
     void*                        m_callbackUserdata;
-
-    struct AnnounceInfo                                                         // TODO: Create attachment on announce if !exists. No need for AnnounceInfo or m_pendingAnnouncements
-    {
-        uint16_t                            version;
-        uint16_t                            port;
-        string                              busName;
-        AnnounceHandler::ObjectDescriptions objectDescs;
-        AnnounceHandler::AboutData          aboutData;
-    };
-    map<string, AnnounceInfo> m_pendingAnnouncements;
-    pthread_mutex_t           m_pendingAnnouncementsMutex;
 
     map<string, string> m_wellKnownNameMap;
 
@@ -2140,32 +2131,61 @@ public:
     }
 
     void
-    AdvertisementIntrospectCallback(
+    IntrospectCallback(
         QStatus         status,
         ProxyBusObject* obj,
         void*           context
         )
     {
-        // Proxy as context is redundant, but it must be freed
-        ProxyBusObject* proxy = static_cast<ProxyBusObject*>(context);
-        if(status != ER_OK)
-        {
-            cout << "Failed to introspect advertised attachment " <<
-                    proxy->GetServiceName() << ": " <<
-                    QCC_StatusText(status) << endl;
-            delete proxy;
-            return;
-        }
-
+        IntrospectCallbackContext* ctx =
+                static_cast<IntrospectCallbackContext*>(context);
         m_bus->EnableConcurrentCallbacks();
 
-        vector<util::bus::BusObjectInfo> busObjects;
-        GetBusObjectsRecursive(busObjects, *proxy);
-        delete proxy;
+        if(ctx->introspectReason == IntrospectCallbackContext::advertisement)
+        {
+            vector<util::bus::BusObjectInfo> busObjects;
 
-        // Send the advertisement via XMPP
-        m_transport->SendAdvertisement(
-                proxy->GetServiceName().c_str(), busObjects);
+            if(status == ER_OK)
+            {
+                GetBusObjectsRecursive(busObjects, *obj);
+            }
+
+            // Send the advertisement via XMPP
+            m_transport->SendAdvertisement(
+                    obj->GetServiceName().c_str(), busObjects);
+        }
+        else if(ctx->introspectReason ==
+                IntrospectCallbackContext::announcement)
+        {
+            if(status == ER_OK)
+            {
+                vector<util::bus::BusObjectInfo> busObjects;
+                GetBusObjectsRecursive(busObjects, *obj);
+
+                // Send the announcement via XMPP
+                m_transport->SendAnnounce(
+                        ctx->AnnouncementInfo.version,
+                        ctx->AnnouncementInfo.port,
+                        ctx->AnnouncementInfo.busName,
+                        ctx->AnnouncementInfo.objectDescs,
+                        ctx->AnnouncementInfo.aboutData,
+                        busObjects);
+            }
+            else
+            {
+                cout << "Failed to introspect Announcing attachment: " <<
+                        obj->GetServiceName() << ": " <<
+                        QCC_StatusText(status) << endl;
+            }
+        }
+
+        // Clean up
+        if(ctx->sessionId != 0)
+        {
+            m_bus->LeaveSession(ctx->sessionId);
+        }
+        delete ctx->proxy;
+        delete ctx;
     }
 
     void
@@ -2175,27 +2195,42 @@ public:
         const char*   namePrefix
         )
     {
-        // Do not advertise BusNodes
-        if(name == strstr(name, "org.alljoyn.BusNode"))
+        // Do not re-advertise these
+        if(name == strstr(name, "org.alljoyn.BusNode") ||
+           name == strstr(name, "org.alljoyn.sl")      ||
+           name == strstr(name, "org.alljoyn.About.sl"))
         {
             return;
         }
 
         // Do not send if we are the ones transmitting the advertisement
-        if(m_connector->IsAdvertisingName(name))
+        if(m_connector->OwnsWellKnownName(name))
         {
             return;
         }
 
         cout << "Found advertised name: " << name << endl;
 
+        m_bus->EnableConcurrentCallbacks();
+
         // Get the objects and interfaces implemented by the advertising device
         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
+        if(!proxy->IsValid())
+        {
+            cout << "Invalid ProxyBusObject for " << name << endl;
+            delete proxy;
+            return;
+        }
+
+        IntrospectCallbackContext* ctx = new IntrospectCallbackContext();
+        ctx->introspectReason = IntrospectCallbackContext::advertisement;
+        ctx->sessionId = 0;
+        ctx->proxy = proxy;
         QStatus err = proxy->IntrospectRemoteObjectAsync(
                 this,
                 static_cast<ProxyBusObject::Listener::IntrospectCB>(
-                &AllJoynListener::AdvertisementIntrospectCallback),
-                proxy);
+                &AllJoynListener::IntrospectCallback),
+                ctx);
         if(err != ER_OK)
         {
             cout << "Failed asynchronous introspect for advertised attachment: "
@@ -2230,7 +2265,9 @@ public:
     {
         if(!busName) { return; }
 
-        //cout << "Detected name owner change: " << busName << endl;
+        //cout << "Detected name owner change: " << busName << "\n  " <<
+        //        (previousOwner?previousOwner:"<NOBODY>") << " -> " <<
+        //        (newOwner?newOwner:"<NOBODY>") << endl;
         m_transport->NameOwnerChanged(busName, newOwner);
     }
 
@@ -2242,19 +2279,83 @@ public:
         const ObjectDescriptions& objectDescs,
         const AboutData&          aboutData
         )
-    {                                                                           // TODO: Create attachment on announce if !exists. Have to introspect here.
-        if(m_connector->IsAdvertisingName(busName))
+    {
+        // Is this announcement coming from us?
+        if(m_connector->OwnsWellKnownName(busName))
         {
-            // This is our own announcement.
             return;
         }
 
         cout << "Received Announce: " << busName << endl;
-        m_transport->SendAnnounce(
-                version, port, busName, objectDescs, aboutData);
+        m_bus->EnableConcurrentCallbacks();
+
+        // Get the objects and interfaces implemented by the announcing device
+        SessionId sid = 0;
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+        QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
+        if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
+        {
+            cout << "Failed to join session with Announcing device: " <<
+                    QCC_StatusText(err) << endl;
+            return;
+        }
+
+        ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
+        if(!proxy->IsValid())
+        {
+            cout << "Invalid ProxyBusObject for " << busName << endl;
+            delete proxy;
+            return;
+        }
+
+        IntrospectCallbackContext* ctx = new IntrospectCallbackContext();
+        ctx->introspectReason = IntrospectCallbackContext::announcement;
+        ctx->AnnouncementInfo.version     = version;
+        ctx->AnnouncementInfo.port        = port;
+        ctx->AnnouncementInfo.busName     = busName;
+        ctx->AnnouncementInfo.objectDescs = objectDescs;
+        ctx->AnnouncementInfo.aboutData   = aboutData;
+        ctx->sessionId = sid;
+        ctx->proxy = proxy;
+        err = proxy->IntrospectRemoteObjectAsync(
+                this,
+                static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                &AllJoynListener::IntrospectCallback),
+                ctx);
+        if(err != ER_OK)
+        {
+            cout << "Failed asynchronous introspect for announcing attachment: "
+                    << QCC_StatusText(err) << endl;
+            delete ctx;
+            delete proxy;
+            m_bus->LeaveSession(sid);
+            return;
+        }
     }
 
 private:
+    struct IntrospectCallbackContext
+    {
+        enum
+        {
+            advertisement,
+            announcement
+        } introspectReason;
+
+        struct
+        {
+            uint16_t           version;
+            uint16_t           port;
+            string             busName;
+            ObjectDescriptions objectDescs;
+            AboutData          aboutData;
+        } AnnouncementInfo;
+
+        SessionId       sessionId;
+        ProxyBusObject* proxy;
+    };
+
     XMPPConnector* m_connector;
     XmppTransport* m_transport;
     BusAttachment* m_bus;
@@ -2285,14 +2386,10 @@ XmppTransport::XmppTransport(
 
     m_propertyBus.Start();
     m_propertyBus.Connect();
-
-    pthread_mutex_init(&m_pendingAnnouncementsMutex, NULL);
 }
 
 XmppTransport::~XmppTransport()
 {
-    pthread_mutex_destroy(&m_pendingAnnouncementsMutex);
-
     m_propertyBus.Disconnect();
     m_propertyBus.Stop();
 
@@ -2425,9 +2522,10 @@ void
 XmppTransport::SendAnnounce(
     uint16_t                                   version,
     uint16_t                                   port,
-    const char*                                busName,
+    const string&                              busName,
     const AnnounceHandler::ObjectDescriptions& objectDescs,
-    const AnnounceHandler::AboutData&          aboutData
+    const AnnounceHandler::AboutData&          aboutData,
+    const vector<util::bus::BusObjectInfo>&    busObjects
     )
 {
     // Find the unique name of the announcing attachment
@@ -2469,6 +2567,24 @@ XmppTransport::SendAnnounce(
     {
         msgStream << aboutIter->first.c_str() << "\n";
         msgStream << util::msgarg::ToString(aboutIter->second) << "\n\n";
+    }
+
+    msgStream << "\n";
+
+    vector<util::bus::BusObjectInfo>::const_iterator it;
+    for(it = busObjects.begin(); it != busObjects.end(); ++it)
+    {
+        msgStream << it->path << "\n";
+        vector<const InterfaceDescription*>::const_iterator if_it;
+        for(if_it = it->interfaces.begin();
+            if_it != it->interfaces.end();
+            ++if_it)
+        {
+            msgStream << (*if_it)->GetName() << "\n";
+            msgStream << (*if_it)->Introspect().c_str() << "\n";
+        }
+
+        msgStream << "\n";
     }
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_ANNOUNCE);
@@ -2895,22 +3011,6 @@ XmppTransport::ReceiveAdvertisement(
         m_connector->DeleteRemoteAttachment(bus);
         return;
     }
-
-    // Do we have a pending announcement?                                       // TODO: Create attachment on announce if !exists. no need for this
-    pthread_mutex_lock(&m_pendingAnnouncementsMutex);
-    map<string, AnnounceInfo>::iterator announceIter =
-            m_pendingAnnouncements.find(remoteName);
-    if(announceIter != m_pendingAnnouncements.end())
-    {
-        bus->RelayAnnouncement(
-                announceIter->second.version,
-                announceIter->second.port,
-                wkn,
-                announceIter->second.objectDescs,
-                announceIter->second.aboutData);
-        m_pendingAnnouncements.erase(announceIter);
-    }                                                                           //else{cout << "No pending announcement found for " << wkn << endl;}
-    pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
 }
 
 void
@@ -2997,6 +3097,11 @@ XmppTransport::ReceiveAnnounce(
     {
         if(line.empty())
         {
+            if(propName.empty())
+            {
+                break;
+            }
+
             // reached the end of a property
             aboutData[propName.c_str()] = util::msgarg::FromString(propDesc);
 
@@ -3014,28 +3119,33 @@ XmppTransport::ReceiveAnnounce(
         }
     }
 
-    // Find the BusAttachment with the given app name
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    // Then the bus objects
+    vector<XMPPConnector::RemoteObjectDescription> objects =
+            ParseBusObjectInfo(msgStream);
+
+    // Find or create the BusAttachment with the given app name
+    RemoteBusAttachment* bus =
+            m_connector->GetRemoteAttachment(remoteName, &objects);
     if(bus)
     {
+        // Request and announce our name
+        string wkn = bus->WellKnownName();
+        if(wkn.empty())
+        {
+            wkn = bus->RequestWellKnownName(busName);
+            if(wkn.empty())
+            {
+                m_connector->DeleteRemoteAttachment(bus);
+                return;
+            }
+        }
+
         bus->RelayAnnouncement(
                 strtoul(versionStr.c_str(), NULL, 10),
                 strtoul(portStr.c_str(), NULL, 10),
-                bus->WellKnownName(),
+                wkn,
                 objDescs,
-                aboutData);                                                     // TODO: Create attachment on announce if !exists. Will have remote attachment info here. no need for else or m_pendingAnnouncements
-    }
-    else
-    {
-        pthread_mutex_lock(&m_pendingAnnouncementsMutex);                       //cout << "Storing pending announcement for " << busName << endl;
-        AnnounceInfo info = {
-                strtoul(versionStr.c_str(), NULL, 10),
-                strtoul(portStr.c_str(), NULL, 10),
-                busName,
-                objDescs,
-                aboutData};
-        m_pendingAnnouncements[remoteName] = info;
-        pthread_mutex_unlock(&m_pendingAnnouncementsMutex);
+                aboutData);
     }
 }
 
@@ -4001,7 +4111,7 @@ void XMPPConnector::Stop()
 }
 
 bool
-XMPPConnector::IsAdvertisingName(
+XMPPConnector::OwnsWellKnownName(
     const string& name
     )
 {

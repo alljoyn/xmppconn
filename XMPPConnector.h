@@ -62,7 +62,7 @@ public:
     void Stop();
 
     bool
-    IsAdvertisingName(
+    OwnsWellKnownName(
         const std::string& name
         );
 
