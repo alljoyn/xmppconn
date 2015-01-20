@@ -875,13 +875,13 @@ public:
             XMPP_CONNECT    = XMPP_CONN_CONNECT,
             XMPP_DISCONNECT = XMPP_CONN_DISCONNECT,
             XMPP_FAIL       = XMPP_CONN_FAIL
-        } ConnectionStatus;
+        } XmppConnectionStatus;
 
         typedef
         void
         (XmppTransport::Listener::* ConnectionCallback)(
-            ConnectionStatus status,
-            void*            userdata
+            XmppConnectionStatus status,
+            void*                userdata
             );
     };
 	
@@ -4000,11 +4000,9 @@ XmppTransport::XmppConnectionHandler(
     if(transport->m_callbackListener && transport->m_connectionCallback)
     {
         (transport->m_callbackListener->*(transport->m_connectionCallback))(
-                static_cast<Listener::ConnectionStatus>(event),
+                static_cast<Listener::XmppConnectionStatus>(event),
                 transport->m_callbackUserdata);
     }
-
-    // TODO: send connection status to Gateway Management app
 }
 
 const string XmppTransport::ALLJOYN_CODE_ADVERTISEMENT  = "__ADVERTISEMENT";
@@ -4035,6 +4033,7 @@ XMPPConnector::XMPPConnector(
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
 #endif // !NO_AJ_GATEWAY
+    m_initialized(false),
     m_bus(bus),
     m_remoteAttachments()
 {
@@ -4064,6 +4063,23 @@ XMPPConnector::~XMPPConnector()
     delete m_xmppTransport;
 }
 
+QStatus
+XMPPConnector::Init()
+{
+    QStatus err = ER_OK;
+
+    if(!m_initialized)
+    {
+        QStatus err = GatewayConnector::init();
+        if(err == ER_OK)
+        {
+            m_initialized = true;
+        }
+    }
+
+    return err;
+}
+
 void
 XMPPConnector::AddSessionPortMatch(
     const string& interfaceName,
@@ -4076,13 +4092,19 @@ XMPPConnector::AddSessionPortMatch(
 QStatus
 XMPPConnector::Start()
 {
+    if(!m_initialized)
+    {
+        cout << "XMPPConnector not initialized" << endl;
+        return ER_INIT_FAILED;
+    }
+
     class XmppListener :
         public XmppTransport::Listener
     {
     public:
         void ConnectionCallback(
-            ConnectionStatus status,
-            void*            userdata
+            XmppConnectionStatus status,
+            void*                userdata
             )
         {
             XMPPConnector* connector = static_cast<XMPPConnector*>(userdata);
@@ -4108,6 +4130,13 @@ XMPPConnector::Start()
                             QCC_StatusText(err) << endl;
                 }
 
+                // Update connection status and get remote profiles
+                err = connector->updateConnectionStatus(GW_CS_CONNECTED);
+                if(err == ER_OK)
+                {
+                    connector->mergedAclUpdated();
+                }
+
                 break;
             }
             case XMPP_DISCONNECT:
@@ -4119,6 +4148,8 @@ XMPPConnector::Start()
                         *connector->m_bus, *connector->m_listener, NULL, 0);
 
                 connector->m_bus->CancelFindAdvertisedName("");
+
+                connector->updateConnectionStatus(GW_CS_NOT_CONNECTED);
 
                 break;
             }
@@ -4200,6 +4231,41 @@ XMPPConnector::SendMessage(
 {
     m_xmppTransport->SendMessage(key+"\n"+message, key);
 }
+
+#ifndef NO_AJ_GATEWAY
+void
+XMPPConnector::mergedAclUpdated()
+{
+    cout << "Merged Acl updated" << endl;
+    GatewayMergedAcl* mergedAcl = new GatewayMergedAcl();
+    QStatus status = getMergedAclAsync(mergedAcl);
+    if(ER_OK != status)
+    {
+        delete mergedAcl;
+    }
+}
+
+void
+XMPPConnector::shutdown()
+{
+    Stop();
+}
+
+void
+XMPPConnector::receiveGetMergedAclAsync(
+    QStatus unmarshalStatus,
+    GatewayMergedAcl* response
+    )
+{
+    // If there is nothing to remote, disconnect from the server
+    if(response->m_ExposedServices.empty() && response->m_RemotedApps.empty())
+    {
+        //Stop();
+    }
+
+    delete response;
+}
+#endif // !NO_AJ_GATEWAY
 
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(

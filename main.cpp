@@ -413,6 +413,13 @@ int main(int argc, char** argv)
 
     // Create our XMPP connector
     s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom());
+    if(ER_OK != s_Conn->Init())
+    {
+        cout << "Could not initialize XMPPConnector" << endl;
+        cleanup();
+        return 1;
+    }
+
 
     // Add SessionPorts to support
     s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);

@@ -43,6 +43,8 @@ public:
 
     virtual ~XMPPConnector();
 
+    QStatus Init();
+
     /**
      *  Add a SessionPort to bind when proxying the given interface. Needed to
      *  support well-known interfaces such as ControlPanel (port 1000) and any
@@ -108,6 +110,8 @@ protected:
 #endif // !NO_AJ_GATEWAY
 
 private:
+    bool m_initialized;
+
     struct RemoteObjectDescription
     {
         std::string                        path;

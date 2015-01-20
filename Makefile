@@ -8,7 +8,7 @@ LIBS     =
 INCLUDES =
 DEFINES  =
 
-#WITHGATEWAY:=true
+WITHGATEWAY:=true
 ifeq ($(WITHGATEWAY),true)
   INCLUDES += -I$(AJ_PATH)/gatewayConnector/inc -I$(AJ_PATH)/gatewayMgmtApp/inc
   LDFLAGS += -L$(AJ_PATH)/gatewayConnector/lib -L$(AJ_PATH)/gatewayMgmtApp/lib
