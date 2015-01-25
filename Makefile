@@ -8,20 +8,11 @@ LIBS     =
 INCLUDES =
 DEFINES  =
 
-WITHGATEWAY:=true
-ifeq ($(WITHGATEWAY),true)
-  INCLUDES += -I$(AJ_PATH)/gatewayConnector/inc -I$(AJ_PATH)/gatewayMgmtApp/inc
-  LDFLAGS += -L$(AJ_PATH)/gatewayConnector/lib -L$(AJ_PATH)/gatewayMgmtApp/lib
-  LIBS += -lalljoyn_gwConnector
-else
-  CXXFLAGS += -DNO_AJ_GATEWAY
-endif
-
-LIBS += -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
+LIBS += -lalljoyn_gwConnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
 
 ifdef AJ_PATH
-  INCLUDES += -I$(AJ_PATH)/cpp/inc -I$(AJ_PATH)/about/inc -I$(AJ_PATH)/notification/inc -I$(AJ_PATH)/services_common/inc
-  LDFLAGS += -L$(AJ_PATH)/cpp/lib -L$(AJ_PATH)/about/lib -L$(AJ_PATH)/notification/lib -L$(AJ_PATH)/services_common/lib
+  INCLUDES += -I$(AJ_PATH)/cpp/inc -I$(AJ_PATH)/about/inc -I$(AJ_PATH)/notification/inc -I$(AJ_PATH)/services_common/inc -I$(AJ_PATH)/gatewayConnector/inc -I$(AJ_PATH)/gatewayMgmtApp/inc
+  LDFLAGS += -L$(AJ_PATH)/cpp/lib -L$(AJ_PATH)/about/lib -L$(AJ_PATH)/notification/lib -L$(AJ_PATH)/services_common/lib -L$(AJ_PATH)/gatewayConnector/lib -L$(AJ_PATH)/gatewayMgmtApp/lib
 else
 #  $(error AJ_PATH is undefined. Please set this to the base path that contains the AllJoyn cpp, notification, services_common, and other folders.)
 endif
