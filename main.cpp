@@ -426,12 +426,12 @@ int main(int argc, char** argv)
     s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
 
     // Register an alert handler
-    AlertReceiver alertReceiver(s_Bus);
-    s_Conn->RegisterMessageHandler(
-        "** Alert **",
-        &alertReceiver,
-        static_cast<XMPPConnector::MessageReceiver::MessageHandler>(&AlertReceiver::AlertHandler),
-        NULL);
+    //AlertReceiver alertReceiver(s_Bus);
+    //s_Conn->RegisterMessageHandler(
+    //    "** Alert **",
+    //    &alertReceiver,
+    //    static_cast<XMPPConnector::MessageReceiver::MessageHandler>(&AlertReceiver::AlertHandler),
+    //    NULL);
 
     // Start our XMPP connector (blocking).
     s_Conn->Start();

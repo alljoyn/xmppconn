@@ -884,7 +884,7 @@ public:
             void*                userdata
             );
     };
-	
+
     typedef enum {
         xmpp_uninitialized,
         xmpp_disconnected,
@@ -2137,6 +2137,7 @@ private:
     AboutBusObject*           m_aboutBusObject;
 };
 
+
 class ajn::gw::AllJoynListener :
     public BusListener,
     public SessionPortListener,
@@ -2169,6 +2170,12 @@ public:
         void*           context
         )
     {
+        /** TODO: REQUIRED
+         * Register sessionless signal handlers for announcing/advertising apps
+         * (need to implement the required interfaces on m_bus). Other method/
+         * signal handlers are registered when a session is joined. This fix
+         * MIGHT allow notifications to be handled naturally.
+         */
         IntrospectCallbackContext* ctx =
                 static_cast<IntrospectCallbackContext*>(context);
         m_bus->EnableConcurrentCallbacks();
@@ -2297,6 +2304,13 @@ public:
         const char* newOwner
         )
     {
+        /**
+         * TODO: REQUIRED
+         * If owner changed to nobody, an Announcing app may have gone offline.
+         * Send the busName to the XMPP server so that any remote connectors can
+         * take down their copies of these apps.
+         */
+
         if(!busName) { return; }
 
         //cout << "Detected name owner change: " << busName << "\n  " <<
