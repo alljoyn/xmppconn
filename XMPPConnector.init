@@ -9,17 +9,17 @@ EXTRA_COMMANDS="status"
 EXTRA_HELP="        status  Returns the status of the daemon"
 
 start() {
-        cd /etc/XMPPConnector
-        service_start /usr/bin/XMPPConnector
+        cd /etc/xmppconn
+        service_start /usr/bin/xmppconn
 }
 
 stop() {
-        service_stop /usr/bin/XMPPConnector
-        rm -f /tmp/run/XMPPConnector.pid
+        service_stop /usr/bin/xmppconn
+        rm -f /tmp/run/xmppconn.pid
 }
 
 status() {
-        if [ -f /tmp/run/XMPPConnector.pid ];
+        if [ -f /tmp/run/xmppconn.pid ];
         then
                 echo "Running"
         else
