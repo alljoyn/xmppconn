@@ -5,9 +5,9 @@
 # can pull and build it.
 
 INPUT_FILES='*.h *.cpp Makefile *.conf *.init'
-STAGING_FOLDER=XMPPConnector
+STAGING_FOLDER=xmppconn
 OUTPUT_FOLDER=output
-OUTPUT_FILE=XMPPConnector.tar.gz
+OUTPUT_FILE=xmppconn.tar.gz
 
 rm -rf $STAGING_FOLDER
 mkdir -p $STAGING_FOLDER
