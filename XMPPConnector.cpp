@@ -334,6 +334,7 @@ public:
         SessionId&    id
         )
     {
+        FNLOG
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
         return BusAttachment::JoinSession(
@@ -345,6 +346,7 @@ public:
         const InterfaceDescription::Member* member
         )
     {
+        FNLOG
         const char* ifaceName = member->iface->GetName();
         if(ifaceName == strstr(ifaceName, "org.alljoyn.Bus."))
         {
@@ -1334,6 +1336,7 @@ public:
         void*           context
         )
     {
+        FNLOG
         /** TODO: REQUIRED
          * Register sessionless signal handlers for announcing/advertising apps
          * (need to implement the required interfaces on m_bus). Other method/
@@ -1412,6 +1415,8 @@ public:
             return;
         }
 
+        FNLOG
+
         cout << "Found advertised name: " << name << endl;
 
         m_bus->EnableConcurrentCallbacks();
@@ -1456,6 +1461,7 @@ public:
         {
             return;
         }
+        FNLOG
 
         cout << "Lost advertised name: " << name << endl;
         m_transport->SendAdvertisementLost(name);
@@ -1468,6 +1474,7 @@ public:
         const char* newOwner
         )
     {
+        FNLOG
         /**
          * TODO: REQUIRED
          * If owner changed to nobody, an Announcing app may have gone offline.
@@ -1497,6 +1504,7 @@ public:
         {
             return;
         }
+        FNLOG
 
         cout << "Received Announce: " << busName << endl;
         m_bus->EnableConcurrentCallbacks();
@@ -1685,6 +1693,7 @@ XmppTransport::SendAdvertisement(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
+    FNLOG
     // Find the unique name of the advertising attachment
     string uniqueName = name;
     map<string, string>::iterator wknIter = m_wellKnownNameMap.find(name);
@@ -1722,6 +1731,7 @@ XmppTransport::SendAdvertisementLost(
     const string& name
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERT_LOST << "\n";
@@ -1740,6 +1750,7 @@ XmppTransport::SendAnnounce(
     const vector<util::bus::BusObjectInfo>&    busObjects
     )
 {
+    FNLOG
     // Find the unique name of the announcing attachment
     string uniqueName = busName;
     map<string, string>::iterator wknIter =
@@ -1811,6 +1822,7 @@ XmppTransport::SendJoinRequest(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_REQUEST << "\n";
@@ -1851,6 +1863,7 @@ XmppTransport::SendJoinResponse(
     SessionId     sessionId
     )
 {
+    FNLOG
     // Send the status back to the original session joiner
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";
@@ -1869,6 +1882,7 @@ XmppTransport::SendSessionJoined(
     SessionId     localId
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
@@ -1887,6 +1901,7 @@ XmppTransport::SendSessionLost(
     SessionId     id
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_LOST << "\n";
@@ -1904,6 +1919,7 @@ XmppTransport::SendMethodCall(
     const string&                       objectPath
     )
 {
+    FNLOG
     size_t numArgs = 0;
     const MsgArg* msgArgs = 0;
     message->GetArgs(numArgs, msgArgs);
@@ -1929,6 +1945,7 @@ XmppTransport::SendMethodReply(
     Message&      reply
     )
 {
+    FNLOG
     size_t numReplyArgs;
     const MsgArg* replyArgs = 0;
     reply->GetArgs(numReplyArgs, replyArgs);
@@ -1949,6 +1966,7 @@ XmppTransport::SendSignal(
     Message&                            message
     )
 {
+    FNLOG
     // Find the unique name of the signal sender
     string senderUniqueName = message->GetSender();
     map<string, string>::iterator wknIter =
@@ -1985,6 +2003,7 @@ XmppTransport::SendGetRequest(
     const string& destPath
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROPERTY << "\n";
@@ -2003,6 +2022,7 @@ XmppTransport::SendGetReply(
     const MsgArg& replyArg
     )
 {
+    FNLOG
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
@@ -2022,6 +2042,7 @@ XmppTransport::SendSetRequest(
     const string& destPath
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROPERTY << "\n";
@@ -2041,6 +2062,7 @@ XmppTransport::SendSetReply(
     QStatus       replyStatus
     )
 {
+    FNLOG
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROP_REPLY << "\n";
@@ -2058,6 +2080,7 @@ XmppTransport::SendGetAllRequest(
     const string& destPath
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL << "\n";
@@ -2076,6 +2099,7 @@ XmppTransport::SendGetAllReply(
     const MsgArg& replyArgs
     )
 {
+    FNLOG
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
@@ -2092,6 +2116,7 @@ XmppTransport::SendMessage(
     const string& messageType
     )
 {
+    FNLOG
     string bodyHex = util::str::Compress(body);
 
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
@@ -2126,6 +2151,7 @@ XmppTransport::ParseBusObjectInfo(
     istringstream& msgStream
     )
 {
+    FNLOG
     vector<XMPPConnector::RemoteObjectDescription> results;
     XMPPConnector::RemoteObjectDescription thisObj;
     string interfaceName = "";
@@ -2179,6 +2205,7 @@ XmppTransport::ReceiveAdvertisement(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line;
 
@@ -2230,6 +2257,7 @@ XmppTransport::ReceiveAdvertisementLost(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, name;
 
@@ -2254,6 +2282,7 @@ XmppTransport::ReceiveAnnounce(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, remoteName, versionStr, portStr, busName;
 
@@ -2366,6 +2395,7 @@ XmppTransport::ReceiveJoinRequest(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, joiner, joinee, portStr;
 
@@ -2466,6 +2496,7 @@ XmppTransport::ReceiveJoinResponse(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, appName, remoteSessionId;
 
@@ -2495,6 +2526,7 @@ XmppTransport::ReceiveSessionJoined(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, joiner, joinee, portStr, remoteIdStr, localIdStr;
 
@@ -2536,6 +2568,7 @@ XmppTransport::ReceiveSessionLost(
     const string& message
     )
 {
+    FNLOG
     istringstream msgStream(message);
     string line, appName, idStr;
 
@@ -2574,6 +2607,7 @@ XmppTransport::ReceiveMethodCall(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, destName, destPath,
@@ -2637,6 +2671,7 @@ XmppTransport::ReceiveMethodReply(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2673,6 +2708,7 @@ XmppTransport::ReceiveSignal(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, senderName, destination,
@@ -2721,6 +2757,7 @@ XmppTransport::ReceiveGetRequest(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2764,6 +2801,7 @@ XmppTransport::ReceiveGetReply(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2800,6 +2838,7 @@ XmppTransport::ReceiveSetRequest(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2853,6 +2892,7 @@ XmppTransport::ReceiveSetReply(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath, status;
@@ -2882,6 +2922,7 @@ XmppTransport::ReceiveGetAllRequest(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, memberName;
@@ -2925,6 +2966,7 @@ XmppTransport::ReceiveGetAllReply(
     const string& message
     )
 {
+    FNLOG
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2973,6 +3015,7 @@ XmppTransport::XmppStanzaHandler(
         return 1;
     }
 
+    FNLOG
     if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) )
     {
         xmpp_stanza_t* body = NULL;
@@ -3100,6 +3143,7 @@ XmppTransport::XmppConnectionHandler(
     void* const                userdata
     )
 {
+    FNLOG
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     XmppConnectionState prevConnState = transport->m_connectionState;
 
@@ -3270,6 +3314,7 @@ XMPPConnector::AddSessionPortMatch(
 QStatus
 XMPPConnector::Start()
 {
+    FNLOG
     if(!m_initialized)
     {
         cout << "XMPPConnector not initialized" << endl;
@@ -3350,6 +3395,7 @@ XMPPConnector::Start()
 
 void XMPPConnector::Stop()
 {
+    FNLOG
     m_xmppTransport->Stop();
 }
 

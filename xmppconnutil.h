@@ -10,12 +10,13 @@
 #include <alljoyn/about/AnnouncementRegistrar.h>
 #include <qcc/StringUtil.h>
 #include <zlib.h>
+#include <stdio.h>
 
 const bool _dbglogging = true;
 const bool _verboselogging = false;
 
-#define LOG_DEBUG(...) (_dbglogging|_verboselogging?printf(stdout,__VA_ARGS__):((void)0));
-#define LOG_VERBOSE(...) (_verboselogging?printf(stdout,__VA_ARGS__):((void)0));
+#define LOG_DEBUG(...) if(_dbglogging|_verboselogging)printf(__VA_ARGS__);
+#define LOG_VERBOSE(...) if(_verboselogging)printf(__VA_ARGS__);
 
 using namespace ajn;
 using namespace qcc;
@@ -30,6 +31,19 @@ using std::istringstream;
 using std::ostringstream;
 
 namespace util {
+
+  class FnLog {
+    public:
+      FnLog(const string& fn_name) : fn_name_(fn_name){
+        LOG_DEBUG("__ENTERING_FUNCTION__: %s\n", fn_name_.c_str());
+      };
+      ~FnLog() {
+        LOG_DEBUG("__LEAVING_FUNCTION__: %s\n", fn_name_.c_str());
+      }
+    private:
+      string fn_name_;
+  };
+  #define FNLOG util::FnLog fnlogger(__FUNCTION__);
 
 namespace str {
 
