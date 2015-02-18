@@ -29,15 +29,18 @@ endif
 default: XMPPConnector
 
 clean:
-	rm -f main.o XMPPConnector.o XMPPConnector
+	rm -f *.o XMPPConnector
 
 all: XMPPConnector
 
-XMPPConnector: XMPPConnector.o main.o
-	$(CXX) -o $@ XMPPConnector.o main.o $(LDFLAGS) $(LIBS)
-	
+XMPPConnector: XMPPConnector.o main.o xmppconnutil.o
+	$(CXX) -o $@ XMPPConnector.o main.o xmppconnutil.o $(LDFLAGS) $(LIBS)
+
 main.o: main.cpp
 	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ main.cpp
+
+xmppconnutil.o: xmppconnutil.cpp
+	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ xmppconnutil.cpp
 
 XMPPConnector.o: XMPPConnector.cpp
 	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ XMPPConnector.cpp
