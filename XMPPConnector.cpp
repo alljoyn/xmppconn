@@ -706,7 +706,7 @@ private:
             MsgArg&     all
             )
         {
-            all = m_announceArgs;                                               //cout << "ReadAll called:\n" << all.ToString() << endl;
+            all = m_announceArgs;                                               //cout << "ReadAll called:" << all.ToString() << endl;
             return ER_OK;
         }
 
@@ -1345,20 +1345,25 @@ public:
          */
         IntrospectCallbackContext* ctx =
                 static_cast<IntrospectCallbackContext*>(context);
+        LOG_VERBOSE("IntrospectCallback:1");
         m_bus->EnableConcurrentCallbacks();
 
+        LOG_VERBOSE("IntrospectCallback:2");
         if(ctx->introspectReason == IntrospectCallbackContext::advertisement)
         {
             vector<util::bus::BusObjectInfo> busObjects;
 
             if(status == ER_OK)
             {
+                LOG_VERBOSE("IntrospectCallback:3");
                 GetBusObjectsRecursive(busObjects, *obj);
             }
 
             // Send the advertisement via XMPP
+            LOG_VERBOSE("IntrospectCallback:4");
             m_transport->SendAdvertisement(
                     obj->GetServiceName().c_str(), busObjects);
+            LOG_VERBOSE("IntrospectCallback:5");
         }
         else if(ctx->introspectReason ==
                 IntrospectCallbackContext::announcement)
@@ -1366,9 +1371,11 @@ public:
             if(status == ER_OK)
             {
                 vector<util::bus::BusObjectInfo> busObjects;
+                LOG_VERBOSE("IntrospectCallback:6");
                 GetBusObjectsRecursive(busObjects, *obj);
 
                 // Send the announcement via XMPP
+                LOG_VERBOSE("IntrospectCallback:7");
                 m_transport->SendAnnounce(
                         ctx->AnnouncementInfo.version,
                         ctx->AnnouncementInfo.port,
@@ -1376,22 +1383,28 @@ public:
                         ctx->AnnouncementInfo.objectDescs,
                         ctx->AnnouncementInfo.aboutData,
                         busObjects);
+                LOG_VERBOSE("IntrospectCallback:8");
             }
             else
             {
+                LOG_VERBOSE("IntrospectCallback:9");
                 cout << "Failed to introspect Announcing attachment: " <<
                         obj->GetServiceName() << ": " <<
                         QCC_StatusText(status) << endl;
             }
         }
 
+        LOG_VERBOSE("IntrospectCallback:10");
         // Clean up
         if(ctx->sessionId != 0)
         {
+            LOG_VERBOSE("IntrospectCallback:11");
             m_bus->LeaveSession(ctx->sessionId);
         }
+        LOG_VERBOSE("IntrospectCallback:12");
         delete ctx->proxy;
         delete ctx;
+        LOG_VERBOSE("IntrospectCallback:13");
     }
 
     void

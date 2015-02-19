@@ -11,12 +11,8 @@
 #include <qcc/StringUtil.h>
 #include <zlib.h>
 #include <stdio.h>
-
-const bool _dbglogging = true;
-const bool _verboselogging = false;
-
-#define LOG_DEBUG(...) if(_dbglogging|_verboselogging)printf(__VA_ARGS__);
-#define LOG_VERBOSE(...) if(_verboselogging)printf(__VA_ARGS__);
+#include <sys/types.h>
+#include <sys/syscall.h>
 
 using namespace ajn;
 using namespace qcc;
@@ -32,13 +28,19 @@ using std::ostringstream;
 
 namespace util {
 
+extern volatile bool _dbglogging;
+extern volatile bool _verboselogging;
+
+#define LOG_DEBUG(fmt, ...) if(util::_dbglogging|util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
+#define LOG_VERBOSE(fmt,...) if(util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
+
   class FnLog {
     public:
       FnLog(const string& fn_name) : fn_name_(fn_name){
-        LOG_DEBUG("__ENTERING_FUNCTION__: %s\n", fn_name_.c_str());
+        LOG_DEBUG("__ENTERING_FUNCTION__: %s", fn_name_.c_str());
       };
       ~FnLog() {
-        LOG_DEBUG("__LEAVING_FUNCTION__: %s\n", fn_name_.c_str());
+        LOG_DEBUG("__LEAVING_FUNCTION__: %s", fn_name_.c_str());
       }
     private:
       string fn_name_;

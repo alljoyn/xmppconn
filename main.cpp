@@ -3,6 +3,7 @@
 #include <alljoyn/services_common/GuidUtil.h>
 #include <qcc/StringUtil.h>
 #include "XMPPConnector.h"
+#include "xmppconnutil.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -374,6 +375,40 @@ int main(int argc, char** argv)
             if ( s_ChatRoom.empty() )
             {
                 cerr << "SERVER cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+        }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "VERBOSITY" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+            if ( tokens.size() > 1 )
+            {
+                int verbosity = atoi(trim(tokens[1]).c_str());
+                if ( 0 == verbosity )
+                {
+                    util::_dbglogging = false;
+                    util::_verboselogging = false;
+                }
+                else if ( 1 == verbosity )
+                {
+                    util::_dbglogging = true;
+                    util::_verboselogging = false;
+                }
+                else
+                {
+                    util::_dbglogging = true;
+                    util::_verboselogging = true;
+                }
+            }
+            else
+            {
+                cerr << "Not enough tokens in line: " << endl << line << endl;
                 cerr << "Please fix the configuration file " << CONF_FILE << endl;
                 exit(1);
             }

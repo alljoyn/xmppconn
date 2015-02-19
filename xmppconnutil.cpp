@@ -2,6 +2,8 @@
 
 
 namespace util {
+volatile bool _dbglogging = false;
+volatile bool _verboselogging = false;
 namespace str {
 
     /* Replace all occurances in 'str' of string 'from' with string 'to'. */
