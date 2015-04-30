@@ -40,6 +40,7 @@ static string s_Server = "xmpp.affinegy.com";
 static string s_ServiceName = "muc";
 static string s_User = "alljoyn";
 static string s_ChatRoom;
+static bool s_Compress = true;
 
 static inline string &ltrim(string &s) {
         s.erase(s.begin(), find_if(s.begin(), s.end(), std::not1(ptr_fun<int, int>(isspace))));
@@ -379,6 +380,31 @@ int main(int argc, char** argv)
                 exit(1);
             }
         }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "COMPRESS" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                int compress = atoi(trim(tokens[1]).c_str());
+                if ( 0 == compress )
+                {
+                    s_Compress = false;
+                }
+                else
+                {
+                    s_Compress = true;
+                }
+            }
+            else
+            {
+                cerr << "Not enough tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+        }
         else if ( tokens.size() > 0 && trim(tokens[0]) == "VERBOSITY" )
         {
             if ( tokens.size() > 2 )
@@ -447,7 +473,7 @@ int main(int argc, char** argv)
     }
 
     // Create our XMPP connector
-    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom());
+    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom(), s_Compress);
     if(ER_OK != s_Conn->Init())
     {
         cout << "Could not initialize XMPPConnector" << endl;

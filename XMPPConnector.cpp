@@ -62,7 +62,8 @@ public:
         const string&  jabberId,
         const string&  password,
         const string&  chatroom,
-        const string&  nickname
+        const string&  nickname,
+        const bool     compress
         );
     ~XmppTransport();
 
@@ -240,6 +241,7 @@ private:
     const string   m_password;
     const string   m_chatroom;                                                  // TODO: moving away from using chatrooms
     const string   m_nickname;
+    const bool     m_compress;
     XmppConnectionState m_connectionState;
 
     xmpp_ctx_t*                  m_xmppCtx;
@@ -1600,13 +1602,15 @@ XmppTransport::XmppTransport(
     const string&  jabberId,
     const string&  password,
     const string&  chatroom,
-    const string&  nickname
+    const string&  nickname,
+    const bool     compress
     ) :
     m_connector(connector),
     m_jabberId(jabberId),
     m_password(password),
     m_chatroom(chatroom),
     m_nickname(nickname),
+    m_compress(compress),
     m_connectionState(xmpp_uninitialized),
     m_callbackListener(NULL),
     m_connectionCallback(NULL),
@@ -2130,7 +2134,16 @@ XmppTransport::SendMessage(
     )
 {
     FNLOG
-    string bodyHex = util::str::Compress(body);
+    string bodyHex;
+    if ( m_compress )
+    {
+        bodyHex = util::str::Compress(body);
+    }
+    else
+    {
+        bodyHex = body;
+        util::str::EscapeXml(bodyHex);
+    }
 
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppCtx);
     xmpp_stanza_set_name(messageStanza, "message");
@@ -3052,7 +3065,14 @@ XmppTransport::XmppStanzaHandler(
                     message.length()-strlen("<body></body>"));
 
             // Decompress the message
-            message = util::str::Decompress(message);
+            if ( transport->m_compress )
+            {
+                message = util::str::Decompress(message);
+            }
+            else
+            {
+                util::str::UnescapeXml(message);
+            }
 
             // Handle the content of the message
             string typeCode =
@@ -3263,7 +3283,8 @@ XMPPConnector::XMPPConnector(
     const string&  appName,
     const string&  xmppJid,
     const string&  xmppPassword,
-    const string&  xmppChatroom
+    const string&  xmppChatroom,
+    const bool     compress
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
@@ -3274,7 +3295,7 @@ XMPPConnector::XMPPConnector(
 {
     m_xmppTransport = new XmppTransport( this,
             xmppJid, xmppPassword, xmppChatroom,
-            bus->GetGlobalGUIDString().c_str());                                //cout << xmppChatroom << endl;
+            bus->GetGlobalGUIDString().c_str(), compress);                                //cout << xmppChatroom << endl;
     m_listener = new AllJoynListener(this, m_xmppTransport, bus);
 
     pthread_mutex_init(&m_remoteAttachmentsMutex, NULL);

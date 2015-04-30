@@ -50,49 +50,24 @@ extern volatile bool _verboselogging;
 namespace str {
 
     /* Replace all occurances in 'str' of string 'from' with string 'to'. */
-    /*static inline
     void
     ReplaceAll(
         string&       str,
         const string& from,
         const string& to
-        )
-    {
-        size_t pos = str.find(from);
-        while(pos != string::npos)
-        {
-            str.replace(pos, from.length(), to);
-            pos = str.find(from, pos+to.length());
-        }
-    }*/
+        );
 
     /* Escape certain characters in an XML string. */
-    /*static inline
     void
     EscapeXml(
         string& str
-        )
-    {
-        ReplaceAll(str, "&",  "&amp;");
-        ReplaceAll(str, "\"", "&quot;");
-        ReplaceAll(str, "'",  "&apos;");
-        ReplaceAll(str, "<",  "&lt;");
-        ReplaceAll(str, ">",  "&gt;");
-    }*/
+        );
 
     /* Unescape the escape sequences in an XML string. */
-    /*static inline
     void
     UnescapeXml(
         string& str
-        )
-    {
-        ReplaceAll(str, "&amp;",  "&");
-        ReplaceAll(str, "&quot;", "\"");
-        ReplaceAll(str, "&apos;", "'");
-        ReplaceAll(str, "&lt;",   "<");
-        ReplaceAll(str, "&gt;",   ">");
-    }*/
+        );
 
     /* Trim the whitespace before and after a string. */
     string

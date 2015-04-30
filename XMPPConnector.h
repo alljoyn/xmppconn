@@ -38,7 +38,8 @@ public:
         const std::string& appName,
         const std::string& xmppJid,
         const std::string& xmppPassword,
-        const std::string& xmppChatroom
+        const std::string& xmppChatroom,
+        const bool         compress
         );
 
     virtual ~XMPPConnector();
