@@ -8,7 +8,7 @@ LIBS     =
 INCLUDES =
 DEFINES  =
 
-LIBS += -lalljoyn_gwConnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
+LIBS += -lalljoyn_gwconnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
 
 ifdef AJ_PATH
   INCLUDES += -I$(AJ_PATH)/cpp/inc -I$(AJ_PATH)/about/inc -I$(AJ_PATH)/notification/inc -I$(AJ_PATH)/services_common/inc -I$(AJ_PATH)/gatewayConnector/inc -I$(AJ_PATH)/gatewayMgmtApp/inc
