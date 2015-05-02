@@ -377,7 +377,7 @@ public:
         Message&                            message
         )
     {
-        cout << "Received signal from " << message->GetSender() << endl;
+        LOG_DEBUG("Received signal from %s", message->GetSender());
         m_transport->SendSignal(member, srcPath, message);
     }
 
@@ -400,8 +400,8 @@ public:
         err = RegisterBusObject(*newObj);
         if(err != ER_OK)
         {
-            cout << "Failed to register remote bus object: " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to register remote bus object: %s",
+                    QCC_StatusText(err));
             delete newObj;
             return err;
         }
@@ -423,8 +423,8 @@ public:
                     );
             if(err != ER_OK)
             {
-                cout << "Could not acquire well known name " << remoteName <<
-                        ": " << QCC_StatusText(err) << endl;
+                LOG_RELEASE("Could not acquire well known name %s: %s",
+                        remoteName.c_str(), QCC_StatusText(err));
                 m_wellKnownName = "";
             }
             else
@@ -538,7 +538,7 @@ public:
         )
     {
         QStatus err = ER_OK;
-        cout << "Relaying announcement for " << m_wellKnownName << endl;
+        LOG_DEBUG("Relaying announcement for %s", m_wellKnownName.c_str());
 
         if(m_aboutBusObject)
         {
@@ -553,8 +553,8 @@ public:
         err = m_aboutPropertyStore->SetAnnounceArgs(aboutData);
         if(err != ER_OK)
         {
-            cout << "Failed to set About announcement args for " <<
-                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to set About announcement args for %s: %s",
+                    m_wellKnownName.c_str(), QCC_StatusText(err));
             delete m_aboutPropertyStore;
             m_aboutPropertyStore = 0;
             return;
@@ -564,8 +564,8 @@ public:
         err = m_aboutBusObject->AddObjectDescriptions(objectDescs);
         if(err != ER_OK)
         {
-            cout << "Failed to add About object descriptions for " <<
-                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to add About object descriptions for %s: %s",
+                    m_wellKnownName.c_str(), QCC_StatusText(err));
             return;
         }
 
@@ -573,15 +573,15 @@ public:
         err = BindSessionPort(port);
         if(err != ER_OK)
         {
-            cout << "Failed to bind About announcement session port for " <<
-                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to bind About announcement session port for %s: %s",
+                    m_wellKnownName.c_str(), QCC_StatusText(err));
             return;
         }
         err = m_aboutBusObject->Register(port);
         if(err != ER_OK)
         {
-            cout << "Failed to register About announcement port for " <<
-                    m_wellKnownName << ": " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to register About announcement port for %s: %s",
+                    m_wellKnownName.c_str(), QCC_StatusText(err));
             return;
         }
 
@@ -589,16 +589,16 @@ public:
         err = RegisterBusObject(*m_aboutBusObject);
         if(err != ER_OK)
         {
-            cout << "Failed to register AboutService bus object: " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to register AboutService bus object: %s",
+                    QCC_StatusText(err));
         }
 
         // Make the announcement
         err = m_aboutBusObject->Announce();
         if(err != ER_OK)
         {
-            cout << "Failed to relay announcement for " << m_wellKnownName <<
-                    ": " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to relay announcement for %s: %s",
+                    m_wellKnownName.c_str(), QCC_StatusText(err));
             return;
         }
     }
@@ -613,7 +613,7 @@ public:
         const vector<MsgArg>& msgArgs
         )
     {
-        cout << "Relaying signal on " << m_remoteName << endl;
+        LOG_DEBUG("Relaying signal on %s", m_remoteName.c_str());
 
         // Find the bus object to relay the signal
         RemoteBusObject* busObject = 0;
@@ -635,7 +635,7 @@ public:
         }
         else
         {
-            cout << "Could not find bus object to relay signal" << endl;
+            LOG_RELEASE("Could not find bus object to relay signal");
         }
     }
 
@@ -745,8 +745,8 @@ private:
                 err = AddObjectDescription(it->first, it->second);
                 if(err != ER_OK)
                 {
-                    cout << "Failed to add object description for " <<
-                            it->first << ": " << QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Failed to add object description for %s: %s",
+                            it->first.c_str(), QCC_StatusText(err));
                     break;
                 }
             }
@@ -857,9 +857,8 @@ private:
             m_transport->SendSessionJoined(
                     joiner, m_bus->RemoteName(), port, remoteSessionId, id);
 
-            cout << "Session joined between " << joiner << " (remote) and " <<
-                    m_bus->RemoteName() << " (local). Port: " << port
-                    << " Id: " << id << endl;
+            LOG_DEBUG("Session joined between %s (remote) and %s (local). Port: %d Id: %d",
+                    joiner, m_bus->RemoteName().c_str(), port, id);
         }
 
         void
@@ -868,8 +867,8 @@ private:
             SessionLostReason reason
             )
         {
-            cout << "Session lost. Attachment: " << m_bus->RemoteName() <<
-                    " Id: " << id << endl;
+            LOG_DEBUG("Session lost. Attachment: %s Id: %d",
+                    m_bus->RemoteName().c_str(), id);
 
             string peer = m_bus->GetPeerBySessionId(id);
             if(!peer.empty())
@@ -929,7 +928,7 @@ private:
             Message&                            message
             )
         {
-            cout << "Received method call: " << member->name << endl;
+            LOG_DEBUG("Received method call: %s", member->name.c_str());
             bool replyReceived = false;
             string replyStr;
 
@@ -951,8 +950,8 @@ private:
                         message, &replyArgs[0], replyArgs.size());
                 if(err != ER_OK)
                 {
-                    cout << "Failed to reply to method call: " <<
-                            QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Failed to reply to method call: %s",
+                            QCC_StatusText(err));
                 }
             }
         }
@@ -968,8 +967,8 @@ private:
                 QStatus err = AddInterface(**it);
                 if(ER_OK != err)
                 {
-                    cout << "Failed to add interface " << (*it)->GetName() <<
-                            ": " << QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Failed to add interface %s: %s",
+                            (*it)->GetName(), QCC_StatusText(err));
                     return err;
                 }
 
@@ -997,9 +996,8 @@ private:
                     }
                     if(err != ER_OK)
                     {
-                        cout << "Failed to add method handler for " <<
-                                interfaceMembers[i]->name.c_str() << ": " <<
-                                QCC_StatusText(err) << endl;
+                        LOG_RELEASE("Failed to add method handler for %s: %s",
+                                interfaceMembers[i]->name.c_str(), QCC_StatusText(err));
                     }
                 }
 
@@ -1044,8 +1042,8 @@ private:
                                     *members[i], &msgArgs[0], msgArgs.size());
                             if(err != ER_OK)
                             {
-                                cout << "Failed to send signal: " <<
-                                        QCC_StatusText(err) << endl;
+                                LOG_RELEASE("Failed to send signal: %s",
+                                        QCC_StatusText(err));
                                 err = ER_OK;
                             }
                             break;
@@ -1059,8 +1057,8 @@ private:
 
             if(err != ER_OK)
             {
-                cout << "Could not find interface member of signal to relay!"
-                        << endl;
+                LOG_RELEASE("Could not find interface member of signal to relay! %s",
+                        QCC_StatusText(err));
             }
         }
 
@@ -1080,8 +1078,8 @@ private:
             MsgArg&     val
             )
         {
-            cout << "Received AllJoyn Get request for " << ifaceName << ":" <<
-                    propName << endl;
+            LOG_DEBUG("Received AllJoyn Get request for %s: %s",
+                    ifaceName, propName);
             bool replyReceived = false;
             string replyStr;
 
@@ -1119,8 +1117,8 @@ private:
             MsgArg&     val
             )
         {
-            cout << "Received AllJoyn Set request for " << ifaceName << ":" <<
-                    propName << endl;
+            LOG_DEBUG("Received AllJoyn Set request for %s: %s",
+                    ifaceName, propName);
             bool replyReceived = false;
             string replyStr;
 
@@ -1150,8 +1148,8 @@ private:
             Message&                            msg
             )
         {
-            cout << "Received AllJoyn GetAllProps request for " <<
-                    member->iface->GetName() << ":" << member->name << endl;
+            LOG_DEBUG("Received AllJoyn GetAllProps request for %s: %s",
+                    member->iface->GetName(), member->name.c_str());
             bool replyReceived = false;
             string replyStr;
 
@@ -1171,8 +1169,8 @@ private:
                 QStatus err = MethodReply(msg, &result, 1);
                 if(err != ER_OK)
                 {
-                    cout << "Failed to send method reply to GetAllProps " <<
-                            "request: " << QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Failed to send method reply to GetAllProps request: %s",
+                            QCC_StatusText(err));
                 }
             }
         }
@@ -1181,9 +1179,9 @@ private:
         ObjectRegistered()
         {
             string remoteName = m_bus->RemoteName();
-            cout << (remoteName.at(0) == ':' ?
-                    bus->GetUniqueName().c_str() : remoteName)
-                    << GetPath() << " registered" << endl;
+            LOG_DEBUG("%s %s registered",
+                    (remoteName.at(0) == ':' ? bus->GetUniqueName().c_str() : remoteName.c_str()),
+                    GetPath());
         }
 
     private:
@@ -1473,7 +1471,7 @@ public:
 
         FNLOG
 
-        cout << "Found advertised name: " << name << endl;
+        LOG_DEBUG("Found advertised name: %s", name);
 
         m_bus->EnableConcurrentCallbacks();
 
@@ -1481,7 +1479,7 @@ public:
         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
         if(!proxy->IsValid())
         {
-            cout << "Invalid ProxyBusObject for " << name << endl;
+            LOG_RELEASE("Invalid ProxyBusObject for %s", name);
             delete proxy;
             return;
         }
@@ -1521,7 +1519,7 @@ public:
         }
         FNLOG
 
-        cout << "Lost advertised name: " << name << endl;
+        LOG_DEBUG("Lost advertised name: %s", name);
         m_transport->SendAdvertisementLost(name);
     }
 
@@ -1564,7 +1562,7 @@ public:
         }
         FNLOG
 
-        cout << "Received Announce: " << busName << endl;
+        LOG_DEBUG("Received Announce: %s", busName);
         m_bus->EnableConcurrentCallbacks();
 
         // Get the objects and interfaces implemented by the announcing device
@@ -1574,15 +1572,15 @@ public:
         QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
         if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
         {
-            cout << "Failed to join session with Announcing device: " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to join session with Announcing device: %s",
+                    QCC_StatusText(err));
             return;
         }
 
         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
         if(!proxy->IsValid())
         {
-            cout << "Invalid ProxyBusObject for " << busName << endl;
+            LOG_RELEASE("Invalid ProxyBusObject for %s", busName);
             delete proxy;
             return;
         }
@@ -1603,8 +1601,8 @@ public:
                 ctx);
         if(err != ER_OK)
         {
-            cout << "Failed asynchronous introspect for announcing attachment: "
-                    << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed asynchronous introspect for announcing attachment: %s",
+                    QCC_StatusText(err));
             delete ctx;
             delete proxy;
             m_bus->LeaveSession(sid);
@@ -1729,7 +1727,7 @@ XmppTransport::Run()
     if(0 != xmpp_connect_client(
             m_xmppConn, NULL, 0, XmppConnectionHandler, this))
     {
-        cout << "Failed to connect to XMPP server." << endl;
+        LOG_RELEASE("Failed to connect to XMPP server.");
         return ER_FAIL;
     }
 
@@ -2207,8 +2205,7 @@ XmppTransport::SendMessage(
     //char* buf = NULL;
     //size_t buflen = 0;
     //xmpp_stanza_to_text(messageStanza, &buf, &buflen);
-    cout << "Sending XMPP " << (messageType.empty() ? "" : messageType+" ") <<
-            "message." << endl;
+    LOG_DEBUG("Sending XMPP %smessage.", (messageType.empty() ? "" : (messageType+" ").c_str()));
     //xmpp_free(m_xmppCtx, buf);
 
     xmpp_send(m_xmppConn, messageStanza);
@@ -2287,7 +2284,7 @@ XmppTransport::ReceiveAdvertisement(
     if(0 == getline(msgStream, remoteName)){ return; }                          //cout << "received XMPP advertised name: " << remoteName << endl; cout << message << endl;
     if(0 == getline(msgStream, advertisedName)){ return; }
 
-    cout << "Received remote advertisement: " << remoteName << endl;
+    LOG_DEBUG("Received remote advertisement: %s", remoteName.c_str());
 
     vector<XMPPConnector::RemoteObjectDescription> objects =
             ParseBusObjectInfo(msgStream);
@@ -2310,12 +2307,12 @@ XmppTransport::ReceiveAdvertisement(
         }
     }
 
-    cout << "Advertising name: " << wkn << endl;
+    LOG_DEBUG("Advertising name: %s", wkn.c_str());
     QStatus err = bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
     if(err != ER_OK)
     {
-        cout << "Failed to advertise " << wkn << ": " <<
-                QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to advertise %s: %s", wkn.c_str(),
+                QCC_StatusText(err));
         m_connector->DeleteRemoteAttachment(bus);
         return;
     }
@@ -2365,7 +2362,7 @@ XmppTransport::ReceiveAnnounce(
     if(0 == getline(msgStream, portStr)){ return; }
     if(0 == getline(msgStream, busName)){ return; }
 
-    cout << "Received remote announcement: " << busName << endl;
+    LOG_DEBUG("Received remote announcement: %s", busName.c_str());
 
     // The object descriptions follow
     AnnounceHandler::ObjectDescriptions objDescs;
@@ -2488,7 +2485,7 @@ XmppTransport::ReceiveJoinRequest(
     SessionId id = 0;
     if(!bus)
     {
-        cout << "Failed to create bus attachment to proxy session!" << endl;
+        LOG_RELEASE("Failed to create bus attachment to proxy session!");
     }
     else
     {
@@ -2499,20 +2496,18 @@ XmppTransport::ReceiveJoinRequest(
         if(err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
         {
             id = bus->GetSessionIdByPeer(joinee);
-            cout << "Session already joined between " << joiner <<
-                    " (local) and " << joinee << " (remote). Port: "
-                    << port << " Id: " << id << endl;
+            LOG_RELEASE("Session already joined between %s (local) and %s (remote). Port: %d Id: %d",
+                    joiner.c_str(), joinee.c_str(), port, id);
         }
         else if(err != ER_OK)
         {
-            cout << "Join session request rejected: " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Join session request rejected: %s",
+                    QCC_StatusText(err));
         }
         else
         {
-            cout << "Session joined between " << joiner << " (local) and " <<
-                    joinee << " (remote). Port: " << port
-                    << " Id: " << id << endl;
+            LOG_DEBUG("Session joined between %s (local) and %s (remote). Port: %d Id: %d",
+                    joiner.c_str(), joinee.c_str(), port, id);
 
             // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
             vector<util::bus::BusObjectInfo> joineeObjects;                     // TODO: do this before joining?
@@ -2545,9 +2540,8 @@ XmppTransport::ReceiveJoinRequest(
                             err = bus->RegisterSignalHandler(ifaceMembers[i]);
                             if(err != ER_OK)
                             {
-                                cout << "Could not register signal handler for "
-                                        << interfaceName << ":" <<
-                                        ifaceMembers[i]->name << endl;
+                                LOG_RELEASE("Could not register signal handler for %s: %s",
+                                        interfaceName.c_str(), ifaceMembers[i]->name.c_str());
                             }
                         }
                     }
@@ -2581,8 +2575,7 @@ XmppTransport::ReceiveJoinResponse(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(appName);
     if(!bus)
     {
-        cout << "Failed to find bus attachment to handle join response!"
-                << endl;
+        LOG_RELEASE("Failed to find bus attachment to handle join response!");
     }
     else
     {
@@ -2619,8 +2612,7 @@ XmppTransport::ReceiveSessionJoined(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(joiner);
     if(!bus)
     {
-        cout << "Failed to find bus attachment to handle joined session!"
-                << endl;
+        LOG_RELEASE("Failed to find bus attachment to handle joined session!");
     }
     else
     {
@@ -2656,13 +2648,12 @@ XmppTransport::ReceiveSessionLost(
         SessionId localId = bus->GetLocalSessionId(
                 strtoul(idStr.c_str(), NULL, 10));
 
-        cout << "Ending session. Attachment: " << appName << " Id: " << localId
-                << endl;
+        LOG_DEBUG("Ending session. Attachment: %s Id: %d", appName.c_str(), localId);
 
         QStatus err = bus->LeaveSession(localId);
         if(err != ER_OK && err != ER_ALLJOYN_LEAVESESSION_REPLY_NO_SESSION)
         {
-            cout << "Failed to end session: " << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to end session: %s", QCC_StatusText(err));
         }
         else
         {
@@ -2705,7 +2696,8 @@ XmppTransport::ReceiveMethodCall(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming method call." << endl;
+        LOG_RELEASE("No bus attachment to handle incoming method call. Message: %s",
+                message.c_str());
         return;
     }
 
@@ -2716,8 +2708,8 @@ XmppTransport::ReceiveMethodCall(
     QStatus err = proxy.IntrospectRemoteObject();
     if(err != ER_OK)
     {
-        cout << "Failed to introspect remote object to relay method call: " <<
-                QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to introspect remote object to relay method call: %s",
+                QCC_StatusText(err));
         return;
     }
 
@@ -2728,7 +2720,7 @@ XmppTransport::ReceiveMethodCall(
             &messageArgs[0], messageArgs.size(), reply, 5000);
     if(err != ER_OK)
     {
-        cout << "Failed to relay method call: " << QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to relay method call: %s", QCC_StatusText(err));
         return;
     }
 
@@ -2764,7 +2756,8 @@ XmppTransport::ReceiveMethodReply(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming method call." << endl;
+        LOG_RELEASE("No bus attachment to handle incoming method call. Message: %s",
+                message.c_str());
         return;
     }
 
@@ -2807,8 +2800,8 @@ XmppTransport::ReceiveSignal(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(senderName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming signal. Sender: " <<
-                senderName << endl;
+        LOG_RELEASE("No bus attachment to handle incoming signal. Sender: %s",
+                senderName.c_str());
         return;
     }
 
@@ -2840,16 +2833,16 @@ XmppTransport::ReceiveGetRequest(
     if(0 == getline(msgStream, ifaceName)){ return; }
     if(0 == getline(msgStream, propName)){ return; }
 
-    cout << "Retrieving property:\n  " << destName << destPath << "\n  " <<
-            ifaceName << ":" << propName << endl;
+    LOG_DEBUG("Retrieving property: Destination: %s (%s) Iface: %s Property: %s",
+            destName.c_str(), destPath.c_str(), ifaceName.c_str(), propName.c_str());
 
     // Get the property
     ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
     QStatus err = proxy.IntrospectRemoteObject();
     if(err != ER_OK)
     {
-        cout << "Failed to introspect remote object to relay get request: " <<
-                QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to introspect remote object to relay get request: %s",
+                QCC_StatusText(err));
         return;
     }
 
@@ -2857,7 +2850,7 @@ XmppTransport::ReceiveGetRequest(
     err = proxy.GetProperty(ifaceName.c_str(), propName.c_str(), value, 5000);  //cout << "Got property value:\n" << util::msgarg::ToString(value) << endl;
     if(err != ER_OK)
     {
-        cout << "Failed to relay Get request: " << QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to relay Get request: %s", QCC_StatusText(err));
         return;                                                                 // TODO: send the actual response status back
     }
 
@@ -2894,7 +2887,7 @@ XmppTransport::ReceiveGetReply(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming Get reply." << endl;
+        LOG_RELEASE("No bus attachment to handle incoming Get reply.");
         return;
     }
 
@@ -2928,16 +2921,16 @@ XmppTransport::ReceiveSetRequest(
         messageArgString += line + "\n";
     }
 
-    cout << "Setting property:\n  " << destName << destPath << "\n  " <<
-            ifaceName << ":" << propName << endl;
+    LOG_DEBUG("Setting property: Destination: %s (%s) Interface: %s Property: %s",
+            destName.c_str(), destPath.c_str(), ifaceName.c_str(), propName.c_str());
 
     // Set the property
     ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
     QStatus err = proxy.IntrospectRemoteObject();
     if(err != ER_OK)
     {
-        cout << "Failed to introspect remote object to relay set request: " <<
-                QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to introspect remote object to relay set request: %s",
+                QCC_StatusText(err));
     }
 
     if(err == ER_OK)
@@ -2947,8 +2940,8 @@ XmppTransport::ReceiveSetRequest(
                 ifaceName.c_str(), propName.c_str(), value, 5000);
         if(err != ER_OK)
         {
-            cout << "Failed to relay Set request: " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to relay Set request: %s",
+                    QCC_StatusText(err));
         }
     }
 
@@ -2978,7 +2971,7 @@ XmppTransport::ReceiveSetReply(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming Get reply." << endl;
+        LOG_RELEASE("No bus attachment to handle incoming Set reply.");
         return;
     }
 
@@ -3005,16 +2998,16 @@ XmppTransport::ReceiveGetAllRequest(
     if(0 == getline(msgStream, ifaceName)){ return; }
     if(0 == getline(msgStream, memberName)){ return; }
 
-    cout << "Retrieving properties:\n  " << destName << destPath << "\n  " <<
-            ifaceName << ":" << memberName << endl;
+    LOG_DEBUG("Retrieving property: Destination: %s (%s) Interface: %s Property: %s",
+            destName.c_str(), destPath.c_str(), ifaceName.c_str(), memberName.c_str());
 
     // Call the method
     ProxyBusObject proxy(m_propertyBus, destName.c_str(), destPath.c_str(), 0);
     QStatus err = proxy.IntrospectRemoteObject();
     if(err != ER_OK)
     {
-        cout << "Failed to introspect remote object to relay GetAll request: "
-                << QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to introspect remote object to relay GetAll request: %s",
+                QCC_StatusText(err));
         return;
     }
 
@@ -3022,7 +3015,8 @@ XmppTransport::ReceiveGetAllRequest(
     err = proxy.GetAllProperties(ifaceName.c_str(), values, 5000);              //cout << "Got all properties:\n" << util::msgarg::ToString(values, 2) << endl;
     if(err != ER_OK)
     {
-        cout << "Failed to get all properties: " << QCC_StatusText(err) << endl;
+        LOG_RELEASE("Failed to get all properties: %s",
+               QCC_StatusText(err));
         return;                                                                 // TODO: send the actual response status back
     }
 
@@ -3059,7 +3053,7 @@ XmppTransport::ReceiveGetAllReply(
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
     if(!bus)
     {
-        cout << "No bus attachment to handle incoming GetAll reply." << endl;
+        LOG_RELEASE("No bus attachment to handle incoming GetAll reply.");
         return;
     }
 
@@ -3120,7 +3114,7 @@ XmppTransport::XmppStanzaHandler(
             // Handle the content of the message
             string typeCode =
                     message.substr(0, message.find_first_of('\n'));
-            cout << "Received XMPP message: " << typeCode << endl;
+            LOG_DEBUG("Received XMPP message: %s", typeCode.c_str());
 
             if(typeCode == ALLJOYN_CODE_ADVERTISEMENT)
             {
@@ -3196,14 +3190,14 @@ XmppTransport::XmppStanzaHandler(
                 }
                 else
                 {
-                    cout << "Received unrecognized message type: " <<
-                            typeCode << endl;
+                    LOG_RELEASE("Received unrecognized message type: %s",
+                            typeCode.c_str());
                 }
             }
         }
         else
         {
-            cout << "Could not parse body from XMPP message." << endl;
+            LOG_RELEASE("Could not parse body from XMPP message.");
         }
     }
 
@@ -3254,7 +3248,7 @@ XmppTransport::XmppConnectionHandler(
         //char* buf = NULL;
         //size_t buflen = 0;
         //xmpp_stanza_to_text(presence, &buf, &buflen);
-        cout << "Sending XMPP presence message" << endl;
+        LOG_DEBUG("Sending XMPP presence message");
         //free(buf);
 
         xmpp_send(conn, presence);
@@ -3264,10 +3258,10 @@ XmppTransport::XmppConnectionHandler(
     }
     case XMPP_CONN_DISCONNECT:
     {
-        cout << "Disconnected from XMPP server." << endl;
+        LOG_RELEASE("Disconnected from XMPP server.");
         if ( xmpp_aborting == transport->m_connectionState )
         {
-            cout << "Exiting." << endl;
+            LOG_RELEASE("Exiting.");
 
             // Stop the XMPP event loop
             xmpp_stop(xmpp_conn_get_context(conn));
@@ -3284,7 +3278,7 @@ XmppTransport::XmppConnectionHandler(
     case XMPP_CONN_FAIL:
     default:
     {
-        cout << "XMPP error occurred. Exiting." << endl;
+        LOG_RELEASE("XMPP error occurred. Exiting.");
 
         transport->m_connectionState = xmpp_error;
 
@@ -3394,7 +3388,7 @@ XMPPConnector::Start()
     FNLOG
     if(!m_initialized)
     {
-        cout << "XMPPConnector not initialized" << endl;
+        LOG_RELEASE("XMPPConnector not initialized");
         return ER_INIT_FAILED;
     }
 
@@ -3417,8 +3411,8 @@ XMPPConnector::Start()
                 QStatus err = connector->m_bus->FindAdvertisedName("");
                 if(err != ER_OK)
                 {
-                    cout << "Could not find advertised names: " <<
-                            QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Could not find advertised names: %s",
+                            QCC_StatusText(err));
                 }
 
                 // Listen for announcements
@@ -3426,8 +3420,8 @@ XMPPConnector::Start()
                         *connector->m_bus, *connector->m_listener, NULL, 0);
                 if(err != ER_OK)
                 {
-                    cout << "Could not register Announcement handler: " <<
-                            QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Could not register Announcement handler: %s",
+                            QCC_StatusText(err));
                 }
 
                 // Update connection status and get remote profiles
@@ -3537,7 +3531,7 @@ XMPPConnector::SendMessage(
 void
 XMPPConnector::mergedAclUpdated()
 {
-    cout << "Merged Acl updated" << endl;
+    LOG_DEBUG("Merged Acl updated");
     GatewayMergedAcl* mergedAcl = new GatewayMergedAcl();
     QStatus status = getMergedAclAsync(mergedAcl);
     if(ER_OK != status)
@@ -3589,7 +3583,7 @@ XMPPConnector::GetRemoteAttachment(
 
     if(!result && objects)
     {
-        cout << "Creating new remote bus attachment: " << remoteName << endl;
+        LOG_DEBUG("Creating new remote bus attachment: %s", remoteName.c_str());
 
         // We did not find a match. Create the new attachment.
         QStatus err = ER_OK;
@@ -3636,9 +3630,8 @@ XMPPConnector::GetRemoteAttachment(
 
                 if(err != ER_OK)
                 {
-                    cout << "Failed to create InterfaceDescription " <<
-                            ifaceName << ": " <<
-                            QCC_StatusText(err) << endl;
+                    LOG_RELEASE("Failed to create InterfaceDescription %s: %s",
+                            ifaceName.c_str(), QCC_StatusText(err));
                     break;
                 }
             }
@@ -3651,8 +3644,8 @@ XMPPConnector::GetRemoteAttachment(
             err = result->AddRemoteObject(objPath, interfaces);
             if(err != ER_OK)
             {
-                cout << "Failed to add remote object " << objPath << ": " <<
-                        QCC_StatusText(err) << endl;
+                LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
+                        QCC_StatusText(err));
                 break;
             }
         }
@@ -3663,8 +3656,8 @@ XMPPConnector::GetRemoteAttachment(
             err = result->Start();
             if(err != ER_OK)
             {
-                cout << "Failed to start new bus attachment " << remoteName <<
-                        ": " << QCC_StatusText(err) << endl;
+                LOG_RELEASE("Failed to start new bus attachment %s: %s",
+                        remoteName.c_str(), QCC_StatusText(err));
             }
         }
         if(err == ER_OK)
@@ -3672,8 +3665,8 @@ XMPPConnector::GetRemoteAttachment(
             err = result->Connect();
             if(err != ER_OK)
             {
-                cout << "Failed to connect new bus attachment " << remoteName <<
-                        ": " << QCC_StatusText(err) << endl;
+                LOG_RELEASE("Failed to connect new bus attachment %s: %s",
+                        remoteName.c_str(), QCC_StatusText(err));
             }
         }
 
@@ -3690,13 +3683,13 @@ XMPPConnector::GetRemoteAttachment(
                     spIter != spMapIter->second.end();
                     ++spIter)
                 {
-                    cout << "Binding session port " << *spIter <<
-                            " for interface " << spMapIter->first << endl;
+                    LOG_DEBUG("Binding session port %d for interface %s",
+                            *spIter, spMapIter->first.c_str());
                     err = result->BindSessionPort(*spIter);
                     if(err != ER_OK)
                     {
-                        cout << "Failed to bind session port: " <<
-                                QCC_StatusText(err) << endl;
+                        LOG_RELEASE("Failed to bind session port: %s",
+                                QCC_StatusText(err));
                         break;
                     }
                 }
@@ -3767,5 +3760,5 @@ void XMPPConnector::DeleteRemoteAttachment(
     delete(attachment);
     attachment = NULL;
 
-    cout << "Deleted remote bus attachment: " << name << endl;
+    LOG_DEBUG("Deleted remote bus attachment: %s", name.c_str());
 }

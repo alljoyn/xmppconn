@@ -704,8 +704,8 @@ namespace msgarg {
 
         if(status != ER_OK)
         {
-            cout << "Could not create MsgArg from string: " <<
-                    QCC_StatusText(status) << endl;
+            LOG_RELEASE("Could not create MsgArg from string: %s",
+                    QCC_StatusText(status));
         }
         return result;
     }
@@ -938,12 +938,13 @@ namespace bus {
         ProxyBusObject&        proxy
         )
     {
+        FNLOG
         QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
-            cout << "Failed to introspect remote object " <<
-                    proxy.GetServiceName() << proxy.GetPath() << ": " <<
-                    QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed to introspect remote object %s (%s): %s",
+                    proxy.GetServiceName().c_str(), proxy.GetPath().c_str(),
+                    QCC_StatusText(err));
             return;
         }
 
