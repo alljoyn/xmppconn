@@ -40,6 +40,8 @@ static string s_Server = "xmpp.affinegy.com";
 static string s_ServiceName = "muc";
 static string s_User = "alljoyn";
 static string s_ChatRoom;
+static string s_Resource;
+static string s_Destination;
 static bool s_Compress = true;
 
 static inline string &ltrim(string &s) {
@@ -355,9 +357,45 @@ int main(int argc, char** argv)
             {
                 s_User = trim(tokens[1]);
             }
-            if ( s_ChatRoom.empty() )
+            if ( s_User.empty() )
             {
                 cerr << "USER cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+        }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "RESOURCE" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                s_Resource = trim(tokens[1]);
+            }
+            if ( s_Resource.empty() )
+            {
+                cerr << "RESOURCE cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+        }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "DESTINATION" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                s_Destination = trim(tokens[1]);
+            }
+            if ( s_Destination.empty() )
+            {
+                cerr << "DESTINATION cannot be specified as a blank value." << endl;
                 cerr << "Please fix the configuration file " << CONF_FILE << endl;
                 exit(1);
             }
@@ -373,7 +411,7 @@ int main(int argc, char** argv)
             {
                 s_Server = trim(tokens[1]);
             }
-            if ( s_ChatRoom.empty() )
+            if ( s_Server.empty() )
             {
                 cerr << "SERVER cannot be specified as a blank value." << endl;
                 cerr << "Please fix the configuration file " << CONF_FILE << endl;
@@ -480,7 +518,6 @@ int main(int argc, char** argv)
         cleanup();
         return 1;
     }
-
 
     // Add SessionPorts to support
     s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);

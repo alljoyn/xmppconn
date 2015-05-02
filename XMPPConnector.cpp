@@ -226,6 +226,22 @@ private:
         );
 
     static
+    int
+    XmppPresenceHandler(
+        xmpp_conn_t* const   conn,
+        xmpp_stanza_t* const stanza,
+        void* const          userdata
+        );
+
+    static
+    int
+    XmppRosterHandler(
+        xmpp_conn_t* const   conn,
+        xmpp_stanza_t* const stanza,
+        void* const          userdata
+        );
+
+    static
     void
     XmppConnectionHandler(
         xmpp_conn_t* const         conn,
@@ -1724,6 +1740,10 @@ XmppTransport::Run()
     xmpp_conn_set_pass(m_xmppConn, m_password.c_str());
     xmpp_handler_add(
             m_xmppConn, XmppStanzaHandler, NULL, "message", NULL, this);
+    xmpp_handler_add(
+            m_xmppConn, XmppPresenceHandler, NULL, "presence", NULL, this);
+    xmpp_handler_add(
+            m_xmppConn, XmppRosterHandler, "jabber:iq:roster", "iq", NULL, this);
     if(0 != xmpp_connect_client(
             m_xmppConn, NULL, 0, XmppConnectionHandler, this))
     {
@@ -1743,6 +1763,8 @@ XmppTransport::Stop()
     m_connectionState = xmpp_aborting;
     xmpp_disconnect(m_xmppConn);
     xmpp_handler_delete(m_xmppConn, XmppStanzaHandler);
+    xmpp_handler_delete(m_xmppConn, XmppPresenceHandler);
+    xmpp_handler_delete(m_xmppConn, XmppRosterHandler);
 }
 
 void
@@ -3199,6 +3221,75 @@ XmppTransport::XmppStanzaHandler(
         {
             LOG_RELEASE("Could not parse body from XMPP message.");
         }
+    }
+
+    return 1;
+}
+
+int
+XmppTransport::XmppPresenceHandler(
+    xmpp_conn_t* const   conn,
+    xmpp_stanza_t* const stanza,
+    void* const          userdata
+    )
+{
+    XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+
+    FNLOG
+    if ( 0 == strcmp("presence", xmpp_stanza_get_name(stanza)) )
+    {
+        LOG_DEBUG("Received Presence Stanza");
+
+        char* buf = 0;
+        size_t buflen = 0;
+        int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
+        if ( XMPP_EOK != result ) {
+            LOG_RELEASE("Failed to get stanza as text! %d", result);
+            return 1;
+        }
+        LOG_VERBOSE("Stanza: %s", buf);
+
+        string fromLocal = transport->m_chatroom+"/"+transport->m_nickname;
+        const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
+        LOG_VERBOSE("From: %s", fromAttr);
+        const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
+        LOG_VERBOSE("To: %s", toAttr);
+        if ( fromLocal == fromAttr ) {
+            LOG_VERBOSE("Ignoring presence from ourselves.");
+        }
+    }
+
+    return 1;
+}
+
+int
+XmppTransport::XmppRosterHandler(
+    xmpp_conn_t* const   conn,
+    xmpp_stanza_t* const stanza,
+    void* const          userdata
+    )
+{
+    XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+
+    FNLOG
+    if ( 0 == strcmp("iq", xmpp_stanza_get_name(stanza)) )
+    {
+        LOG_DEBUG("Received Roster Stanza");
+
+        char* buf = 0;
+        size_t buflen = 0;
+        int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
+        if ( XMPP_EOK != result ) {
+            LOG_RELEASE("Failed to get stanza as text! %d", result);
+            return 1;
+        }
+        LOG_VERBOSE("Stanza: %s", buf);
+
+        //string fromLocal = transport->m_chatroom+"/"+transport->m_nickname;
+        const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
+        LOG_VERBOSE("From: %s", fromAttr);
+        const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
+        LOG_VERBOSE("To: %s", toAttr);
     }
 
     return 1;
