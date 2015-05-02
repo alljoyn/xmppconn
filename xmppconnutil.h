@@ -38,10 +38,10 @@ extern volatile bool _verboselogging;
   class FnLog {
     public:
       FnLog(const string& fn_name) : fn_name_(fn_name){
-        LOG_DEBUG("__ENTERING_FUNCTION__: %s", fn_name_.c_str());
+        LOG_VERBOSE("__ENTERING_FUNCTION__: %s", fn_name_.c_str());
       };
       ~FnLog() {
-        LOG_DEBUG("__LEAVING_FUNCTION__: %s", fn_name_.c_str());
+        LOG_VERBOSE("__LEAVING_FUNCTION__: %s", fn_name_.c_str());
       }
     private:
       string fn_name_;
