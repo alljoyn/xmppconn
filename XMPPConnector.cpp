@@ -1310,7 +1310,8 @@ class ajn::gw::AllJoynListener :
     public BusListener,
     public SessionPortListener,
     public AnnounceHandler,
-    public ProxyBusObject::Listener
+    public ProxyBusObject::Listener,
+    public util::bus::GetBusObjectsAsyncReceiver
 {
 public:
     AllJoynListener(
@@ -1332,6 +1333,49 @@ public:
     }
 
     void
+    GetBusObjectsCallback(
+        ProxyBusObject*                     obj,
+        vector<util::bus::BusObjectInfo>    busObjects,
+        void*                               context
+        )
+    {
+        FNLOG
+
+        // Send the advertisement via XMPP
+        m_transport->SendAdvertisement(
+            obj->GetServiceName().c_str(), busObjects);
+
+        IntrospectCallbackContext* ctx =
+            static_cast<IntrospectCallbackContext*>(context);
+        delete ctx->proxy;
+        delete ctx;
+    }
+
+    void
+    GetBusObjectsAnnouncementCallback(
+        ProxyBusObject*                     obj,
+        vector<util::bus::BusObjectInfo>    busObjects,
+        void*                               context
+        )
+    {
+        FNLOG
+        IntrospectCallbackContext* ctx =
+            static_cast<IntrospectCallbackContext*>(context);
+
+        // Send the announcement via XMPP
+        m_transport->SendAnnounce(
+            ctx->AnnouncementInfo.version,
+            ctx->AnnouncementInfo.port,
+            ctx->AnnouncementInfo.busName,
+            ctx->AnnouncementInfo.objectDescs,
+            ctx->AnnouncementInfo.aboutData,
+            busObjects);
+
+        delete ctx->proxy;
+        delete ctx;
+    }
+
+    void
     IntrospectCallback(
         QStatus         status,
         ProxyBusObject* obj,
@@ -1347,25 +1391,32 @@ public:
          */
         IntrospectCallbackContext* ctx =
                 static_cast<IntrospectCallbackContext*>(context);
-        LOG_VERBOSE("IntrospectCallback:1");
+
+        if ( status != ER_OK )
+        {
+            LOG_RELEASE("Failed to introspect advertised attachment %s: %s",
+                ctx->proxy->GetServiceName().c_str(), QCC_StatusText(status));
+            delete ctx->proxy;
+            delete ctx;
+            return;
+        }
+
         m_bus->EnableConcurrentCallbacks();
 
-        LOG_VERBOSE("IntrospectCallback:2");
         if(ctx->introspectReason == IntrospectCallbackContext::advertisement)
         {
-            vector<util::bus::BusObjectInfo> busObjects;
-
             if(status == ER_OK)
             {
-                LOG_VERBOSE("IntrospectCallback:3");
-                GetBusObjectsRecursive(busObjects, *obj);
+                GetBusObjectsAsync(
+                    ctx->proxy,
+                    const_cast<GetBusObjectsAsyncReceiver*>(static_cast<const GetBusObjectsAsyncReceiver* const>(this)),
+                    static_cast<GetBusObjectsAsyncReceiver::CallbackHandler>(&ajn::gw::AllJoynListener::GetBusObjectsCallback),
+                    ctx
+                );
+                // NOTE: Don't delete the ctx and ctx->proxy here because they
+                //  will be deleted in the callback
+                return;
             }
-
-            // Send the advertisement via XMPP
-            LOG_VERBOSE("IntrospectCallback:4");
-            m_transport->SendAdvertisement(
-                    obj->GetServiceName().c_str(), busObjects);
-            LOG_VERBOSE("IntrospectCallback:5");
         }
         else if(ctx->introspectReason ==
                 IntrospectCallbackContext::announcement)
@@ -1373,40 +1424,30 @@ public:
             if(status == ER_OK)
             {
                 vector<util::bus::BusObjectInfo> busObjects;
-                LOG_VERBOSE("IntrospectCallback:6");
-                GetBusObjectsRecursive(busObjects, *obj);
-
-                // Send the announcement via XMPP
-                LOG_VERBOSE("IntrospectCallback:7");
-                m_transport->SendAnnounce(
-                        ctx->AnnouncementInfo.version,
-                        ctx->AnnouncementInfo.port,
-                        ctx->AnnouncementInfo.busName,
-                        ctx->AnnouncementInfo.objectDescs,
-                        ctx->AnnouncementInfo.aboutData,
-                        busObjects);
-                LOG_VERBOSE("IntrospectCallback:8");
+                GetBusObjectsAsync(
+                    ctx->proxy,
+                    const_cast<GetBusObjectsAsyncReceiver*>(static_cast<const GetBusObjectsAsyncReceiver* const>(this)),
+                    static_cast<GetBusObjectsAsyncReceiver::CallbackHandler>(&ajn::gw::AllJoynListener::GetBusObjectsAnnouncementCallback),
+                    ctx
+                );
+                // NOTE: Don't delete the ctx and ctx->proxy here because they
+                //  will be deleted in the callback
+                return;
             }
             else
             {
-                LOG_VERBOSE("IntrospectCallback:9");
-                cout << "Failed to introspect Announcing attachment: " <<
-                        obj->GetServiceName() << ": " <<
-                        QCC_StatusText(status) << endl;
+                LOG_RELEASE("Failed to introspect Announcing attachment: %s: %s",
+                        obj->GetServiceName().c_str(), QCC_StatusText(status));
             }
         }
 
-        LOG_VERBOSE("IntrospectCallback:10");
         // Clean up
         if(ctx->sessionId != 0)
         {
-            LOG_VERBOSE("IntrospectCallback:11");
             m_bus->LeaveSession(ctx->sessionId);
         }
-        LOG_VERBOSE("IntrospectCallback:12");
         delete ctx->proxy;
         delete ctx;
-        LOG_VERBOSE("IntrospectCallback:13");
     }
 
     void
@@ -1456,8 +1497,10 @@ public:
                 ctx);
         if(err != ER_OK)
         {
-            cout << "Failed asynchronous introspect for advertised attachment: "
-                    << QCC_StatusText(err) << endl;
+            LOG_RELEASE("Failed asynchronous introspect for advertised attachment: %s",
+                    QCC_StatusText(err));
+            delete proxy;
+            delete ctx;
             return;
         }
     }

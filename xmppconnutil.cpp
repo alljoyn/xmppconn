@@ -751,6 +751,186 @@ namespace msgarg {
 
 namespace bus {
 
+    class GetBusObjectsTreeNode;
+
+    struct GetBusObjectsAsyncContext {
+        ProxyBusObject*                                rootProxy;
+        GetBusObjectsAsyncReceiver*                    receiver;
+        GetBusObjectsAsyncReceiver::CallbackHandler    handler;
+        GetBusObjectsAsyncIntrospectReceiver*          introspectReceiver;
+        vector<BusObjectInfo>*                         busObjects;
+        GetBusObjectsTreeNode*                         completionTree;
+        void*                                          internalCtx;
+    };
+
+    class GetBusObjectsTreeNode {
+        GetBusObjectsTreeNode() : ctx(0), parent(0), completed(false) {}
+    public:
+        GetBusObjectsTreeNode(string const& name, GetBusObjectsAsyncContext* ctx) : name(name), ctx(ctx), parent(0), completed(false) {}
+        GetBusObjectsTreeNode(string const& name, GetBusObjectsAsyncContext* ctx, GetBusObjectsTreeNode* parent) : name(name), ctx(ctx), parent(parent), completed(false) {}
+        void AddChild( GetBusObjectsTreeNode* node ) {
+            children.push_back(node);
+        }
+        bool IsRoot() const {
+            return !parent;
+        }
+        bool IsTreeComplete() const {
+            const GetBusObjectsTreeNode* root = this;
+            while ( root->parent ) {
+                root = root->parent;
+            }
+            return RecursiveIsNodeComplete(root);
+        }
+        bool IsComplete() const {
+            return completed;
+        }
+        void Complete() {
+            LOG_VERBOSE("Marked node %s as complete", name.c_str());
+            completed = true;
+        }
+        void DeleteTree() {
+            GetBusObjectsTreeNode* root = this;
+            while ( root->parent ) {
+                root = root->parent;
+            }
+            RecursiveDelete( root );
+            delete this; // bye bye!
+        }
+        GetBusObjectsAsyncContext* GetContext() const {
+            return ctx;
+        }
+    private:
+        string name;
+        GetBusObjectsAsyncContext* ctx;
+        GetBusObjectsTreeNode* parent;
+        list<GetBusObjectsTreeNode*> children;
+        bool completed;
+
+        bool RecursiveIsNodeComplete( const GetBusObjectsTreeNode* node ) const {
+            if ( !node->IsComplete() ) {
+                return false;
+            }
+            for ( list<GetBusObjectsTreeNode*>::const_iterator it(node->children.begin());
+                node->children.end() != it; ++it )
+            {
+                if ( !RecursiveIsNodeComplete(*it) ) {
+                    return false;
+                }
+            }
+            LOG_VERBOSE("Node %s is complete!!", name.c_str());
+            return true;
+        }
+        void RecursiveDelete( GetBusObjectsTreeNode* node ) {
+            for ( list<GetBusObjectsTreeNode*>::iterator it(node->children.begin());
+                node->children.end() != it; ++it )
+            {
+                RecursiveDelete(*it);
+            }
+        }
+    };
+
+    void GetBusObjectsAsyncInternal(
+        ProxyBusObject*        proxy,
+        GetBusObjectsTreeNode* node
+        )
+    {
+        QStatus err = proxy->IntrospectRemoteObjectAsync(
+            node->GetContext()->introspectReceiver,
+            static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                &GetBusObjectsAsyncIntrospectReceiver::GetBusObjectsAsyncIntrospectCallback),
+            node);
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed recursive asynchronous introspect for bus objects: %s",
+                    QCC_StatusText(err));
+            return;
+        }
+    }
+
+    void GetBusObjectsAsyncIntrospectReceiver::GetBusObjectsAsyncIntrospectCallback(
+        QStatus         status,
+        ProxyBusObject* proxy,
+        void*           context
+        )
+    {
+        FNLOG
+        GetBusObjectsTreeNode* node = reinterpret_cast<GetBusObjectsTreeNode*>(context);
+        GetBusObjectsAsyncContext* ctx = node->GetContext();
+
+        BusObjectInfo thisObj;
+        thisObj.path = proxy->GetPath().c_str();
+        if(thisObj.path.empty()) {
+            thisObj.path = "/";
+        }
+                                                                                //cout << "  " << thisObj.path << endl;
+        // Get the interfaces implemented at this object path
+        size_t numIfaces = proxy->GetInterfaces();
+        if(numIfaces != 0)
+        {
+            InterfaceDescription** ifaceList =
+                    new InterfaceDescription*[numIfaces];
+            numIfaces = proxy->GetInterfaces(
+                    (const InterfaceDescription**)ifaceList, numIfaces);
+
+            // Find the interface(s) being advertised by this AJ device
+            for(uint32_t i = 0; i < numIfaces; ++i)
+            {
+                const char* ifaceName = ifaceList[i]->GetName();
+                string ifaceNameStr(ifaceName);
+                if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
+                   ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
+                   ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
+                   ifaceNameStr != "org.allseen.Introspectable"          )
+                {                                                               //cout << "    " << ifaceNameStr << endl;
+                    thisObj.interfaces.push_back(ifaceList[i]);
+                }
+            }
+
+            delete[] ifaceList;
+
+            if(!thisObj.interfaces.empty())
+            {
+                ctx->busObjects->push_back(thisObj);
+            }
+        }
+
+        // Set our completion node as complete since we just finished
+        //  the work for this node
+        node->Complete();
+
+        // Get the children of this object path
+        size_t num_children = proxy->GetChildren();
+
+        if(num_children != 0)
+        {
+            ProxyBusObject** children = new ProxyBusObject*[num_children]; // will be deleted later
+            num_children = proxy->GetChildren(children, num_children);
+
+            for(uint32_t i = 0; i < num_children; ++i)
+            {
+                string childName = children[i]->GetPath().c_str();
+                LOG_VERBOSE("Child %d, Path: %s", i, childName.c_str());
+                GetBusObjectsTreeNode* childNode = new GetBusObjectsTreeNode(childName, ctx, node);
+                node->AddChild( childNode );
+                GetBusObjectsAsyncInternal(children[i], childNode);
+            }
+
+        }
+
+        // If we're handling the root proxy object we now need to call
+        //  the callback
+        if ( node->IsTreeComplete() )
+        {
+            LOG_VERBOSE("Tree is complete.");
+            ((ctx->receiver)->*(ctx->handler))(proxy, *ctx->busObjects, ctx->internalCtx);
+            delete ctx->busObjects;
+            delete ctx->introspectReceiver;
+            //delete ctx->rootProxy; // TODO: Need to figure out how to delete this properly
+            delete ctx;
+            node->DeleteTree(); // node pointer is now invalid, don't access it
+        }
+    }
+
     /* Recursively get BusObject information from an attachment. */
     void
     GetBusObjectsRecursive(
@@ -819,5 +999,41 @@ namespace bus {
             delete[] children;
         }
     }
+
+    /* Asynchronously get BusObject information from an attachment. */
+    void
+    GetBusObjectsAsync(
+        ProxyBusObject*                                proxy,
+        GetBusObjectsAsyncReceiver*                    receiver,
+        GetBusObjectsAsyncReceiver::CallbackHandler    handler,
+        void*                                          context
+        )
+    {
+        FNLOG
+        vector<BusObjectInfo>* busObjects = new vector<BusObjectInfo>();
+        GetBusObjectsAsyncIntrospectReceiver* introspectReceiver = new
+            GetBusObjectsAsyncIntrospectReceiver();
+        GetBusObjectsAsyncContext* ctx = new GetBusObjectsAsyncContext();
+        ctx->rootProxy = proxy;
+        ctx->receiver = receiver;
+        ctx->handler = handler;
+        ctx->introspectReceiver = introspectReceiver;
+        ctx->busObjects = busObjects;
+        ctx->internalCtx = context;
+        ctx->completionTree = new GetBusObjectsTreeNode( proxy->GetPath().c_str(), ctx );
+
+        QStatus err = proxy->IntrospectRemoteObjectAsync(
+            introspectReceiver,
+            static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                &GetBusObjectsAsyncIntrospectReceiver::GetBusObjectsAsyncIntrospectCallback),
+            ctx->completionTree);
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed asynchronous introspect for bus objects: %s",
+                    QCC_StatusText(err));
+            return;
+        }
+    }
+
 } // namespace bus
 } // namespace util

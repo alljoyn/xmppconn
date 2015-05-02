@@ -31,6 +31,7 @@ namespace util {
 extern volatile bool _dbglogging;
 extern volatile bool _verboselogging;
 
+#define LOG_RELEASE(fmt, ...) fprintf(stderr, "0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
 #define LOG_DEBUG(fmt, ...) if(util::_dbglogging|util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
 #define LOG_VERBOSE(fmt,...) if(util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
 
@@ -126,11 +127,68 @@ namespace bus {
         vector<const InterfaceDescription*> interfaces;
     };
 
+    /**
+     * %GetBusObjectsAsyncReceiver is a pure-virtual base class that is
+     * implemented by any class that calls GetBusObjectsAsync.
+     */
+    class GetBusObjectsAsyncReceiver
+    {
+      public:
+        /** Destructor */
+        virtual ~GetBusObjectsAsyncReceiver() { }
+
+        /**
+         * CallbackHandlers are %GetBusObjectsAsyncReceiver methods which
+         * are called by GetBusObjectsAsync upon completion.
+         *
+         * @param proxy         Proxy bus object.
+         * @param busObjects    The returned child bus objects.
+         * @param context       Opaque context pointer that was passed in
+         *                      to GetBusObjectsAsync
+         */
+        typedef void (GetBusObjectsAsyncReceiver::* CallbackHandler)(
+            ProxyBusObject*                     proxy,
+            vector<util::bus::BusObjectInfo>    busObjects,
+            void*                               context
+        );
+
+      protected:
+        void GetBusObjectsAsyncIntrospectCallback(
+            QStatus status,
+            ProxyBusObject* obj,
+            void* context
+        );
+    };
+
+    class GetBusObjectsAsyncIntrospectReceiver :
+        public ProxyBusObject::Listener
+    {
+      public:
+        /** Destructor */
+        virtual ~GetBusObjectsAsyncIntrospectReceiver() { }
+
+        void GetBusObjectsAsyncIntrospectCallback(
+            QStatus status,
+            ProxyBusObject* obj,
+            void* context
+        );
+    };
+
+
     /* Recursively get BusObject information from an attachment. */
     void
     GetBusObjectsRecursive(
         vector<BusObjectInfo>& busObjects,
         ProxyBusObject&        proxy
+        );
+
+    /* Asynchronously get BusObject information from an attachment. */
+    void
+    GetBusObjectsAsync(
+        ProxyBusObject*                                proxy,
+        GetBusObjectsAsyncReceiver*                    receiver,
+        GetBusObjectsAsyncReceiver::CallbackHandler    handler,
+        void*                                          context
         );
 
 } // namespace bus
