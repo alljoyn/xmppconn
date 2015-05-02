@@ -38,10 +38,11 @@ static XMPPConnector* s_Conn = 0;
 const string CONF_FILE = "/etc/xmppconn/xmppconn.conf";
 static string s_Server = "xmpp.affinegy.com";
 static string s_ServiceName = "muc";
-static string s_User = "alljoyn";
+static string s_User = "test";
+static string s_Password = "test";
 static string s_ChatRoom;
 static string s_Resource;
-static string s_Destination;
+static string s_Roster;
 static bool s_Compress = true;
 
 static inline string &ltrim(string &s) {
@@ -328,7 +329,25 @@ int main(int argc, char** argv)
     while ( getline( conf_file, line ) )
     {
         vector<string> tokens = split(line, '=');
-        if ( tokens.size() > 0 && trim(tokens[0]) == "CHATROOM" )
+        if ( tokens.size() > 0 && trim(tokens[0]) == "SERVER" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                s_Server = trim(tokens[1]);
+            }
+            if ( s_Server.empty() )
+            {
+                cerr << "SERVER cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+        }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "CHATROOM" )
         {
             if ( tokens.size() > 2 )
             {
@@ -364,6 +383,24 @@ int main(int argc, char** argv)
                 exit(1);
             }
         }
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "PASSWORD" )
+        {
+            if ( tokens.size() > 2 )
+            {
+                cerr << "Too many tokens in line: " << endl << line << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+            }
+            if ( tokens.size() > 1 )
+            {
+                s_Password = trim(tokens[1]);
+            }
+            if ( s_Password.empty() )
+            {
+                cerr << "PASSWORD cannot be specified as a blank value." << endl;
+                cerr << "Please fix the configuration file " << CONF_FILE << endl;
+                exit(1);
+            }
+        }
         else if ( tokens.size() > 0 && trim(tokens[0]) == "RESOURCE" )
         {
             if ( tokens.size() > 2 )
@@ -382,7 +419,7 @@ int main(int argc, char** argv)
                 exit(1);
             }
         }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "DESTINATION" )
+        else if ( tokens.size() > 0 && trim(tokens[0]) == "ROSTER" )
         {
             if ( tokens.size() > 2 )
             {
@@ -391,31 +428,12 @@ int main(int argc, char** argv)
             }
             if ( tokens.size() > 1 )
             {
-                s_Destination = trim(tokens[1]);
+                s_Roster = trim(tokens[1]);
             }
-            if ( s_Destination.empty() )
+            if ( s_Roster.empty() )
             {
-                cerr << "DESTINATION cannot be specified as a blank value." << endl;
+                cerr << "ROSTER is empty." << endl;
                 cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "SERVER" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_Server = trim(tokens[1]);
-            }
-            if ( s_Server.empty() )
-            {
-                cerr << "SERVER cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
             }
         }
         else if ( tokens.size() > 0 && trim(tokens[0]) == "COMPRESS" )

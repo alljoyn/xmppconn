@@ -3247,7 +3247,7 @@ XmppTransport::XmppPresenceHandler(
             LOG_RELEASE("Failed to get stanza as text! %d", result);
             return 1;
         }
-        LOG_VERBOSE("Stanza: %s", buf);
+        LOG_DEBUG("Stanza: %s", buf);
 
         string fromLocal = transport->m_chatroom+"/"+transport->m_nickname;
         const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
@@ -3255,7 +3255,7 @@ XmppTransport::XmppPresenceHandler(
         const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
         LOG_VERBOSE("To: %s", toAttr);
         if ( fromLocal == fromAttr ) {
-            LOG_VERBOSE("Ignoring presence from ourselves.");
+            LOG_DEBUG("Ignoring presence from ourselves.");
         }
     }
 
