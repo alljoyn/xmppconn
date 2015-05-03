@@ -38,7 +38,9 @@ public:
         const std::string& appName,
         const std::string& xmppJid,
         const std::string& xmppPassword,
+        const std::string& xmppRoster,
         const std::string& xmppChatroom,
+        const std::string& xmppResource,
         const bool         compress
         );
 

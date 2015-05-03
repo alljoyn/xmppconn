@@ -309,9 +309,27 @@ string getJID()
     return s_User + "@" + s_Server;
 }
 
+string getPassword()
+{
+    return s_Password;
+}
+
+string getRoster()
+{
+    return s_Roster;
+}
+
 string getChatRoom()
 {
-    return s_ChatRoom + "@" + s_ServiceName + "." + s_Server;
+    if ( !s_ChatRoom.empty() ) {
+        return s_ChatRoom + "@" + s_ServiceName + "." + s_Server;
+    }
+    return string();
+}
+
+string getResource()
+{
+    return s_Resource;
 }
 
 int main(int argc, char** argv)
@@ -529,7 +547,8 @@ int main(int argc, char** argv)
     }
 
     // Create our XMPP connector
-    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), s_User, getChatRoom(), s_Compress);
+    /* TODO: Support multiple items in roster */
+    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), getPassword(), getRoster(), getChatRoom(), getResource(), s_Compress);
     if(ER_OK != s_Conn->Init())
     {
         cout << "Could not initialize XMPPConnector" << endl;
