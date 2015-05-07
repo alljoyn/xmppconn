@@ -201,22 +201,22 @@ private:
         istringstream& msgStream
         );
 
-    void ReceiveAdvertisement(const string& message);
-    void ReceiveAdvertisementLost(const string& message);
-    void ReceiveAnnounce(const string& message);
-    void ReceiveJoinRequest(const string& message);
-    void ReceiveJoinResponse(const string& message);
-    void ReceiveSessionJoined(const string& message);
-    void ReceiveSessionLost(const string& message);
-    void ReceiveMethodCall(const string& message);
-    void ReceiveMethodReply(const string& message);
-    void ReceiveSignal(const string& message);
-    void ReceiveGetRequest(const string& message);
-    void ReceiveGetReply(const string& message);
-    void ReceiveSetRequest(const string& message);
-    void ReceiveSetReply(const string& message);
-    void ReceiveGetAllRequest(const string& message);
-    void ReceiveGetAllReply(const string& message);
+    void ReceiveAdvertisement(const string& from, const string& message);
+    void ReceiveAdvertisementLost(const string& from, const string& message);
+    void ReceiveAnnounce(const string& from, const string& message);
+    void ReceiveJoinRequest(const string& from, const string& message);
+    void ReceiveJoinResponse(const string& from, const string& message);
+    void ReceiveSessionJoined(const string& from, const string& message);
+    void ReceiveSessionLost(const string& from, const string& message);
+    void ReceiveMethodCall(const string& from, const string& message);
+    void ReceiveMethodReply(const string& from, const string& message);
+    void ReceiveSignal(const string& from, const string& message);
+    void ReceiveGetRequest(const string& from, const string& message);
+    void ReceiveGetReply(const string& from, const string& message);
+    void ReceiveSetRequest(const string& from, const string& message);
+    void ReceiveSetReply(const string& from, const string& message);
+    void ReceiveGetAllRequest(const string& from, const string& message);
+    void ReceiveGetAllReply(const string& from, const string& message);
 
     static
     int
@@ -1936,7 +1936,7 @@ XmppTransport::SendJoinRequest(
             if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
                ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
                ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
-               ifaceNameStr != "org.allseen.Introspectable"          )
+               ifaceNameStr != "org.allseen.Introspectable")
             {
                 msgStream << ifaceNameStr << "\n";
                 msgStream << (*ifaceIter)->Introspect().c_str() << "\n";
@@ -2315,6 +2315,7 @@ XmppTransport::ParseBusObjectInfo(
 
 void
 XmppTransport::ReceiveAdvertisement(
+    const string& from,
     const string& message
     )
 {
@@ -2336,7 +2337,7 @@ XmppTransport::ReceiveAdvertisement(
     vector<XMPPConnector::RemoteObjectDescription> objects =
             ParseBusObjectInfo(msgStream);
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(
-            remoteName, &objects);
+            from, remoteName, &objects);
     if(!bus)
     {
         return;
@@ -2349,7 +2350,7 @@ XmppTransport::ReceiveAdvertisement(
         wkn = bus->RequestWellKnownName(advertisedName);
         if(wkn.empty())
         {
-            m_connector->DeleteRemoteAttachment(bus);
+            m_connector->DeleteRemoteAttachment(from, bus);
             return;
         }
     }
@@ -2360,13 +2361,14 @@ XmppTransport::ReceiveAdvertisement(
     {
         LOG_RELEASE("Failed to advertise %s: %s", wkn.c_str(),
                 QCC_StatusText(err));
-        m_connector->DeleteRemoteAttachment(bus);
+        m_connector->DeleteRemoteAttachment(from, bus);
         return;
     }
 }
 
 void
 XmppTransport::ReceiveAdvertisementLost(
+    const string& from,
     const string& message
     )
 {
@@ -2383,15 +2385,16 @@ XmppTransport::ReceiveAdvertisementLost(
 
     // Get the local bus attachment advertising this name
     RemoteBusAttachment* bus =
-            m_connector->GetRemoteAttachmentByAdvertisedName(name);
+            m_connector->GetRemoteAttachmentByAdvertisedName(from, name);
     if(bus)
     {
-        m_connector->DeleteRemoteAttachment(bus);
+        m_connector->DeleteRemoteAttachment(from, bus);
     }
 }
 
 void
 XmppTransport::ReceiveAnnounce(
+    const string& from,
     const string& message
     )
 {
@@ -2479,7 +2482,7 @@ XmppTransport::ReceiveAnnounce(
 
     // Find or create the BusAttachment with the given app name
     RemoteBusAttachment* bus =
-            m_connector->GetRemoteAttachment(remoteName, &objects);
+            m_connector->GetRemoteAttachment(from, remoteName, &objects);
     if(bus)
     {
         // Request and announce our name
@@ -2489,7 +2492,7 @@ XmppTransport::ReceiveAnnounce(
             wkn = bus->RequestWellKnownName(busName);
             if(wkn.empty())
             {
-                m_connector->DeleteRemoteAttachment(bus);
+                m_connector->DeleteRemoteAttachment(from, bus);
                 return;
             }
         }
@@ -2505,6 +2508,7 @@ XmppTransport::ReceiveAnnounce(
 
 void
 XmppTransport::ReceiveJoinRequest(
+    const string& from,
     const string& message
     )
 {
@@ -2527,7 +2531,7 @@ XmppTransport::ReceiveJoinRequest(
 
     // Get or create a bus attachment to join from
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(
-            joiner, &objects);
+            from, joiner, &objects);
 
     SessionId id = 0;
     if(!bus)
@@ -2603,6 +2607,7 @@ XmppTransport::ReceiveJoinRequest(
 
 void
 XmppTransport::ReceiveJoinResponse(
+    const string& from,
     const string& message
     )
 {
@@ -2619,7 +2624,7 @@ XmppTransport::ReceiveJoinResponse(
     if(0 == getline(msgStream, remoteSessionId)){ return; }
 
     // Find the BusAttachment with the given app name
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(appName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, appName);
     if(!bus)
     {
         LOG_RELEASE("Failed to find bus attachment to handle join response!");
@@ -2632,6 +2637,7 @@ XmppTransport::ReceiveJoinResponse(
 
 void
 XmppTransport::ReceiveSessionJoined(
+    const string& from,
     const string& message
     )
 {
@@ -2656,7 +2662,7 @@ XmppTransport::ReceiveSessionJoined(
     }
 
     // Find the BusAttachment with the given app name
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(joiner);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, joiner);
     if(!bus)
     {
         LOG_RELEASE("Failed to find bus attachment to handle joined session!");
@@ -2673,6 +2679,7 @@ XmppTransport::ReceiveSessionJoined(
 
 void
 XmppTransport::ReceiveSessionLost(
+    const string& from,
     const string& message
     )
 {
@@ -2689,7 +2696,7 @@ XmppTransport::ReceiveSessionLost(
     if(0 == getline(msgStream, idStr)){ return; }
 
     // Leave the local session
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(appName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, appName);
     if(bus)
     {
         SessionId localId = bus->GetLocalSessionId(
@@ -2711,6 +2718,7 @@ XmppTransport::ReceiveSessionLost(
 
 void
 XmppTransport::ReceiveMethodCall(
+    const string& from,
     const string& message
     )
 {
@@ -2740,7 +2748,7 @@ XmppTransport::ReceiveMethodCall(
     //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, remoteName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming method call. Message: %s",
@@ -2776,6 +2784,7 @@ XmppTransport::ReceiveMethodCall(
 
 void
 XmppTransport::ReceiveMethodReply(
+    const string& from,
     const string& message
     )
 {
@@ -2800,7 +2809,7 @@ XmppTransport::ReceiveMethodReply(
     //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, remoteName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming method call. Message: %s",
@@ -2814,6 +2823,7 @@ XmppTransport::ReceiveMethodReply(
 
 void
 XmppTransport::ReceiveSignal(
+    const string& from,
     const string& message
     )
 {
@@ -2844,7 +2854,7 @@ XmppTransport::ReceiveSignal(
     //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(senderName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, senderName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming signal. Sender: %s",
@@ -2863,6 +2873,7 @@ XmppTransport::ReceiveSignal(
 
 void
 XmppTransport::ReceiveGetRequest(
+    const string& from,
     const string& message
     )
 {
@@ -2907,6 +2918,7 @@ XmppTransport::ReceiveGetRequest(
 
 void
 XmppTransport::ReceiveGetReply(
+    const string& from,
     const string& message
     )
 {
@@ -2931,7 +2943,7 @@ XmppTransport::ReceiveGetReply(
     //util::str::UnescapeXml(messageArgString);
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, remoteName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming Get reply.");
@@ -2944,6 +2956,7 @@ XmppTransport::ReceiveGetReply(
 
 void
 XmppTransport::ReceiveSetRequest(
+    const string& from,
     const string& message
     )
 {
@@ -2998,6 +3011,7 @@ XmppTransport::ReceiveSetRequest(
 
 void
 XmppTransport::ReceiveSetReply(
+    const string& from,
     const string& message
     )
 {
@@ -3015,7 +3029,7 @@ XmppTransport::ReceiveSetReply(
     if(0 == getline(msgStream, status)){ return; }
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, remoteName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming Set reply.");
@@ -3028,6 +3042,7 @@ XmppTransport::ReceiveSetReply(
 
 void
 XmppTransport::ReceiveGetAllRequest(
+    const string& from,
     const string& message
     )
 {
@@ -3073,6 +3088,7 @@ XmppTransport::ReceiveGetAllRequest(
 
 void
 XmppTransport::ReceiveGetAllReply(
+    const string& from,
     const string& message
     )
 {
@@ -3097,7 +3113,7 @@ XmppTransport::ReceiveGetAllReply(
     //util::str::UnescapeXml(messageArgsString);
 
     // Find the bus attachment with this busName
-    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(remoteName);
+    RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, remoteName);
     if(!bus)
     {
         LOG_RELEASE("No bus attachment to handle incoming GetAll reply.");
@@ -3181,59 +3197,59 @@ XmppTransport::XmppStanzaHandler(
 
             if(typeCode == ALLJOYN_CODE_ADVERTISEMENT)
             {
-                transport->ReceiveAdvertisement(message);
+                transport->ReceiveAdvertisement(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_ADVERT_LOST)
             {
-                transport->ReceiveAdvertisementLost(message);
+                transport->ReceiveAdvertisementLost(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_ANNOUNCE)
             {
-                transport->ReceiveAnnounce(message);
+                transport->ReceiveAnnounce(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_METHOD_CALL)
             {
-                transport->ReceiveMethodCall(message);
+                transport->ReceiveMethodCall(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_METHOD_REPLY)
             {
-                transport->ReceiveMethodReply(message);
+                transport->ReceiveMethodReply(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_SIGNAL)
             {
-                transport->ReceiveSignal(message);
+                transport->ReceiveSignal(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_JOIN_REQUEST)
             {
-                transport->ReceiveJoinRequest(message);
+                transport->ReceiveJoinRequest(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_JOIN_RESPONSE)
             {
-                transport->ReceiveJoinResponse(message);
+                transport->ReceiveJoinResponse(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_SESSION_JOINED)
             {
-                transport->ReceiveSessionJoined(message);
+                transport->ReceiveSessionJoined(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_SESSION_LOST)
             {
-                transport->ReceiveSessionLost(message);
+                transport->ReceiveSessionLost(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_GET_PROPERTY)
             {
-                transport->ReceiveGetRequest(message);
+                transport->ReceiveGetRequest(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_GET_PROP_REPLY)
             {
-                transport->ReceiveGetReply(message);
+                transport->ReceiveGetReply(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_GET_ALL)
             {
-                transport->ReceiveGetAllRequest(message);
+                transport->ReceiveGetAllRequest(fromAttr, message);
             }
             else if(typeCode == ALLJOYN_CODE_GET_ALL_REPLY)
             {
-                transport->ReceiveGetAllReply(message);
+                transport->ReceiveGetAllReply(fromAttr, message);
             }
             else
             {
@@ -3249,7 +3265,7 @@ XmppTransport::XmppStanzaHandler(
 
                     XMPPConnector::MessageCallback callback = it->second;
                     (callback.receiver->*(callback.messageHandler))(
-                            typeCode, sentMessage, callback.userdata);
+                            fromAttr, typeCode, sentMessage, callback.userdata);
                 }
                 else
                 {
@@ -3524,10 +3540,14 @@ XMPPConnector::XMPPConnector(
 XMPPConnector::~XMPPConnector()
 {
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
-    list<RemoteBusAttachment*>::iterator it;
-    for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
+    for ( map<string, list<RemoteBusAttachment*> >::iterator connections_it(m_remoteAttachments.begin());
+        m_remoteAttachments.end() != connections_it; ++connections_it )
     {
-        delete(*it);
+        for(list<RemoteBusAttachment*>::iterator it = connections_it->second.begin();
+            it != connections_it->second.end(); ++it)
+        {
+            delete(*it);
+        }
     }
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
     pthread_mutex_destroy(&m_remoteAttachmentsMutex);
@@ -3659,13 +3679,16 @@ XMPPConnector::OwnsWellKnownName(
     bool result = false;
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
-    list<RemoteBusAttachment*>::const_iterator it;
-    for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
+    for ( map<string, list<RemoteBusAttachment*> >::const_iterator connections_it(m_remoteAttachments.begin());
+        m_remoteAttachments.end() != connections_it; ++connections_it )
     {
-        if(name == (*it)->WellKnownName())
+        for(list<RemoteBusAttachment*>::const_iterator it = connections_it->second.begin(); it != connections_it->second.end(); ++it)
         {
-            result = true;
-            break;
+            if(name == (*it)->WellKnownName())
+            {
+                result = true;
+                break;
+            }
         }
     }
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
@@ -3745,6 +3768,7 @@ XMPPConnector::receiveGetMergedAclAsync(
 
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(
+    const string&                          from,
     const string&                          remoteName,
     const vector<RemoteObjectDescription>* objects
     )
@@ -3752,13 +3776,17 @@ XMPPConnector::GetRemoteAttachment(
     RemoteBusAttachment* result = NULL;
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
 
-    list<RemoteBusAttachment*>::iterator it;
-    for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
+    map<string, list<RemoteBusAttachment*> >::iterator connection_pair(m_remoteAttachments.find(from));
+    if ( m_remoteAttachments.end() != connection_pair )
     {
-        if(remoteName == (*it)->RemoteName())
+        list<RemoteBusAttachment*>::iterator it;
+        for(it = connection_pair->second.begin(); it != connection_pair->second.end(); ++it)
         {
-            result = *it;
-            break;
+            if(remoteName == (*it)->RemoteName())
+            {
+                result = *it;
+                break;
+            }
         }
     }
 
@@ -3884,7 +3912,7 @@ XMPPConnector::GetRemoteAttachment(
 
         if(err == ER_OK)
         {
-            m_remoteAttachments.push_back(result);
+            m_remoteAttachments[from].push_back(result);
         }
         else
         {
@@ -3899,14 +3927,21 @@ XMPPConnector::GetRemoteAttachment(
 
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachmentByAdvertisedName(
+    const string& from,
     const string& advertisedName
     )
 {
     RemoteBusAttachment* result = NULL;
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, list<RemoteBusAttachment*> >::iterator connection_pair(m_remoteAttachments.find(from));
+    if ( m_remoteAttachments.end() == connection_pair )
+    {
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+        return NULL;
+    }
     list<RemoteBusAttachment*>::iterator it;
-    for(it = m_remoteAttachments.begin(); it != m_remoteAttachments.end(); ++it)
+    for(it = connection_pair->second.begin(); it != connection_pair->second.end(); ++it)
     {
         if(advertisedName == (*it)->WellKnownName())
         {
@@ -3920,6 +3955,7 @@ XMPPConnector::GetRemoteAttachmentByAdvertisedName(
 }
 
 void XMPPConnector::DeleteRemoteAttachment(
+    const string&         from,
     RemoteBusAttachment*& attachment
     )
 {
@@ -3935,7 +3971,13 @@ void XMPPConnector::DeleteRemoteAttachment(
     attachment->Join();
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
-    m_remoteAttachments.remove(attachment);
+    map<string, list<RemoteBusAttachment*> >::iterator connection_pair(m_remoteAttachments.find(from));
+    if ( m_remoteAttachments.end() == connection_pair )
+    {
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+        return;
+    }
+    connection_pair->second.remove(attachment);
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
     delete(attachment);

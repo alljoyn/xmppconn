@@ -79,6 +79,7 @@ public:
         typedef
         void
         (XMPPConnector::MessageReceiver::* MessageHandler)(
+            const std::string& from,
             const std::string& key,
             const std::string& message,
             void*              userdata
@@ -122,20 +123,23 @@ private:
     };
 
     RemoteBusAttachment* GetRemoteAttachment(
+        const std::string&                          from,
         const std::string&                          remoteName,
         const std::vector<RemoteObjectDescription>* objects = NULL
         );
     RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
+        const std::string& from,
         const std::string& advertisedName
         );
     void DeleteRemoteAttachment(
+        const std::string&    from,
         RemoteBusAttachment*& attachment
         );
 
     BusAttachment*   m_bus;
     AllJoynListener* m_listener;
 
-    std::list<RemoteBusAttachment*> m_remoteAttachments;
+    std::map<std::string, std::list<RemoteBusAttachment*> > m_remoteAttachments;
     pthread_mutex_t                 m_remoteAttachmentsMutex;
 
     std::map<std::string, std::vector<SessionPort> > m_sessionPortMap;

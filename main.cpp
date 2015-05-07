@@ -222,6 +222,7 @@ public:
 
     void
     AlertHandler(
+        const string& from,
         const string& key,
         const string& message,
         void*         userdata
