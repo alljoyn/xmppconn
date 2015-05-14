@@ -3330,8 +3330,97 @@ XmppTransport::XmppPresenceHandler(
         LOG_DEBUG("Received Presence Stanza");
         LOG_DEBUG("From: %s", fromAttr);
 
-        // TODO: Check if it's online/offline presence notification
-        // TODO: Start/Stop the AllJoyn stuff
+        // Check if it's online/offline presence notification
+        // Example of a presence stanza:
+        //  <presence xml:lang=""
+        //   to="test-connector@xmpp.chariot.global/test-connector"
+        //   from="test-connector@muc.xmpp.chariot.global/test">
+        //      <priority>1</priority>
+        //      <c hash="sha-1" xmlns="http://jabber.org/protocol/caps"
+        //       ver="71LAP/wlWGfun7j+Q4FCSSuAhQw=" node="http://pidgin.im/"/>
+        //      <x xmlns="vcard-temp:x:update">
+        //          <photo>677584b5b6a6f6a91cad4cfad0b13a4949d53faa</photo>
+        //      </x>
+        //      <x xmlns="http://jabber.org/protocol/muc#user">
+        //          <item role="participant" affiliation="none"/>
+        //      </x>
+        //  </presence>
+        const string participant_lookup("role=\"participant\""); // TODO: we should do something more robust than this
+        const string moderator_lookup("role=\"moderator\""); // TODO: we should do something more robust than this
+        if ( message.npos != message.find(participant_lookup) ||
+            message.npos != message.find(moderator_lookup) )
+        {
+            // The remote entity has come online
+
+            // Create local bus attachments and listeners to begin listening and interacting with the local AllJoyn bus
+            BusAttachment* attachment = transport->m_connector->CreateBusAttachment(fromAttr);
+            AllJoynListener* listener = transport->m_connector->GetBusListener(fromAttr);
+
+            if ( !attachment || !listener )
+            {
+                LOG_RELEASE("Failed to create bus attachment or listener!");
+                return 1;
+            }
+
+            // Start listening for advertisements
+            QStatus err = attachment->FindAdvertisedName("");
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Could not find advertised names for %s: %s",
+                        fromAttr,
+                        QCC_StatusText(err));
+            }
+
+            // Listen for announcements
+            err = AnnouncementRegistrar::RegisterAnnounceHandler(
+                    *attachment, *listener, NULL, 0);
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Could not register Announcement handler for %s: %s",
+                        fromAttr,
+                        QCC_StatusText(err));
+            }
+        }
+        else
+        {
+            // The remote entity has gone offline
+
+            // Delete all the remote bus attachments
+            pthread_mutex_lock(&transport->m_connector->m_remoteAttachmentsMutex);
+            for ( map<string, list<RemoteBusAttachment*> >::iterator connections_it(transport->m_connector->m_remoteAttachments.begin());
+                transport->m_connector->m_remoteAttachments.end() != connections_it; ++connections_it )
+            {
+                if ( connections_it->first == fromAttr )
+                {
+                    for(list<RemoteBusAttachment*>::iterator it = connections_it->second.begin();
+                        it != connections_it->second.end(); ++it)
+                    {
+                        delete(*it);
+                    }
+                }
+            }
+            transport->m_connector->m_remoteAttachments.clear();
+            pthread_mutex_unlock(&transport->m_connector->m_remoteAttachmentsMutex);
+            pthread_mutex_destroy(&transport->m_connector->m_remoteAttachmentsMutex);
+
+            // Get the local bus attachment and bus listener
+            BusAttachment* attachment = transport->m_connector->GetBusAttachment(fromAttr);
+            AllJoynListener* listener = transport->m_connector->GetBusListener(fromAttr);
+
+            if ( !attachment || !listener )
+            {
+                // NOTE: This is okay, as we legitimately get presence notifications of unavailable
+                return 1;
+            }
+
+            // Stop listening for advertisements and announcements
+            AnnouncementRegistrar::UnRegisterAnnounceHandler(
+                *attachment, *listener, NULL, 0);
+            attachment->CancelFindAdvertisedName("");
+
+            // Delete the local bus attachment and listener
+            transport->m_connector->DeleteBusAttachment(fromAttr);
+        }
     }
 
     return 1;
@@ -3520,9 +3609,9 @@ XMPPConnector::XMPPConnector(
     GatewayConnector(bus, appName.c_str()),
 #endif // !NO_AJ_GATEWAY
     m_initialized(false),
-    m_bus(bus),
     m_remoteAttachments()
 {
+    // TODO: Remove this bus, we can create a GUID some other way
     string resource(xmppResource);
     if ( resource.empty() ) {
         resource = bus->GetGlobalGUIDString().c_str();
@@ -3530,11 +3619,8 @@ XMPPConnector::XMPPConnector(
     m_xmppTransport = new XmppTransport( this,
             xmppJid, xmppPassword, xmppRoster, xmppChatroom,
             resource, compress);
-    m_listener = new AllJoynListener(this, m_xmppTransport, bus);
 
     pthread_mutex_init(&m_remoteAttachmentsMutex, NULL);
-
-    m_bus->RegisterBusListener(*m_listener);
 }
 
 XMPPConnector::~XMPPConnector()
@@ -3549,11 +3635,17 @@ XMPPConnector::~XMPPConnector()
             delete(*it);
         }
     }
+    m_remoteAttachments.clear();
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
     pthread_mutex_destroy(&m_remoteAttachmentsMutex);
 
-    m_bus->UnregisterBusListener(*m_listener);
-    delete m_listener;
+    // Unregister and delete all the local bus attachments and listeners
+    while ( m_buses.size() > 0 )
+    {
+        string from(m_buses.begin()->first);
+        DeleteBusAttachment(from);
+    }
+
     delete m_xmppTransport;
 }
 
@@ -3608,25 +3700,8 @@ XMPPConnector::Start()
             {
             case XMPP_CONNECT:
             {
-                // Start listening for advertisements
-                QStatus err = connector->m_bus->FindAdvertisedName("");
-                if(err != ER_OK)
-                {
-                    LOG_RELEASE("Could not find advertised names: %s",
-                            QCC_StatusText(err));
-                }
-
-                // Listen for announcements
-                err = AnnouncementRegistrar::RegisterAnnounceHandler(
-                        *connector->m_bus, *connector->m_listener, NULL, 0);
-                if(err != ER_OK)
-                {
-                    LOG_RELEASE("Could not register Announcement handler: %s",
-                            QCC_StatusText(err));
-                }
-
                 // Update connection status and get remote profiles
-                err = connector->updateConnectionStatus(GW_CS_CONNECTED);
+                QStatus err = connector->updateConnectionStatus(GW_CS_CONNECTED);
                 if(err == ER_OK)
                 {
                     connector->mergedAclUpdated();
@@ -3638,12 +3713,6 @@ XMPPConnector::Start()
             case XMPP_FAIL:
             default:
             {
-                // Stop listening for advertisements and announcements
-                AnnouncementRegistrar::UnRegisterAnnounceHandler(
-                        *connector->m_bus, *connector->m_listener, NULL, 0);
-
-                connector->m_bus->CancelFindAdvertisedName("");
-
                 connector->updateConnectionStatus(GW_CS_NOT_CONNECTED);
 
                 break;
@@ -3773,6 +3842,7 @@ XMPPConnector::GetRemoteAttachment(
     const vector<RemoteObjectDescription>* objects
     )
 {
+    FNLOG;
     RemoteBusAttachment* result = NULL;
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
 
@@ -3984,4 +4054,135 @@ void XMPPConnector::DeleteRemoteAttachment(
     attachment = NULL;
 
     LOG_DEBUG("Deleted remote bus attachment: %s", name.c_str());
+}
+
+BusAttachment* XMPPConnector::CreateBusAttachment(
+    const std::string& from
+    )
+{
+    FNLOG;
+    BusAttachment* attachment = 0;
+
+    pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, BusAttachment*>::iterator connection_pair(m_buses.find(from));
+    if ( m_buses.end() == connection_pair )
+    {
+        LOG_VERBOSE("Creating bus attachment and bus listener for %s", from.c_str());
+
+        // Create the BusAttachment and related BusListener and register for advertisements and announcements
+        attachment = new BusAttachment(from.c_str(), true);
+
+        QStatus status = attachment->Start();
+        if (ER_OK != status) {
+            LOG_RELEASE("Error starting bus for %s: %s", from.c_str(), QCC_StatusText(status));
+            pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+            delete attachment;
+            return 0;
+        }
+
+        status = attachment->Connect();
+        if (ER_OK != status) {
+            LOG_RELEASE("Error connecting bus for %s: %s", from.c_str(), QCC_StatusText(status));
+            pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+            delete attachment;
+            return 0;
+        }
+
+        AllJoynListener* listener = new AllJoynListener(this, m_xmppTransport, attachment);
+        attachment->RegisterBusListener(*listener);
+
+        m_buses[from] = attachment;
+        m_listeners[from] = listener;
+    }
+    else
+    {
+        attachment = connection_pair->second;
+    }
+    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+
+    return attachment;
+}
+
+BusAttachment* XMPPConnector::GetBusAttachment(
+    const std::string& from
+    )
+{
+    FNLOG;
+    BusAttachment* attachment = 0;
+
+    pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, BusAttachment*>::iterator connection_pair(m_buses.find(from));
+    if ( m_buses.end() == connection_pair )
+    {
+        LOG_VERBOSE("Asked for a BusAttachment for %s but it doesn't exist!", from.c_str());
+    }
+    else
+    {
+        attachment = connection_pair->second;
+    }
+    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+
+    return attachment;
+}
+
+void XMPPConnector::DeleteBusAttachment(
+    const std::string& from
+    )
+{
+    FNLOG;
+    AllJoynListener* listener = GetBusListener(from);
+    pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, BusAttachment*>::iterator connection_pair(m_buses.find(from));
+    if ( m_buses.end() == connection_pair )
+    {
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+        return;
+    }
+    BusAttachment* attachment = connection_pair->second;
+    attachment->UnregisterBusListener(*listener);
+    // TODO: Unregister for advertisements and announcements
+    DeleteBusListener(from);
+    attachment->Stop();
+    delete attachment;
+    m_buses.erase(from);
+    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+}
+
+AllJoynListener* XMPPConnector::GetBusListener(
+    const std::string& from
+    )
+{
+    FNLOG;
+    AllJoynListener* listener = 0;
+
+    pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, AllJoynListener*>::iterator connection_pair(m_listeners.find(from));
+    if ( m_listeners.end() == connection_pair )
+    {
+        // It should already exist!
+        LOG_VERBOSE("Asked for a BusListener for %s but it doesn't exist!", from.c_str());
+    }
+    else
+    {
+        listener = connection_pair->second;
+    }
+    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+
+    return listener;
+}
+
+void XMPPConnector::DeleteBusListener(
+    const std::string& from
+    )
+{
+    //pthread_mutex_lock(&m_remoteAttachmentsMutex);
+    map<string, AllJoynListener*>::iterator connection_pair(m_listeners.find(from));
+    if ( m_listeners.end() == connection_pair )
+    {
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+        return;
+    }
+    delete connection_pair->second;
+    m_listeners.erase(from);
+    //pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 }

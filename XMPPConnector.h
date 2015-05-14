@@ -136,8 +136,24 @@ private:
         RemoteBusAttachment*& attachment
         );
 
-    BusAttachment*   m_bus;
-    AllJoynListener* m_listener;
+    BusAttachment* CreateBusAttachment(
+        const std::string& from
+        );
+    BusAttachment* GetBusAttachment(
+        const std::string& from
+        );
+    void DeleteBusAttachment(
+        const std::string& from
+        );
+    AllJoynListener* GetBusListener(
+        const std::string& from
+        );
+    void DeleteBusListener(
+        const std::string& from
+        );
+
+    std::map<std::string,BusAttachment*>   m_buses;
+    std::map<std::string,AllJoynListener*> m_listeners;
 
     std::map<std::string, std::list<RemoteBusAttachment*> > m_remoteAttachments;
     pthread_mutex_t                 m_remoteAttachmentsMutex;
