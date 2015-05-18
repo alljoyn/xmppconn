@@ -28,6 +28,9 @@ using std::endl;
 using std::istringstream;
 using std::ostringstream;
 
+const int KEEPALIVE_IN_SECONDS = 60;
+const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
+
 // Forward declaration of XmppTransport class due to circular dependencies
 class ajn::gw::XmppTransport
 {
@@ -54,7 +57,8 @@ public:
         xmpp_disconnected,
         xmpp_connected,
         xmpp_error,
-        xmpp_aborting
+        xmpp_aborting,
+        xmpp_stopped
     } XmppConnectionState;
 
     XmppTransport(
@@ -1764,7 +1768,29 @@ XmppTransport::Run()
     }
 
     // Listen for XMPP
-    xmpp_run(m_xmppCtx);
+    while ( xmpp_stopped != m_connectionState && xmpp_error != m_connectionState )
+    {
+        const int32_t next_keepalive = KEEPALIVE_IN_SECONDS * 1000;
+        int32_t keepalive_counter = 0;
+        if ( keepalive_counter >= next_keepalive )
+        {
+            // We need to send a keepalive packet (a single space within a stanza)
+            xmpp_stanza_t* stanza = xmpp_stanza_new(m_xmppCtx);
+            xmpp_stanza_set_text(stanza, " ");
+            xmpp_send(m_xmppConn, stanza);
+            xmpp_stanza_release(stanza);
+
+            // Reset our keepalive counter
+            keepalive_counter = 0;
+        }
+        // NOTE: We allow the XMPP client code to track this time. This means
+        //  our keepalive isn't going to be exact. This function call could
+        //  actually take a long time because event handlers are being called.
+        //  It doesn't matter because we really just need to make sure we send
+        //  something to the server every once in a while so it doesn't drop us.
+        xmpp_run_once(m_xmppCtx, XMPP_TIMEOUT_IN_MILLISECONDS);
+        keepalive_counter++;
+    }
 
     return ER_OK;
 }
@@ -3535,7 +3561,7 @@ XmppTransport::XmppConnectionHandler(
             LOG_RELEASE("Exiting.");
 
             // Stop the XMPP event loop
-            xmpp_stop(xmpp_conn_get_context(conn));
+            transport->m_connectionState = xmpp_stopped;
         }
         else if ( prevConnState != xmpp_uninitialized )
         {
@@ -3544,14 +3570,14 @@ XmppTransport::XmppConnectionHandler(
 
             // TODO: For now we will quit the application because of this, but
             //  eventually we will try to restart the connection
-            xmpp_stop(xmpp_conn_get_context(conn));
+            transport->m_connectionState = xmpp_stopped;
         }
         else
         {
             LOG_RELEASE("Login failed.");
 
             // Go ahead and quit the application by stopping the XMPP event loop
-            xmpp_stop(xmpp_conn_get_context(conn));
+            transport->m_connectionState = xmpp_stopped;
         }
         break;
     }
@@ -3560,10 +3586,9 @@ XmppTransport::XmppConnectionHandler(
     {
         LOG_RELEASE("XMPP error occurred. Exiting.");
 
+        // Stop the XMPP event loop
         transport->m_connectionState = xmpp_error;
 
-        // Stop the XMPP event loop
-        xmpp_stop(xmpp_conn_get_context(conn));
         break;
     }
     }
