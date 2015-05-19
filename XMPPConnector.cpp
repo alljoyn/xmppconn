@@ -31,6 +31,120 @@ using std::ostringstream;
 const int KEEPALIVE_IN_SECONDS = 60;
 const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
 
+class SessionTracker
+{
+public:
+    SessionTracker()
+    {
+        pthread_mutex_init(&m_mutex, NULL);
+    }
+    ~SessionTracker()
+    {
+        pthread_mutex_destroy(&m_mutex);
+    }
+
+    void JoinSent( const string& name, const SessionId& session_id )
+    {
+        Lock();
+        m_pending[name] = session_id;
+        Unlock();
+    }
+
+    void JoinConfirmed( const string& name )
+    {
+        Lock();
+        if ( m_pending.end() != m_pending.find(name) )
+        {
+            m_sessions[name] = m_pending.at(name);
+            m_pending.erase(name);
+        }
+        else
+        {
+            LOG_RELEASE("Tried to confirm a session join for '%s' but the join appears to have never been sent!", name.c_str());
+        }
+        Unlock();
+    }
+
+    void SessionLost( const string& name )
+    {
+        Lock();
+        if ( m_sessions.end() != m_sessions.find(name) )
+        {
+            m_sessions.erase(name);
+        }
+        if ( m_pending.end() != m_pending.find(name) )
+        {
+            m_pending.erase(name);
+        }
+        Unlock();
+    }
+
+    bool IsSessionPending( const string& name ) const
+    {
+        bool found = false;
+        Lock();
+        if ( m_pending.end() != m_pending.find(name) )
+        {
+            found = true;
+        }
+        Unlock();
+        return found;
+    }
+
+    bool IsSessionJoined( const string& name ) const
+    {
+        bool found = false;
+        Lock();
+        if ( m_sessions.end() != m_sessions.find(name) )
+        {
+            found = true;
+        }
+        Unlock();
+        return found;
+    }
+
+    bool IsSessionPendingOrJoined( const string& name ) const
+    {
+        bool found = false;
+        Lock();
+        if ( m_sessions.end() != m_sessions.find(name) ||
+             m_pending.end() != m_pending.find(name) )
+        {
+            found = true;
+        }
+        Unlock();
+        return found;
+    }
+
+    SessionId GetSession( const string& name ) const
+    {
+        SessionId session_id = 0;
+        Lock();
+        if ( m_sessions.end() != m_sessions.find(name) )
+        {
+            session_id = m_sessions.at(name);
+        }
+        else if ( m_pending.end() != m_pending.find(name) )
+        {
+            session_id = m_pending.at(name);
+        }
+        Unlock();
+        return session_id;
+    }
+private:
+    void Lock() const
+    {
+        pthread_mutex_lock(&m_mutex);
+    }
+    void Unlock() const
+    {
+        pthread_mutex_unlock(&m_mutex);
+    }
+    mutable pthread_mutex_t m_mutex;
+    map<string, SessionId> m_pending;
+    map<string, SessionId> m_sessions;
+};
+
 // Forward declaration of XmppTransport class due to circular dependencies
 class ajn::gw::XmppTransport
 {
@@ -272,10 +386,11 @@ private:
     Listener::ConnectionCallback m_connectionCallback;
     void*                        m_callbackUserdata;
 
+    SessionTracker m_sessionTracker;
+
     map<string, string> m_wellKnownNameMap;
 
     BusAttachment m_propertyBus;
-
 
     static const string ALLJOYN_CODE_ADVERTISEMENT;
     static const string ALLJOYN_CODE_ADVERT_LOST;
@@ -2570,6 +2685,31 @@ XmppTransport::ReceiveJoinRequest(
         SessionPort port = strtoul(portStr.c_str(), NULL, 10);
 
         QStatus err = bus->JoinSession(joinee, port, id);
+
+        // Check for error scenarios nd retry join when:
+        // - remote device left an active session without telling us, or
+        // - previous join request never completed (didn't receive SessionJoined)
+        if ( err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED && id == 0 )
+        {
+            SessionId tempid = bus->GetSessionIdByPeer(joinee);
+            if ( tempid == 0 )
+            {
+                SessionId pending = m_sessionTracker.GetSession(joiner);
+                if ( pending != 0 )
+                {
+                    tempid = pending;
+                    m_sessionTracker.SessionLost(joiner);
+                }
+            }
+            if ( tempid != 0 )
+            {
+                // Leave and rejoin the session
+                LOG_RELEASE("Recovering from a failed or a stale session with %s.", joinee.c_str());
+                err = bus->LeaveSession(tempid);
+                err = bus->JoinSession(joinee, port, id);
+            }
+        }
+
         if(err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
         {
             id = bus->GetSessionIdByPeer(joinee);
@@ -2585,6 +2725,8 @@ XmppTransport::ReceiveJoinRequest(
         {
             LOG_DEBUG("Session joined between %s (local) and %s (remote). Port: %d Id: %d",
                     joiner.c_str(), joinee.c_str(), port, id);
+
+            m_sessionTracker.JoinSent(joiner, id);
 
             // Register signal handlers for the interfaces we're joining with   // TODO: this info could be sent via XMPP from the connector joinee instead of introspected again
             vector<util::bus::BusObjectInfo> joineeObjects;                     // TODO: do this before joining?
@@ -2686,6 +2828,8 @@ XmppTransport::ReceiveSessionJoined(
     {
         return;
     }
+
+    m_sessionTracker.JoinConfirmed(joiner);
 
     // Find the BusAttachment with the given app name
     RemoteBusAttachment* bus = m_connector->GetRemoteAttachment(from, joiner);
