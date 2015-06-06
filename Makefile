@@ -1,47 +1,50 @@
+CC        := g++
+LD        := g++
+CFLAGS    := -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX
 
-CXX := g++
-CC  := gcc
+TARGET    := xmppconn
 
-CXXFLAGS = -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX -DQCC_CPU_X86
-LDFLAGS  = 
-LIBS     =
-INCLUDES =
-DEFINES  =
+MODULES   := common app transport
+SRC_DIR   := $(addprefix src/,$(MODULES))
+BUILD_ROOT:= build/
 
-LIBS += -lalljoyn_gwconnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lexpat -lssl -lresolv -lstdc++ -lz -lcrypto -lpthread -lrt
+SRC       := $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
+OBJ       := $(patsubst src/%.cpp,build/%.o,$(SRC))
 
-ifdef AJ_PATH
-  INCLUDES += -I$(AJ_PATH)/cpp/inc -I$(AJ_PATH)/about/inc -I$(AJ_PATH)/notification/inc -I$(AJ_PATH)/services_common/inc -I$(AJ_PATH)/gatewayConnector/inc -I$(AJ_PATH)/gatewayMgmtApp/inc
-  LDFLAGS += -L$(AJ_PATH)/cpp/lib -L$(AJ_PATH)/about/lib -L$(AJ_PATH)/notification/lib -L$(AJ_PATH)/services_common/lib -L$(AJ_PATH)/gatewayConnector/lib -L$(AJ_PATH)/gatewayMgmtApp/lib
+BUILD_DIR := $(addprefix $(BUILD_ROOT),$(MODULES))
+
+INCLUDES  := $(addprefix -I,$(SRC_DIR)) -Isrc
+
+vpath %.cpp $(SRC_DIR)
+
+define make-goal
+$1/%.o: %.cpp
+	$(CC) $(CFLAGS) $(INCLUDES) -c $$< -o $$@
+endef
+
+LIBS += -lalljoyn_gwconnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lresolv -lstdc++ -lpthread -lrt -lz
+
+ifdef ALLJOYN_DISTDIR
+  INCLUDES += -I$(ALLJOYN_DISTDIR)/cpp/inc -I$(ALLJOYN_DISTDIR)/about/inc -I$(ALLJOYN_DISTDIR)/notification/inc -I$(ALLJOYN_DISTDIR)/services_common/inc -I$(ALLJOYN_DISTDIR)/gatewayConnector/inc -I$(ALLJOYN_DISTDIR)/gatewayMgmtApp/inc
+  LDFLAGS += -L$(ALLJOYN_DISTDIR)/cpp/lib -L$(ALLJOYN_DISTDIR)/about/lib -L$(ALLJOYN_DISTDIR)/notification/lib -L$(ALLJOYN_DISTDIR)/services_common/lib -L$(ALLJOYN_DISTDIR)/gatewayConnector/lib -L$(ALLJOYN_DISTDIR)/gatewayMgmtApp/lib
 else
-#  $(error AJ_PATH is undefined. Please set this to the base path that contains the AllJoyn cpp, notification, services_common, and other folders.)
+  $(error ALLJOYN_DISTDIR is not set. Please see README.md for more information)
 endif
 
-ifdef STROPHE_PATH
-  INCLUDES += -I$(STROPHE_PATH)
-  LDFLAGS += -L$(STROPHE_PATH)/.libs
-else
-#  $(error STROPHE_PATH is undefined. Please set this to the base path of your libstrophe source distribution)
-endif
+.PHONY: all checkdirs clean
 
-.PHONY: default clean
+all: checkdirs $(BUILD_ROOT) $(BUILD_ROOT)$(TARGET)
 
-default: XMPPConnector
+$(BUILD_ROOT)$(TARGET): $(OBJ)
+	$(LD) $^ $(LDFLAGS) -L$(BUILD_ROOT) $(LIBS) -o $@
+
+
+checkdirs: $(BUILD_DIR)
+
+$(BUILD_DIR):
+	@mkdir -p $@
 
 clean:
-	rm -f *.o XMPPConnector
+	@rm -rf $(BUILD_DIR) $(BUILD_ROOT)/*.so $(BUILD_ROOT)/clconnector
 
-all: XMPPConnector
-
-XMPPConnector: XMPPConnector.o main.o xmppconnutil.o
-	$(CXX) -o $@ XMPPConnector.o main.o xmppconnutil.o $(LDFLAGS) $(LIBS)
-
-main.o: main.cpp
-	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ main.cpp
-
-xmppconnutil.o: xmppconnutil.cpp
-	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ xmppconnutil.cpp
-
-XMPPConnector.o: XMPPConnector.cpp
-	$(CXX) -c $(CXXFLAGS) $(INCLUDES) -o $@ XMPPConnector.cpp
-
+$(foreach bdir,$(BUILD_DIR),$(eval $(call make-goal,$(bdir))))
