@@ -2456,7 +2456,6 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         }
         m_remoteAttachments.clear();
         pthread_mutex_unlock(&m_remoteAttachmentsMutex);
-        pthread_mutex_destroy(&m_remoteAttachmentsMutex);
 
         // Get the local bus attachment and bus listener
         BusAttachment* attachment = GetBusAttachment(source);
