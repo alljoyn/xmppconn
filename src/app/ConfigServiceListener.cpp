@@ -1,38 +1,22 @@
-/******************************************************************************
- * Copyright (c) 2013 - 2014, AllSeen Alliance. All rights reserved.
- *
- *    Permission to use, copy, modify, and/or distribute this software for any
- *    purpose with or without fee is hereby granted, provided that the above
- *    copyright notice and this permission notice appear in all copies.
- *
- *    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- *    WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- *    MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- *    ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- *    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- *    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- ******************************************************************************/
-
-#include "ConfigService.h"
+#include "ConfigServiceListener.h"
 #include <IniParser.h>
 #include <iostream>
 
 using namespace ajn;
 using namespace services;
 
-ConfigService::ConfigService(PropertyStoreImpl& store, BusAttachment& bus, CommonBusListener& busListener) :
-    ConfigService::Listener(), m_PropertyStore(&store), m_Bus(&bus), m_BusListener(&busListener)
+ConfigServiceListener::ConfigServiceListener(PropertyStoreImpl& store, BusAttachment& bus, CommonBusListener& busListener) :
+    ConfigServiceListener::Listener(), m_PropertyStore(&store), m_Bus(&bus), m_BusListener(&busListener)
 {
 }
 
-QStatus ConfigService::Restart()
+QStatus ConfigServiceListener::Restart()
 {
     std::cout << "Restart has been called !!!" << std::endl;
     return ER_OK;
 }
 
-QStatus ConfigService::FactoryReset()
+QStatus ConfigServiceListener::FactoryReset()
 {
     QStatus status = ER_OK;
     std::cout << "FactoryReset has been called!!!" << std::endl;
@@ -49,11 +33,11 @@ QStatus ConfigService::FactoryReset()
     return status;
 }
 
-QStatus ConfigService::SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, SessionId sessionId)
+QStatus ConfigServiceListener::SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, SessionId sessionId)
 {
     qcc::String passCodeString(passcode, passcodeSize);
-    std::cout << "SetPassphrase has been called daemonRealm=" << daemonRealm << " passcode="
-              << passCodeString.c_str() << " passcodeLength=" << passcodeSize << std::endl;
+    //std::cout << "SetPassphrase has been called daemonRealm=" << daemonRealm << " passcode="
+    //         << passCodeString.c_str() << " passcodeLength=" << passcodeSize << std::endl;
 
     PersistPassword(daemonRealm, passCodeString.c_str());
 
@@ -72,11 +56,11 @@ QStatus ConfigService::SetPassphrase(const char* daemonRealm, size_t passcodeSiz
     return ER_OK;
 }
 
-ConfigService::~ConfigService()
+ConfigServiceListener::~ConfigServiceListener()
 {
 }
 
-void ConfigService::PersistPassword(const char* daemonRealm, const char* passcode)
+void ConfigServiceListener::PersistPassword(const char* daemonRealm, const char* passcode)
 {
     std::map<std::string, std::string> data;
     data["daemonrealm"] = daemonRealm;

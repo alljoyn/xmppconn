@@ -14,8 +14,8 @@
  *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  ******************************************************************************/
 
-#ifndef CONFIGSERVICELISTENERIMPL_H_
-#define CONFIGSERVICELISTENERIMPL_H_
+#ifndef CONFIGSERVICELISTENER_H_
+#define CONFIGSERVICELISTENER_H_
 
 #include <alljoyn/config/ConfigService.h>
 #include <PropertyStoreImpl.h>
@@ -36,4 +36,4 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 
-#endif /* CONFIGSERVICELISTENERIMPL_H_ */
+#endif
