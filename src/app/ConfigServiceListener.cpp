@@ -14,25 +14,25 @@
  *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  ******************************************************************************/
 
-#include "ConfigServiceListenerImpl.h"
+#include "ConfigService.h"
 #include <IniParser.h>
 #include <iostream>
 
 using namespace ajn;
 using namespace services;
 
-ConfigServiceListenerImpl::ConfigServiceListenerImpl(PropertyStoreImpl& store, BusAttachment& bus, CommonBusListener& busListener) :
+ConfigService::ConfigService(PropertyStoreImpl& store, BusAttachment& bus, CommonBusListener& busListener) :
     ConfigService::Listener(), m_PropertyStore(&store), m_Bus(&bus), m_BusListener(&busListener)
 {
 }
 
-QStatus ConfigServiceListenerImpl::Restart()
+QStatus ConfigService::Restart()
 {
     std::cout << "Restart has been called !!!" << std::endl;
     return ER_OK;
 }
 
-QStatus ConfigServiceListenerImpl::FactoryReset()
+QStatus ConfigService::FactoryReset()
 {
     QStatus status = ER_OK;
     std::cout << "FactoryReset has been called!!!" << std::endl;
@@ -49,7 +49,7 @@ QStatus ConfigServiceListenerImpl::FactoryReset()
     return status;
 }
 
-QStatus ConfigServiceListenerImpl::SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, SessionId sessionId)
+QStatus ConfigService::SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, SessionId sessionId)
 {
     qcc::String passCodeString(passcode, passcodeSize);
     std::cout << "SetPassphrase has been called daemonRealm=" << daemonRealm << " passcode="
@@ -72,11 +72,11 @@ QStatus ConfigServiceListenerImpl::SetPassphrase(const char* daemonRealm, size_t
     return ER_OK;
 }
 
-ConfigServiceListenerImpl::~ConfigServiceListenerImpl()
+ConfigService::~ConfigService()
 {
 }
 
-void ConfigServiceListenerImpl::PersistPassword(const char* daemonRealm, const char* passcode)
+void ConfigService::PersistPassword(const char* daemonRealm, const char* passcode)
 {
     std::map<std::string, std::string> data;
     data["daemonrealm"] = daemonRealm;

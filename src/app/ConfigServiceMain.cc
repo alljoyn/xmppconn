@@ -130,25 +130,7 @@ void WaitForSigInt(void) {
 }
 
 int main(int argc, char**argv, char**envArg) {
-    QStatus status = ER_OK;
-    std::cout << "AllJoyn Library version: " << ajn::GetVersion() << std::endl;
-    std::cout << "AllJoyn Library build info: " << ajn::GetBuildInfo() << std::endl;
-    QCC_SetLogLevels("ALLJOYN_ABOUT_SERVICE=7;");
-    QCC_SetLogLevels("ALLJOYN_ABOUT_ICON_SERVICE=7;");
     QCC_SetDebugLevel(logModules::CONFIG_MODULE_LOG_NAME, logModules::ALL_LOG_LEVELS);
-
-    OptParser opts(argc, argv);
-    OptParser::ParseResultCode parseCode(opts.ParseResult());
-    switch (parseCode) {
-    case OptParser::PR_OK:
-        break;
-
-    case OptParser::PR_EXIT_NO_ERROR:
-        return SERVICE_EXIT_OK;
-
-    default:
-        return SERVICE_OPTION_ERROR;
-    }
 
     SERVICE_PORT = opts.GetPort();
     std::cout << "using port " << opts.GetPort() << std::endl;
@@ -215,7 +197,7 @@ int main(int argc, char**argv, char**envArg) {
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     //ConfigService
 
-    configServiceListener = new ConfigServiceListenerImpl(*propertyStore, *msgBus, *busListener);
+    configServiceListener = new ConfigService(*propertyStore, *msgBus, *busListener);
     configService = new ConfigService(*msgBus, *propertyStore, *configServiceListener);
 
     interfaces.clear();
