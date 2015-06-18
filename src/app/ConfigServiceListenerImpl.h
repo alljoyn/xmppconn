@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (c) 2013 - 2014, AllSeen Alliance. All rights reserved.
+ * Copyright AllSeen Alliance. All rights reserved.
  *
  *    Permission to use, copy, modify, and/or distribute this software for any
  *    purpose with or without fee is hereby granted, provided that the above
@@ -14,26 +14,38 @@
  *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  ******************************************************************************/
 
-#ifndef CONFIGSERVICELISTENER_H_
-#define CONFIGSERVICELISTENER_H_
+#ifndef CONFIGSERVICELISTENERIMPL_H_
+#define CONFIGSERVICELISTENERIMPL_H_
 
 #include <alljoyn/config/ConfigService.h>
-#include <ConfigPropertyStore.h>
-#include <RemoteBusListener.h>
+#include <AboutDataStore.h>
+#include <CommonBusListener.h>
 
-class ConfigServiceListener : public ajn::services::ConfigService::Listener {
+/*
+ *
+ */
+class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
   public:
-    ConfigServiceListener(ConfigPropertyStore& store, ajn::BusAttachment& bus, RemoteBusListener& busListener);
+
+    ConfigServiceListenerImpl(AboutDataStore& store, ajn::BusAttachment& bus, CommonBusListener& busListener);
+
     virtual QStatus Restart();
+
     virtual QStatus FactoryReset();
+
     virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
-    virtual ~ConfigServiceListener();
+
+    virtual ~ConfigServiceListenerImpl();
 
   private:
-    ConfigPropertyStore* m_PropertyStore;
+
+    AboutDataStore* m_AboutDataStore;
+
     ajn::BusAttachment* m_Bus;
-    RemoteBusListener* m_BusListener;
+
+    CommonBusListener* m_BusListener;
+
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 
-#endif
+#endif /* CONFIGSERVICELISTENERIMPL_H_ */
