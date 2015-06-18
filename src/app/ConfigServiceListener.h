@@ -18,21 +18,21 @@
 #define CONFIGSERVICELISTENER_H_
 
 #include <alljoyn/config/ConfigService.h>
-#include <PropertyStoreImpl.h>
-#include <CommonBusListener.h>
+#include <ConfigPropertyStore.h>
+#include <RemoteBusListener.h>
 
-class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
+class ConfigServiceListener : public ajn::services::ConfigService::Listener {
   public:
-    ConfigServiceListenerImpl(PropertyStoreImpl& store, ajn::BusAttachment& bus, CommonBusListener& busListener);
+    ConfigServiceListener(ConfigPropertyStore& store, ajn::BusAttachment& bus, RemoteBusListener& busListener);
     virtual QStatus Restart();
     virtual QStatus FactoryReset();
     virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
-    virtual ~ConfigServiceListenerImpl();
+    virtual ~ConfigServiceListener();
 
   private:
-    PropertyStoreImpl* m_PropertyStore;
+    ConfigPropertyStore* m_PropertyStore;
     ajn::BusAttachment* m_Bus;
-    CommonBusListener* m_BusListener;
+    RemoteBusListener* m_BusListener;
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 

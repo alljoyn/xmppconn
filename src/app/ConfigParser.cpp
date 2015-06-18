@@ -1,5 +1,5 @@
 #include "ConfigParser.h"
-#include "alljoyn/util.h"
+#include "common/xmppconnutil.h"
 #include <stdlib.h>
 #include <fstream>
 #include <sstream>

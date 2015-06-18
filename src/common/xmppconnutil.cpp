@@ -15,7 +15,10 @@
  */
 
 #include "xmppconnutil.h"
-
+#include <string.h>
+#include <sstream>
+#include <string>
+#include <iostream>
 
 namespace util {
 volatile bool _dbglogging = false;
@@ -71,6 +74,21 @@ namespace str {
         )
     {
         return qcc::Trim(str.c_str()).c_str();
+    }
+
+    vector<string>
+    Split(
+        const string &str,
+        char delim
+        )
+    {
+        vector<string> elems;
+        std::stringstream ss(str);
+        string item;
+        while (getline(ss, item, delim)) {
+            elems.push_back(item);
+        }
+        return elems;
     }
 
     string

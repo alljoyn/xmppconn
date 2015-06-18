@@ -22,11 +22,11 @@ $1/%.o: %.cpp
 	$(CC) $(CFLAGS) $(INCLUDES) -c $$< -o $$@
 endef
 
-LIBS += -lalljoyn_gwconnector -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lresolv -lstdc++ -lpthread -lrt -lz
+LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lresolv -lstdc++ -lpthread -lrt -lz
 
 ifdef ALLJOYN_DISTDIR
-  INCLUDES += -I$(ALLJOYN_DISTDIR)/cpp/inc -I$(ALLJOYN_DISTDIR)/about/inc -I$(ALLJOYN_DISTDIR)/notification/inc -I$(ALLJOYN_DISTDIR)/services_common/inc -I$(ALLJOYN_DISTDIR)/gatewayConnector/inc -I$(ALLJOYN_DISTDIR)/gatewayMgmtApp/inc
-  LDFLAGS += -L$(ALLJOYN_DISTDIR)/cpp/lib -L$(ALLJOYN_DISTDIR)/about/lib -L$(ALLJOYN_DISTDIR)/notification/lib -L$(ALLJOYN_DISTDIR)/services_common/lib -L$(ALLJOYN_DISTDIR)/gatewayConnector/lib -L$(ALLJOYN_DISTDIR)/gatewayMgmtApp/lib
+  INCLUDES += -I$(ALLJOYN_DISTDIR)/cpp/inc -I$(ALLJOYN_DISTDIR)/about/inc -I$(ALLJOYN_DISTDIR)/notification/inc -I$(ALLJOYN_DISTDIR)/services_common/inc -I$(ALLJOYN_DISTDIR)/gatewayConnector/inc -I$(ALLJOYN_DISTDIR)/gatewayMgmtApp/inc -I$(ALLJOYN_DISTDIR)/config/inc
+  LDFLAGS += -L$(ALLJOYN_DISTDIR)/cpp/lib -L$(ALLJOYN_DISTDIR)/about/lib -L$(ALLJOYN_DISTDIR)/notification/lib -L$(ALLJOYN_DISTDIR)/services_common/lib -L$(ALLJOYN_DISTDIR)/gatewayConnector/lib -L$(ALLJOYN_DISTDIR)/gatewayMgmtApp/lib -L$(ALLJOYN_DISTDIR)/config/lib
 else
   $(error ALLJOYN_DISTDIR is not set. Please see README.md for more information)
 endif

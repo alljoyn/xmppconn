@@ -1,11 +1,12 @@
 #include "ConfigServiceListener.h"
-#include <IniParser.h>
+//#include <IniParser.h>
+#include "ConfigParser.h"
 #include <iostream>
 
 using namespace ajn;
 using namespace services;
 
-ConfigServiceListener::ConfigServiceListener(PropertyStoreImpl& store, BusAttachment& bus, CommonBusListener& busListener) :
+ConfigServiceListener::ConfigServiceListener(ConfigPropertyStore& store, BusAttachment& bus, RemoteBusListener& busListener) :
     ConfigServiceListener::Listener(), m_PropertyStore(&store), m_Bus(&bus), m_BusListener(&busListener)
 {
 }
@@ -45,14 +46,14 @@ QStatus ConfigServiceListener::SetPassphrase(const char* daemonRealm, size_t pas
     m_Bus->ClearKeyStore();
     m_Bus->EnableConcurrentCallbacks();
 
-    std::vector<SessionId> sessionIds = m_BusListener->getSessionIds();
+    /*std::vector<SessionId> sessionIds = m_BusListener->getSessionIds();
     for (size_t i = 0; i < sessionIds.size(); i++) {
         if (sessionIds[i] == sessionId) {
             continue;
         }
         m_Bus->LeaveSession(sessionIds[i]);
         std::cout << "Leaving session with id: " << sessionIds[i];
-    }
+    }*/
     return ER_OK;
 }
 
@@ -65,6 +66,6 @@ void ConfigServiceListener::PersistPassword(const char* daemonRealm, const char*
     std::map<std::string, std::string> data;
     data["daemonrealm"] = daemonRealm;
     data["passcode"] = passcode;
-    IniParser::UpdateFile(m_PropertyStore->GetConfigFileName().c_str(), data);
+    /*IniParser::UpdateFile(m_PropertyStore->GetConfigFileName().c_str(), data);*/
 }
 

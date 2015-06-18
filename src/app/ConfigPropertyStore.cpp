@@ -52,12 +52,13 @@ ConfigPropertyStore::~ConfigPropertyStore()
 
 QStatus ConfigPropertyStore::ReadAll(const char* languageTag, Filter filter, ajn::MsgArg& all)
 {
+    AboutPropertyStore* tmp = new AboutPropertyStore;
     if (!m_IsInitialized) {
         return ER_FAIL;
     }
 
     if (filter == ANNOUNCE || filter == READ) {
-        return AboutPropertyStore::ReadAll(languageTag, filter, all);
+        return tmp->ReadAll(languageTag, filter, all);
     }
 
     if (filter != WRITE) {
