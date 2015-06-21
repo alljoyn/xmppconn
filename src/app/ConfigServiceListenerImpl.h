@@ -18,8 +18,8 @@
 #define CONFIGSERVICELISTENERIMPL_H_
 
 #include <alljoyn/config/ConfigService.h>
-#include <AboutDataStore.h>
-#include <CommonBusListener.h>
+#include "ConfigDataStore.h"
+#include <RemoteBusListener.h>
 
 /*
  *
@@ -27,7 +27,7 @@
 class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
   public:
 
-    ConfigServiceListenerImpl(AboutDataStore& store, ajn::BusAttachment& bus, CommonBusListener& busListener);
+    ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, RemoteBusListener& busListener);
 
     virtual QStatus Restart();
 
@@ -39,11 +39,11 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
 
   private:
 
-    AboutDataStore* m_AboutDataStore;
+    ConfigDataStore* m_ConfigDataStore;
 
     ajn::BusAttachment* m_Bus;
 
-    CommonBusListener* m_BusListener;
+    RemoteBusListener* m_BusListener;
 
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };

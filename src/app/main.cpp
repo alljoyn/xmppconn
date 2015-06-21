@@ -18,8 +18,12 @@
 #include <alljoyn/about/AnnouncementRegistrar.h>
 #include <alljoyn/services_common/GuidUtil.h>
 #include <qcc/StringUtil.h>
+#include <alljoyn/about/AboutServiceApi.h>
+#include <alljoyn/AboutObj.h>
 #include "app/XMPPConnector.h"
 #include "common/xmppconnutil.h"
+#include "ConfigDataStore.h"
+#include "ConfigServiceListenerImpl.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -51,6 +55,10 @@ using std::map;
 
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
+static AboutObj* aboutObj = NULL;
+static ConfigDataStore* configDataStore = NULL;
+static ConfigServiceListenerImpl* configServiceListener = NULL;
+static ajn::services::ConfigService* configService = NULL;
 const string CONF_FILE = "/etc/xmppconn/xmppconn.conf";
 static string s_Server = "xmpp.chariot.global";
 static string s_ServiceName = "muc";
@@ -573,6 +581,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
+
+
     // Add SessionPorts to support
     s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
     s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
@@ -586,6 +596,41 @@ int main(int argc, char** argv)
     //    NULL);
 
     // Start our XMPP connector (blocking).
+    //
+    //
+    //
+    //configDataStore = new ConfigDataStore(/*Factory*/,/*Conf*/);
+    configDataStore->Initialize();
+    services::AboutService* aboutService = services::AboutServiceApi::getInstance();
+    if (!aboutService) {
+        cout << "Could not set up the AboutService" << std::endl;
+        cleanup();
+    }
+
+    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, *busListener);
+    configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
+
+    vector<qcc::String> interfaces;
+    interfaces.clear();
+    interfaces.push_back("org.alljoyn.Config.Chariot.Xmpp");
+    aboutService->AddObjectDescription("/Config", interfaces);
+
+    status = configService->Register();
+    if(status != ER_OK) {
+        std::cout << "Could not register the ConfigService" << std::endl;
+    }
+
+    status = s_Bus->RegisterBusObject(*configService);
+    if(status != ER_OK) {
+        std::cout << "Could not register the ConfigService BusObject" << std::endl;
+        cleanup();
+        return 1; //Apropriate at this point?
+    }
+
+    if (status == ER_OK) {
+        status = aboutService->Announce();
+    }
+
     s_Conn->Start();
 
     cleanup();
