@@ -22,7 +22,7 @@
 #include <alljoyn/AboutObj.h>
 #include "app/XMPPConnector.h"
 #include "common/xmppconnutil.h"
-#include "ConfigDataStore.h"
+#include "app/ConfigDataStore.h"
 #include "ConfigServiceListenerImpl.h"
 #include <iostream>
 #include <fstream>
@@ -599,21 +599,21 @@ int main(int argc, char** argv)
     //
     //
     //
-    //configDataStore = new ConfigDataStore(/*Factory*/,/*Conf*/);
-    configDataStore->Initialize();
+    configDataStore = new ConfigDataStore("","");
+    configDataStore->Initialize("", "");
     services::AboutService* aboutService = services::AboutServiceApi::getInstance();
     if (!aboutService) {
         cout << "Could not set up the AboutService" << std::endl;
         cleanup();
     }
 
-    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, *busListener);
+    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
     vector<qcc::String> interfaces;
     interfaces.clear();
     interfaces.push_back("org.alljoyn.Config.Chariot.Xmpp");
-    aboutService->AddObjectDescription("/Config", interfaces);
+    aboutService->AddObjectDescription("/Config/Chariot/XMPP", interfaces);
 
     status = configService->Register();
     if(status != ER_OK) {
