@@ -23,6 +23,7 @@
 #include "app/XMPPConnector.h"
 #include "common/xmppconnutil.h"
 #include "app/ConfigDataStore.h"
+#include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include "ConfigServiceListenerImpl.h"
 #include <iostream>
 #include <fstream>
@@ -215,8 +216,8 @@ public:
         MsgArg aboutArgs("a{sv}", dictEntries.size(), &dictEntries[0]);
 
         m_aboutPropertyStore = new SimplePropertyStore(aboutArgs);
-        services::AboutServiceApi::Init(*m_bus, *m_aboutPropertyStore);
-        services::AboutServiceApi* aboutService = services::AboutServiceApi::getInstance();
+        ajn::services::AboutServiceApi::Init(*m_bus, *m_aboutPropertyStore);
+        ajn::services::AboutServiceApi* aboutService = services::AboutServiceApi::getInstance();
         SessionPort sp = 900;
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
@@ -601,7 +602,16 @@ int main(int argc, char** argv)
     //
     configDataStore = new ConfigDataStore("","");
     configDataStore->Initialize("", "");
+
+
+    aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
+    services::AboutServiceApi::Init(*s_Bus, *(dynamic_cast<ajn::services::PropertyStore*>(configDataStore)));
     services::AboutService* aboutService = services::AboutServiceApi::getInstance();
+
+    aboutService->Register(27);
+    s_Bus->RegisterBusObject(*aboutService);
+
+
     if (!aboutService) {
         cout << "Could not set up the AboutService" << std::endl;
         cleanup();
