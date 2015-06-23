@@ -611,7 +611,6 @@ int main(int argc, char** argv)
     aboutService->Register(27);
     s_Bus->RegisterBusObject(*aboutService);
 
-
     if (!aboutService) {
         cout << "Could not set up the AboutService" << std::endl;
         cleanup();
