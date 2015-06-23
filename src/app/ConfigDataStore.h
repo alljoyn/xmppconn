@@ -1,6 +1,7 @@
 #ifndef ABOUT_DATA_STORE_H_
 #define ABOUT_DATA_STORE_H_
 
+#include "app/ConfigParser.h"
 #include <stdio.h>
 #include <iostream>
 #include <alljoyn/config/AboutDataStoreInterface.h>
@@ -21,6 +22,7 @@ class ConfigDataStore : public AboutDataStoreInterface {
     qcc::String m_configFileName;
     qcc::String m_factoryConfigFileName;
     QStatus IsLanguageSupported(const char* languageTag);
+    ConfigParser* configParser;
 };
 
 #endif

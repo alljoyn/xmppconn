@@ -6,14 +6,14 @@
 class ConfigParser
 {
     public:
-        ConfigParser( const std::string& filepath );
+        ConfigParser( const char* filepath );
         ~ConfigParser();
         std::vector<std::string> GetErrors() const;
-        std::string GetField(const std::string& field);
-        int SetField(const std::string& field);
+        std::string GetField(const char* field);
+        int SetField(const char* field, const char* value);
     private:
         ConfigParser() {} // Private to prevent use
         std::map<std::string, std::string> options;
         std::vector<std::string> errors;
-        std::string configPath;
+        const char* configPath;
 };

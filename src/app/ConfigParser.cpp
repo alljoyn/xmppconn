@@ -15,10 +15,10 @@ using namespace std;
 using namespace util::str;
 using namespace rapidjson;
 
-ConfigParser::ConfigParser( const string& filepath )
+ConfigParser::ConfigParser( const char* filepath )
 {
     // Ensure that we can open our config file
-    ifstream conf_file(filepath.c_str());
+    ifstream conf_file(filepath);
     if ( !conf_file.is_open() )
     {
         stringstream err;
@@ -39,10 +39,10 @@ vector<string> ConfigParser::GetErrors() const
     return errors;
 }
 
-string ConfigParser::GetField(const string& field)
+string ConfigParser::GetField(const char* field)
 {
     stringstream err;
-    FILE* fp = fopen(configPath.c_str(), "rb");
+    FILE* fp = fopen(configPath, "rb");
 
     char readBuffer[65536];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
@@ -50,8 +50,8 @@ string ConfigParser::GetField(const string& field)
     Document d;
     d.ParseStream(configStream);
 
-    if(d.HasMember(field.c_str())){
-        Value& s = d[field.c_str()];
+    if(d.HasMember(field)){
+        Value& s = d[field];
         fclose(fp);
         return s.GetString();
     }
@@ -60,24 +60,24 @@ string ConfigParser::GetField(const string& field)
     errors.push_back(err.str());
     fclose(fp);
 }
-int ConfigParser::SetField(const string& field)
+int ConfigParser::SetField(const char* field, const char* value)
 {
     stringstream err;
-    FILE* fp = fopen(configPath.c_str(), "rwb");
+    FILE* fp = fopen(configPath, "rwb");
 
     char readBuffer[65536];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
     d.ParseStream(configStream);
-    Value& tmp = d[field.c_str()];
+    Value& tmp = d[field];
 
     char writeBuffer[65536];
     FileWriteStream configWriteStream(fp, writeBuffer, sizeof(writeBuffer));
     Writer<FileWriteStream> writer(configWriteStream);
 
-    if(d.HasMember(field.c_str())){
-        tmp.SetString(field.c_str(),field.length(), d.GetAllocator());
+    if(d.HasMember(field)){
+        tmp[field].SetString(value, sizeof(field)/sizeof(field[0]), d.GetAllocator());
         d.Accept(writer);
         fclose(fp);
         return 0;
@@ -87,4 +87,3 @@ int ConfigParser::SetField(const string& field)
     errors.push_back(err.str());
     fclose(fp);
 }
-

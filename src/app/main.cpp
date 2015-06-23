@@ -600,8 +600,8 @@ int main(int argc, char** argv)
     //
     //
     //
-    configDataStore = new ConfigDataStore("","");
-    configDataStore->Initialize("", "");
+    configDataStore = new ConfigDataStore("/home/jorge/workspace/xmppconn/xmppconn_muc.conf","/home/jorge/workspace/xmppconn/xmppconn_muc.conf");
+    configDataStore->Initialize("13dd", "43dv");
 
 
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
