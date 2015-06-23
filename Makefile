@@ -28,8 +28,6 @@ LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_
 
 ifdef RAPIDJSON_PATH
     INCLUDES += -I$(RAPIDJSON_PATH)
-else
-    $(error RAPIDJSON_PATH is not set. Please see README.md for more information)
 endif
 
 ifdef ALLJOYN_DISTDIR
