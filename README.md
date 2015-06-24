@@ -92,6 +92,7 @@ Pull the source code from the repositor into the xmppconn folder under $ROOTPATH
 An AllJoyn daemon must be running on the same local system for this program to work. Refer to http://wiki.allseenalliance.org/gateway/getting\_started to learn how to set up your system with the proper AllJoyn dependencies.
 
 Once that is completed it is possible to install this application in two ways:
+
 1. As a normal AllJoyn application
 2. As an AllJoyn Gateway Connector application
 
@@ -113,6 +114,7 @@ If it is desired that xmppconn be installed do the following:
     sudo ln -s ../init.d/xmppconn S95xmppconn
 
 Next set up the configuration file:
+
     sudo mkdir /etc/xmppconn
     sudo cp conf/xmppconn_muc.conf /etc/xmppconn/xmppconn.conf
 
