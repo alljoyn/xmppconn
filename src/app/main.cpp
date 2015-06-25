@@ -14,17 +14,20 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <alljoyn/BusAttachment.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
-#include <alljoyn/services_common/GuidUtil.h>
-#include <qcc/StringUtil.h>
-#include <alljoyn/about/AboutServiceApi.h>
-#include <alljoyn/AboutObj.h>
 #include "app/XMPPConnector.h"
-#include "common/xmppconnutil.h"
+#include "app/AboutObjApi.h"
 #include "app/ConfigDataStore.h"
+#include "app/ConfigServiceListenerImpl.h"
+#include "common/xmppconnutil.h"
+
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
-#include "ConfigServiceListenerImpl.h"
+#include <alljoyn/about/AnnouncementRegistrar.h>
+#include <alljoyn/about/AboutServiceApi.h>
+#include <alljoyn/services_common/GuidUtil.h>
+#include <alljoyn/AboutObj.h>
+#include <alljoyn/BusAttachment.h>
+#include <qcc/StringUtil.h>
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -99,6 +102,31 @@ static inline vector<string> split(const string &s, char delim) {
     return elems;
 }
 
+class MySessionListener : public SessionPortListener {
+
+};
+
+class MyBusObject : public BusObject {
+  public:
+    MyBusObject(BusAttachment& bus, const char* path)
+        : BusObject(path) {
+        QStatus status;
+        const InterfaceDescription* iface = bus.GetInterface("org.alljoyn.Config.Chariot.Xmpp");
+        assert(iface != NULL);
+
+        // Here the value ANNOUNCED tells AllJoyn that this interface
+        // should be announced
+        status = AddInterface(*iface, ANNOUNCED);
+        if (status != ER_OK) {
+            printf("Failed to add %s interface to the BusObject\n", "org.alljoyn.Config.Chariot.Xmpp");
+        }
+
+        /* Register the method handlers with the object */
+    }
+
+    // Respond to remote method call `Echo` by returning the string back to the
+    // sender.
+};
 class SimplePropertyStore :
     public services::PropertyStore
 {
@@ -582,47 +610,74 @@ int main(int argc, char** argv)
         return 1;
     }
 
-
-
-    // Add SessionPorts to support
     s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
     s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
 
-    // Register an alert handler
-    //AlertReceiver alertReceiver(s_Bus);
-    //s_Conn->RegisterMessageHandler(
-    //    "** Alert **",
-    //    &alertReceiver,
-    //    static_cast<XMPPConnector::MessageReceiver::MessageHandler>(&AlertReceiver::AlertHandler),
-    //    NULL);
 
-    // Start our XMPP connector (blocking).
-    //
-    //
-    //
     configDataStore = new ConfigDataStore("/home/jorge/workspace/xmppconn/xmppconn_muc.conf","/home/jorge/workspace/xmppconn/xmppconn_muc.conf");
-    configDataStore->Initialize("13dd", "43dv");
+    configDataStore->Initialize();
 
+
+    // Check to see if the configDataStore is valid before sending the About Announcement
 
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
-    services::AboutServiceApi::Init(*s_Bus, *(dynamic_cast<ajn::services::PropertyStore*>(configDataStore)));
-    services::AboutService* aboutService = services::AboutServiceApi::getInstance();
-
-    aboutService->Register(27);
-    s_Bus->RegisterBusObject(*aboutService);
-
+    ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
+    ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
+    s_Conn->AddSessionPortMatch("org.alljoyn.Config.Chariot.Xmpp", 900);
     if (!aboutService) {
-        cout << "Could not set up the AboutService" << std::endl;
-        cleanup();
+        return ER_BUS_NOT_ALLOWED;
     }
+
+    MySessionListener* busListener = new MySessionListener();
+
+    TransportMask transportMask = TRANSPORT_ANY;
+    SessionPort sp = 900;
+    SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, transportMask);
+
+    status = s_Bus->BindSessionPort(sp, opts, *dynamic_cast<SessionPortListener*>(busListener));
+    if (status != ER_OK) {
+        return status;
+    }
+
+    aboutService->SetPort(900);
 
     configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
-    vector<qcc::String> interfaces;
-    interfaces.clear();
-    interfaces.push_back("org.alljoyn.Config.Chariot.Xmpp");
-    aboutService->AddObjectDescription("/Config/Chariot/XMPP", interfaces);
+    qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+        " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
+        "<interface name='org.alljoyn.Config.Chariot.Xmpp'>"
+        "<property name='Version' type='q' access='read'/>"
+        "<method name='FactoryReset'>"
+        "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
+        "</method>"
+        "<method name='Restart'>"
+        "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
+        "</method>"
+        "<method name='SetPasscode'>"
+        "<arg name='daemonRealm' type='s' direction='in'/>"
+        "<arg name='newPasscode' type='ay' direction='in'/>"
+        "</method>"
+        "<method name='GetConfigurations'>"
+        "<arg name='languageTag' type='s' direction='in'/>"
+        "<arg name='configData' type='a{sv}' direction='out'/>"
+        "</method>"
+        "<method name='UpdateConfigurations'>"
+        "<arg name='languageTag' type='s' direction='in'/>"
+        "<arg name='configMap' type='a{sv}' direction='in'/>"
+        "</method>"
+        "<method name='ResetConfigurations'>"
+        "<arg name='languageTag' type='s' direction='in'/>"
+        "<arg name='fieldList' type='as' direction='in'/>"
+        "</method>"
+        "</interface>"
+        "</node> ";
+
+    status = s_Bus->CreateInterfacesFromXml(interface.c_str());
+    const InterfaceDescription* iface = s_Bus->GetInterface("org.alljoyn.Config.Chariot.Xmpp");  
+
+    MyBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
+    status = s_Bus->RegisterBusObject(busObject);
 
     status = configService->Register();
     if(status != ER_OK) {
@@ -636,9 +691,14 @@ int main(int argc, char** argv)
         return 1; //Apropriate at this point?
     }
 
-    if (status == ER_OK) {
-        status = aboutService->Announce();
+    ajn::services::AboutObjApi* testService = ajn::services::AboutObjApi::getInstance();
+
+    if (!testService) {
+        cout << ER_BUS_NOT_ALLOWED << endl; 
     }
+
+    status = aboutService->Announce();
+    std::cout << QCC_StatusText(status) << endl;
 
     s_Conn->Start();
 

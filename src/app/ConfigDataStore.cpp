@@ -18,13 +18,33 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     std::cout << "ConfigDataStore::AboutDataStore" << std::endl;
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
-    SetNewFieldDetails("Server",      REQUIRED, "s");
+    SetNewFieldDetails("Server",      EMPTY_MASK, "s");
     SetNewFieldDetails("Port",        EMPTY_MASK, "i");
     SetNewFieldDetails("RoomJID",     EMPTY_MASK, "s");
-    SetNewFieldDetails("UserJID",     REQUIRED, "s");
-    SetNewFieldDetails("UserPassword",REQUIRED, "s");
-    SetNewFieldDetails("Roster",      REQUIRED, "s");
+    SetNewFieldDetails("UserJID",     EMPTY_MASK, "s");
+    SetNewFieldDetails("UserPassword",EMPTY_MASK, "s");
+    SetNewFieldDetails("Roster",      EMPTY_MASK, "s");
     SetNewFieldDetails("Serial",      EMPTY_MASK, "s");
+
+
+    uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
+                        0x1E, 0x82, 0x11, 0xE4,
+                        0x86, 0x51, 0xD1, 0x56,
+                        0x1D, 0x5D, 0x46, 0xB0 };
+    this->SetAppId(appId, 16);
+    this->SetDefaultLanguage("en");
+    this->SetSupportedLanguage("en");
+    this->SetDeviceName("My Device Name");
+    //DeviceId is a string encoded 128bit UUID
+    this->SetDeviceId("93c06771-c725-48c2-b1ff-6a2a59d445b8");
+    this->SetAppName("Application");
+    this->SetManufacturer("Manufacturer");
+    this->SetModelNumber("123456");
+    this->SetDescription("A poetic description of this application");
+    this->SetDateOfManufacture("2014-03-24");
+    this->SetSoftwareVersion("0.1.2");
+    this->SetHardwareVersion("0.0.1");
+    this->SetSupportUrl("http://www.example.org");
 }
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
