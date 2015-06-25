@@ -18,6 +18,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     std::cout << "ConfigDataStore::AboutDataStore" << std::endl;
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
+
     SetNewFieldDetails("Server",      EMPTY_MASK, "s");
     SetNewFieldDetails("Port",        EMPTY_MASK, "i");
     SetNewFieldDetails("RoomJID",     EMPTY_MASK, "s");
@@ -54,6 +55,16 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
     std::string factoryStr((std::istreambuf_iterator<char>(configFile)),
             std::istreambuf_iterator<char>());
     std::cout << "Contains:" << std::endl << factoryStr << std::endl;
+
+    MsgArg value; 
+    std::map<std::string,std::string> configMap = configParser->GetConfigMap();
+    for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
+        value.Set("s", it->second);
+        if(it->first == "Port"){
+            atoi(it->second.c_str());
+        }
+            this->SetField(it->first.c_str(), value);
+    }
 
     m_IsInitialized = true;
     std::cout << "ConfigDataStore::Initialize End" << std::endl;
@@ -103,6 +114,9 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
     if (status == ER_OK) {
         configParser->SetField(name, chval);
+        MsgArg value;
+        value.Set("s", chval);
+        this->SetField(name, value);
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {

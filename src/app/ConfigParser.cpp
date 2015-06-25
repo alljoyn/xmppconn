@@ -7,7 +7,9 @@
 #include "rapidjson/filewritestream.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <stdlib.h>
+#include <stdio.h>
 #include <fstream>
 #include <sstream>
 
@@ -86,4 +88,31 @@ int ConfigParser::SetField(const char* field, const char* value)
     err << "Could not set field" << field << "!";
     errors.push_back(err.str());
     fclose(fp);
+}
+
+std::map<std::string, std::string> ConfigParser::GetConfigMap(){
+    std::map<std::string, std::string> configMap;
+
+    stringstream err;
+    FILE* fp = fopen(configPath, "rb");
+
+    char readBuffer[65536];
+    FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
+
+    Document d;
+    d.ParseStream(configStream);
+
+    for(Value::MemberIterator it = d.MemberBegin(); it != d.MemberEnd(); ++it){
+        /*if(it->name.GetString() == "Port"){
+            char *intStr = itoa(it->value.GetInt());
+            configMap[it->name.GetString()] = string(intStr);
+        }
+        else{ */
+            configMap[it->name.GetString()] = it->value.GetString();
+        //}
+    }
+
+    fclose(fp);
+
+    return configMap;
 }
