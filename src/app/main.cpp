@@ -20,6 +20,7 @@
 #include "app/ConfigServiceListenerImpl.h"
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
+#include "app/SrpKeyXListener.h"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -65,6 +66,7 @@ static CommonBusListener* busListener = NULL;
 static ConfigDataStore* configDataStore = NULL;
 static ConfigServiceListenerImpl* configServiceListener = NULL;
 static ajn::services::ConfigService* configService = NULL;
+static SrpKeyXListener* keyListener = NULL;
 const string CONF_FILE = "/etc/xmppconn/xmppconn.conf";
 static string s_Server = "xmpp.chariot.global";
 static string s_ServiceName = "muc";
@@ -585,6 +587,9 @@ int main(int argc, char** argv)
     }
     conf_file.close();
 
+    keyListener = new SrpKeyXListener();
+    keyListener->setPassCode("00000");
+
     s_Bus = new BusAttachment("XMPPConnector", true);
 
     // Set up bus attachment
@@ -614,6 +619,8 @@ int main(int argc, char** argv)
 
     s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
     s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
+
+    status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
 
 
     configDataStore = new ConfigDataStore("/home/jorge/workspace/xmppconn/xmppconn_muc.conf","/home/jorge/workspace/xmppconn/xmppconn_muc.conf");
@@ -683,8 +690,6 @@ int main(int argc, char** argv)
 
     MyBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
     status = s_Bus->RegisterBusObject(busObject);
-
-    //status = configService->AddInterface(*iface, BusObject::ANNOUNCED);
 
     status = configService->Register();
     if(status != ER_OK) {

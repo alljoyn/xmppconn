@@ -59,7 +59,7 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
     MsgArg value; 
     std::map<std::string,std::string> configMap = configParser->GetConfigMap();
     for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        value.Set("s", it->second);
+        value.Set("s", it->second.c_str());
         if(it->first == "Port"){
             atoi(it->second.c_str());
         }
