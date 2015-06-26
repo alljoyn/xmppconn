@@ -19,6 +19,7 @@
 #include "app/ConfigDataStore.h"
 #include "app/ConfigServiceListenerImpl.h"
 #include "common/xmppconnutil.h"
+#include "common/CommonBusListener.h"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -60,6 +61,7 @@ using std::map;
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
 static AboutObj* aboutObj = NULL;
+static CommonBusListener* busListener = NULL;
 static ConfigDataStore* configDataStore = NULL;
 static ConfigServiceListenerImpl* configServiceListener = NULL;
 static ajn::services::ConfigService* configService = NULL;
@@ -72,6 +74,10 @@ static string s_ChatRoom;
 static string s_Resource;
 static string s_Roster;
 static bool s_Compress = true;
+
+static void RandomThing(){
+    
+}
 
 static inline string &ltrim(string &s) {
         s.erase(s.begin(), find_if(s.begin(), s.end(), std::not1(ptr_fun<int, int>(isspace))));
@@ -101,10 +107,6 @@ static inline vector<string> split(const string &s, char delim) {
     split(s, delim, elems);
     return elems;
 }
-
-class MySessionListener : public SessionPortListener {
-
-};
 
 class MyBusObject : public BusObject {
   public:
@@ -623,18 +625,21 @@ int main(int argc, char** argv)
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
     ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
     ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
-    s_Conn->AddSessionPortMatch("org.alljoyn.Config.Chariot.Xmpp", 900);
+    //s_Conn->AddSessionPortMatch("org.alljoyn.Config.Chariot.Xmpp", 900);
     if (!aboutService) {
         return ER_BUS_NOT_ALLOWED;
     }
 
-    MySessionListener* busListener = new MySessionListener();
+    busListener = new CommonBusListener(s_Bus, RandomThing);
 
     TransportMask transportMask = TRANSPORT_ANY;
     SessionPort sp = 900;
     SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, transportMask);
 
-    status = s_Bus->BindSessionPort(sp, opts, *dynamic_cast<SessionPortListener*>(busListener));
+    busListener->setSessionPort(900);
+
+    s_Bus->RegisterBusListener(*busListener);
+    status = s_Bus->BindSessionPort(sp, opts, *busListener);
     if (status != ER_OK) {
         return status;
     }
@@ -678,6 +683,8 @@ int main(int argc, char** argv)
 
     MyBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
     status = s_Bus->RegisterBusObject(busObject);
+
+    //status = configService->AddInterface(*iface, BusObject::ANNOUNCED);
 
     status = configService->Register();
     if(status != ER_OK) {
