@@ -113,6 +113,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         status = SetField(name, *(const_cast<MsgArg*>(value)), languageTag);
 
     if (status == ER_OK) {
+        std::cout << "Setting config file with "<< chval << std::endl;
         configParser->SetField(name, chval);
         MsgArg value;
         value.Set("s", chval);

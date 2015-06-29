@@ -392,8 +392,6 @@ int main(int argc, char** argv)
     signal(SIGINT, SigIntHandler);
 
     // Read in the configuration file
-    util::_dbglogging = true;
-    util::_verboselogging = true;
     ifstream conf_file(CONF_FILE.c_str());
     if ( !conf_file.is_open() )
     {
@@ -414,6 +412,24 @@ int main(int argc, char** argv)
     s_Roster = configParser->GetField("Roster");
     s_ChatRoom = configParser->GetField("Room");
     s_Resource = configParser->GetField("Resource");
+
+    istringstream(configParser->GetField("Compress")) >> s_Compress;
+
+    string verbosity = configParser->GetField("Verbosity");
+
+    if(verbosity == "0"){
+        util::_dbglogging = false;
+        util::_verboselogging = false;
+
+    }
+    else if( verbosity == "1" ){
+        util::_dbglogging = true;
+        util::_verboselogging = false;
+    }
+    else{
+        util::_dbglogging = true;
+        util::_verboselogging = true;
+    }
 
     keyListener = new SrpKeyXListener();
     keyListener->setPassCode("00000");
@@ -437,13 +453,13 @@ int main(int argc, char** argv)
 
     // Create our XMPP connector
     /* TODO: Support multiple items in roster */
-    
+
     s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
-                                              getPassword(), 
-                                              getRoster(),
-                                              getChatRoom(), 
-                                              getResource(), 
-                                              1);
+            getPassword(), 
+            getRoster(),
+            getChatRoom(), 
+            getResource(), 
+            s_Compress);
     if(ER_OK != s_Conn->Init())
     {
         cout << "Could not initialize XMPPConnector" << endl;

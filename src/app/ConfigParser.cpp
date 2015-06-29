@@ -1,7 +1,7 @@
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
 #include "rapidjson/document.h"
-#include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/filewritestream.h"
@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <fstream>
 #include <sstream>
@@ -68,7 +69,7 @@ string ConfigParser::GetField(const char* field)
     errors.push_back(err.str());
     fclose(fp);
 }
-int ConfigParser::SetField(const char* field, const char* value)
+int ConfigParser::SetField(const char* field, char* value)
 {
     stringstream err;
     FILE* fp = fopen(configPath, "rwb");
@@ -85,6 +86,8 @@ int ConfigParser::SetField(const char* field, const char* value)
     Document d;
     d.ParseStream(configStream);
 
+    std::cout << value << std::endl;
+
     if(!d.HasMember(field)){
         fclose(fp);
         err << "Could not set field " << field << "! NOT FOUND";
@@ -93,12 +96,20 @@ int ConfigParser::SetField(const char* field, const char* value)
 
     Value& tmp = d[field];
 
+
     char writeBuffer[65536];
     FileWriteStream configWriteStream(fp, writeBuffer, sizeof(writeBuffer));
-    Writer<FileWriteStream> writer(configWriteStream);
+    PrettyWriter<FileWriteStream> writer(configWriteStream);
 
-    tmp[field].SetString(value, sizeof(field)/sizeof(field[0]), d.GetAllocator());
+    std::cout << strlen(value) << std::endl;
+
+    tmp.SetString(value, strlen(value));
+
     d.Accept(writer);
+
+    std::ofstream of(configPath);
+
+    of << writeBuffer;
 
     fclose(fp);
 }
