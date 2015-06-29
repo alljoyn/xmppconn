@@ -413,6 +413,7 @@ int main(int argc, char** argv)
     s_Password = configParser->GetField("Password");
     s_Roster = configParser->GetField("Roster");
     s_ChatRoom = configParser->GetField("Room");
+    s_Resource = configParser->GetField("Resource");
 
     keyListener = new SrpKeyXListener();
     keyListener->setPassCode("00000");
@@ -441,7 +442,7 @@ int main(int argc, char** argv)
                                               getPassword(), 
                                               getRoster(),
                                               getChatRoom(), 
-                                              "test-controller",
+                                              getResource(), 
                                               1);
     if(ER_OK != s_Conn->Init())
     {
