@@ -1,6 +1,6 @@
 CC        := g++
 LD        := g++
-CFLAGS    := -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX -g3 -g
+CFLAGS    := -std=c++98 -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX -g3 -g
 #CFLAGS    := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
 #CXXFLAGS  := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
 
@@ -24,7 +24,7 @@ $1/%.o: %.cpp
 	$(CC) $(CFLAGS) $(INCLUDES) -c $$< -o $$@
 endef
 
-LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lresolv -lstdc++ -lpthread -lrt -lz
+LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lexpat -lssl -lcrypto -lresolv -lstdc++ -lpthread -lrt -lz -lgcc_s -lc
 
 ifdef RAPIDJSON_PATH
     INCLUDES += -I$(RAPIDJSON_PATH)
@@ -33,8 +33,6 @@ endif
 ifdef ALLJOYN_DISTDIR
   INCLUDES += -I$(ALLJOYN_DISTDIR)/cpp/inc -I$(ALLJOYN_DISTDIR)/about/inc -I$(ALLJOYN_DISTDIR)/notification/inc -I$(ALLJOYN_DISTDIR)/services_common/inc -I$(ALLJOYN_DISTDIR)/gatewayConnector/inc -I$(ALLJOYN_DISTDIR)/gatewayMgmtApp/inc -I$(ALLJOYN_DISTDIR)/config/inc
   LDFLAGS += -L$(ALLJOYN_DISTDIR)/cpp/lib -L$(ALLJOYN_DISTDIR)/about/lib -L$(ALLJOYN_DISTDIR)/notification/lib -L$(ALLJOYN_DISTDIR)/services_common/lib -L$(ALLJOYN_DISTDIR)/gatewayConnector/lib -L$(ALLJOYN_DISTDIR)/gatewayMgmtApp/lib -L$(ALLJOYN_DISTDIR)/config/lib
-else
-  $(error ALLJOYN_DISTDIR is not set. Please see README.md for more information)
 endif
 
 .PHONY: all checkdirs clean
