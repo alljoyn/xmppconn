@@ -21,6 +21,7 @@
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
 #include "app/SrpKeyXListener.h"
+//#include "app/ConfigParser.cpp"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -77,7 +78,8 @@ static string s_Resource;
 static string s_Roster;
 static bool s_Compress = true;
 
-static void RandomThing(){
+
+static void simpleCallback(){
     
 }
 
@@ -110,9 +112,9 @@ static inline vector<string> split(const string &s, char delim) {
     return elems;
 }
 
-class MyBusObject : public BusObject {
+class SimpleBusObject : public BusObject {
   public:
-    MyBusObject(BusAttachment& bus, const char* path)
+    SimpleBusObject(BusAttachment& bus, const char* path)
         : BusObject(path) {
         QStatus status;
         const InterfaceDescription* iface = bus.GetInterface("org.alljoyn.Config.Chariot.Xmpp");
@@ -124,12 +126,7 @@ class MyBusObject : public BusObject {
         if (status != ER_OK) {
             printf("Failed to add %s interface to the BusObject\n", "org.alljoyn.Config.Chariot.Xmpp");
         }
-
-        /* Register the method handlers with the object */
     }
-
-    // Respond to remote method call `Echo` by returning the string back to the
-    // sender.
 };
 class SimplePropertyStore :
     public services::PropertyStore
@@ -401,191 +398,14 @@ int main(int argc, char** argv)
         cerr << "Could not open " << CONF_FILE << "!" << endl;
         exit(1);
     }
-    string line;
-    while ( getline( conf_file, line ) )
-    {
-        vector<string> tokens = split(line, '=');
-        if ( tokens.size() > 0 && trim(tokens[0]) == "SERVER" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_Server = trim(tokens[1]);
-            }
-            if ( s_Server.empty() )
-            {
-                cerr << "SERVER cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "CHATROOM" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_ChatRoom = trim(tokens[1]);
-            }
-            if ( s_ChatRoom.empty() )
-            {
-                cerr << "CHATROOM cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "USER" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_User = trim(tokens[1]);
-            }
-            if ( s_User.empty() )
-            {
-                cerr << "USER cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "PASSWORD" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_Password = trim(tokens[1]);
-            }
-            if ( s_Password.empty() )
-            {
-                cerr << "PASSWORD cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "RESOURCE" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_Resource = trim(tokens[1]);
-            }
-            if ( s_Resource.empty() )
-            {
-                cerr << "RESOURCE cannot be specified as a blank value." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "ROSTER" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                s_Roster = trim(tokens[1]);
-            }
-            if ( s_Roster.empty() )
-            {
-                cerr << "ROSTER is empty." << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "COMPRESS" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            if ( tokens.size() > 1 )
-            {
-                int compress = atoi(trim(tokens[1]).c_str());
-                if ( 0 == compress )
-                {
-                    s_Compress = false;
-                }
-                else
-                {
-                    s_Compress = true;
-                }
-            }
-            else
-            {
-                cerr << "Not enough tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-        }
-        else if ( tokens.size() > 0 && trim(tokens[0]) == "VERBOSITY" )
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-            if ( tokens.size() > 1 )
-            {
-                int verbosity = atoi(trim(tokens[1]).c_str());
-                if ( 0 == verbosity )
-                {
-                    util::_dbglogging = false;
-                    util::_verboselogging = false;
-                }
-                else if ( 1 == verbosity )
-                {
-                    util::_dbglogging = true;
-                    util::_verboselogging = false;
-                }
-                else
-                {
-                    util::_dbglogging = true;
-                    util::_verboselogging = true;
-                }
-            }
-            else
-            {
-                cerr << "Not enough tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-                exit(1);
-            }
-        }
-        else
-        {
-            if ( tokens.size() > 2 )
-            {
-                cerr << "Too many tokens in line: " << endl << line << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-            else if ( tokens.size() > 0 )
-            {
-                cerr << "Found unknown configuration parameter: " << tokens[0] << endl;
-                cerr << "Please fix the configuration file " << CONF_FILE << endl;
-            }
-        }
-    }
     conf_file.close();
+
+    ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
+    if(!configParser->isValidConfig()){
+       cout << "Error parsing Config File: Invalid format" << endl;
+       cleanup();
+       return 1;
+    }
 
     keyListener = new SrpKeyXListener();
     keyListener->setPassCode("00000");
@@ -609,7 +429,12 @@ int main(int argc, char** argv)
 
     // Create our XMPP connector
     /* TODO: Support multiple items in roster */
-    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(), getPassword(), getRoster(), getChatRoom(), getResource(), s_Compress);
+    s_Conn = new XMPPConnector(s_Bus, "XMPP", configParser->GetField("UserJID"),
+                                              configParser->GetField("Password"),
+                                              configParser->GetField("Roster"),
+                                              configParser->GetField("Room"),
+                                              "test-controller",
+                                              0);
     if(ER_OK != s_Conn->Init())
     {
         cout << "Could not initialize XMPPConnector" << endl;
@@ -623,7 +448,7 @@ int main(int argc, char** argv)
     status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
 
 
-    configDataStore = new ConfigDataStore("/home/jorge/workspace/xmppconn/xmppconn_muc.conf","/home/jorge/workspace/xmppconn/xmppconn_muc.conf");
+    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn.conf","/etc/xmppconn/xmppconn.conf");
     configDataStore->Initialize();
 
 
@@ -637,7 +462,7 @@ int main(int argc, char** argv)
         return ER_BUS_NOT_ALLOWED;
     }
 
-    busListener = new CommonBusListener(s_Bus, RandomThing);
+    busListener = new CommonBusListener(s_Bus, simpleCallback);
 
     TransportMask transportMask = TRANSPORT_ANY;
     SessionPort sp = 900;
@@ -688,7 +513,7 @@ int main(int argc, char** argv)
     status = s_Bus->CreateInterfacesFromXml(interface.c_str());
     const InterfaceDescription* iface = s_Bus->GetInterface("org.alljoyn.Config.Chariot.Xmpp");  
 
-    MyBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
+    SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
     status = s_Bus->RegisterBusObject(busObject);
 
     status = configService->Register();
