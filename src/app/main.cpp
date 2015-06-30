@@ -125,7 +125,7 @@ class SimpleBusObject : public BusObject {
         // should be announced
         status = AddInterface(*iface, ANNOUNCED);
         if (status != ER_OK) {
-            printf("Failed to add %s interface to the BusObject\n", ifaceName);
+            printf("Failed to add %s interface to the BusObject\n", ifaceName.c_str());
         }
     }
 };
