@@ -21,8 +21,8 @@
 using namespace ajn;
 using namespace services;
 
-ConfigServiceListenerImpl::ConfigServiceListenerImpl(ConfigDataStore& store, BusAttachment& bus) :
-    ConfigService::Listener(), m_ConfigDataStore(&store), m_Bus(&bus)
+ConfigServiceListenerImpl::ConfigServiceListenerImpl(ConfigDataStore& store, BusAttachment& bus, XMPPConnector* conn, CommonBusListener* busListener) :
+    ConfigService::Listener(), m_ConfigDataStore(&store), m_Bus(&bus), m_xmppConn(conn), m_BusListener(busListener)
 {
 }
 
@@ -37,7 +37,7 @@ QStatus ConfigServiceListenerImpl::FactoryReset()
     QStatus status = ER_OK;
     std::cout << "FactoryReset has been called!!!" << std::endl;
     m_ConfigDataStore->FactoryReset();
-    std::cout << "Clearing Key Store" << std::endl;
+    std::cout << "Clearing Key Store : FactoryReset" << std::endl;
     m_Bus->ClearKeyStore();
 
     AboutObjApi* aboutObjApi = AboutObjApi::getInstance();
@@ -61,15 +61,14 @@ QStatus ConfigServiceListenerImpl::SetPassphrase(const char* daemonRealm, size_t
     m_Bus->ClearKeyStore();
     m_Bus->EnableConcurrentCallbacks();
 
-    /*std::vector<SessionId> sessionIds = m_BusListener->getSessionIds();
+    std::vector<SessionId> sessionIds = m_BusListener->getSessionIds();
     for (size_t i = 0; i < sessionIds.size(); i++) {
         if (sessionIds[i] == sessionId) {
             continue;
         }
         m_Bus->LeaveSession(sessionIds[i]);
         std::cout << "Leaving session with id: " << sessionIds[i];
-    }*/
-    //m_ConfigDataStore->write();
+    }
     return ER_OK;
 }
 

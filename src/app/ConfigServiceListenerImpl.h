@@ -19,10 +19,12 @@
 
 #include <alljoyn/config/ConfigService.h>
 #include "ConfigDataStore.h"
+#include "app/XMPPConnector.h"
+#include "common/CommonBusListener.h"
 
 class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
   public:
-    ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus);
+    ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, XMPPConnector* conn, CommonBusListener* busListener);
     virtual QStatus Restart();
     virtual QStatus FactoryReset();
     virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
@@ -30,6 +32,8 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
   private:
     ConfigDataStore* m_ConfigDataStore;
     ajn::BusAttachment* m_Bus;
+    XMPPConnector* m_xmppConn;
+    CommonBusListener* m_BusListener;
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <alljoyn/config/AboutDataStoreInterface.h>
+#include <alljoyn/BusAttachment.h>
 
 class ConfigDataStore : public AboutDataStoreInterface {
   public:
@@ -15,7 +16,6 @@ class ConfigDataStore : public AboutDataStoreInterface {
     virtual QStatus ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all);
     virtual QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value);
     virtual QStatus Delete(const char* name, const char* languageTag);
-    void write();
     void Initialize(qcc::String deviceId = qcc::String(), qcc::String appId = qcc::String());
   private:
     bool m_IsInitialized;

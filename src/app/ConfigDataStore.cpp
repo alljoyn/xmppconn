@@ -1,16 +1,19 @@
 #include "app/ConfigDataStore.h"
+
 #include <alljoyn/config/AboutDataStoreInterface.h>
 #include <alljoyn/about/AboutServiceApi.h>
 #include <alljoyn/AboutData.h>
+#include <alljoyn/services_common/GuidUtil.h>
+
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <sys/stat.h>
-#include <alljoyn/services_common/GuidUtil.h>
 
 using namespace ajn;
 using namespace services;
+
 
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile) :
     AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile))
@@ -19,13 +22,14 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
 
-    SetNewFieldDetails("Server",      EMPTY_MASK, "s");
-    SetNewFieldDetails("Port",        EMPTY_MASK, "i");
-    SetNewFieldDetails("RoomJID",     EMPTY_MASK, "s");
-    SetNewFieldDetails("UserJID",     EMPTY_MASK, "s");
-    SetNewFieldDetails("UserPassword",EMPTY_MASK, "s");
-    SetNewFieldDetails("Roster",      EMPTY_MASK, "s");
-    SetNewFieldDetails("Serial",      EMPTY_MASK, "s");
+    SetNewFieldDetails("Server",       REQUIRED,   "s");
+    SetNewFieldDetails("Port",         EMPTY_MASK, "i");
+    SetNewFieldDetails("RoomJID",      EMPTY_MASK, "s");
+    SetNewFieldDetails("UserJID",      REQUIRED,   "s");
+    SetNewFieldDetails("Password",     REQUIRED,   "s");
+    SetNewFieldDetails("Roster",       REQUIRED,   "s");
+    SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
+    SetNewFieldDetails("ProductID",    REQUIRED,   "s");
 
 
     uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
@@ -59,20 +63,28 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
     MsgArg value; 
     std::map<std::string,std::string> configMap = configParser->GetConfigMap();
     for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        value.Set("s", it->second.c_str());
         if(it->first == "Port"){
-            atoi(it->second.c_str());
+            value.Set("i", atoi(it->second.c_str()));
         }
-            this->SetField(it->first.c_str(), value);
+        else if(it->first == "Password"){
+            value.Set("s", "******");
+        }
+        else {
+            value.Set("s", it->second.c_str());
+        }
+        this->SetField(it->first.c_str(), value);
     }
 
     m_IsInitialized = true;
     std::cout << "ConfigDataStore::Initialize End" << std::endl;
 }
 
+
 void ConfigDataStore::FactoryReset()
 {
     std::cout << "ConfigDataStore::FactoryReset" << std::endl;
+    std::cout << "Factory File: " << m_factoryConfigFileName << std::endl;
+    std::cout << "Config File: " << m_configFileName << std::endl;
 
     m_IsInitialized = false;
 
@@ -98,6 +110,9 @@ QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter
     QCC_UNUSED(filter);
     std::cout << "ConfigDataStore::ReadAll" << std::endl;
     QStatus status = GetAboutData(&all, languageTag);
+
+    ///MsgArg value = all.GetElement("{sv}", "Password");
+    //value.
     std::cout << "GetAboutData status = " << QCC_StatusText(status) << std::endl;
     return status;
 }
@@ -109,11 +124,11 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
     QStatus status = ER_INVALID_VALUE;
     char* chval = NULL;
     status = value->Get("s", &chval);
-    if (status == ER_OK)
-        status = SetField(name, *(const_cast<MsgArg*>(value)), languageTag);
+    /*if (status == ER_OK)
+        status = SetField(name, *(const_cast<MsgArg*>(value)), languageTag);*/
 
     if (status == ER_OK) {
-        std::cout << "Setting config file with "<< chval << std::endl;
+        std::cout << "Setting config file with " << chval << std::endl;
         configParser->SetField(name, chval);
         MsgArg value;
         value.Set("s", chval);
@@ -125,39 +140,39 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             std::cout << "Announce status " << QCC_StatusText(status) << std::endl;
         }
     }
+    std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
+    if (configFile) {
+        std::string str((std::istreambuf_iterator<char>(configFile)),
+                std::istreambuf_iterator<char>());
+        std::cout << "Contains:" << std::endl << str << std::endl;
+    }
 
     return status;
 }
 
 QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 {
+    ConfigParser* factoryParser = new ConfigParser(m_factoryConfigFileName.c_str());
     std::cout << "ConfigDataStore::Delete(" << name << ", " << languageTag << ")" << std::endl;
     QStatus status = ER_INVALID_VALUE;
 
-    ajn::AboutData factorySettings("en");
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
     if (configFile) {
         std::string str((std::istreambuf_iterator<char>(configFile)),
                 std::istreambuf_iterator<char>());
         std::cout << "Contains:" << std::endl << str << std::endl;
         QStatus status;
-        status = factorySettings.CreateFromXml(qcc::String(str.c_str()));
-
-        if (status != ER_OK) {
-            std::cout << "ConfigDataStore::Initialize ERROR" << std::endl;
-            return status;
-        }
     }
 
-    char* tmp = NULL;
+    char* chval = NULL;
     MsgArg* value = new MsgArg;
-    status = factorySettings.GetField(name, value, languageTag);
+    status = this->GetField(name, value, languageTag);
     if (status == ER_OK) {
-        //status = SetSupportUrl(url);
-    }
+        std::string tmp = factoryParser->GetField(name);
+        status = value->Set("s", tmp.c_str());
+        status = this->SetField(name, *value, languageTag);
 
-    if (status == ER_OK) {
-        configParser->SetField(name, tmp);
+        configParser->SetField(name, tmp.c_str());
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {

@@ -18,6 +18,10 @@ using namespace std;
 using namespace util::str;
 using namespace rapidjson;
 
+// Possible approach to validation
+// Map with keys to all possible fields with
+// values of valid regex.
+
 ConfigParser::ConfigParser( const char* filepath )
 {
     // Ensure that we can open our config file
@@ -50,7 +54,7 @@ string ConfigParser::GetField(const char* field)
     if(!fp){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return ""; 
     }
 
     char readBuffer[65536];
@@ -68,8 +72,9 @@ string ConfigParser::GetField(const char* field)
     err << "Could not find field " << field << "!";
     errors.push_back(err.str());
     fclose(fp);
+    return "";
 }
-int ConfigParser::SetField(const char* field, char* value)
+int ConfigParser::SetField(const char* field, const char* value)
 {
     stringstream err;
     FILE* fp = fopen(configPath, "rwb");
@@ -161,7 +166,7 @@ bool ConfigParser::isValidConfig(){
 
     //TODO: Checker for valid XMPP Conf file format
     for(map<string, string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        if(it->first == "Sever"){
+        if(it->first == "Server"){
 
         }
         else if(it->first == "Port"){
@@ -179,8 +184,24 @@ bool ConfigParser::isValidConfig(){
         else if(it->first == "Roster"){
 
         }
-        else{
+        else if(it->first == "Compress"){
+            
+        }
+        else if(it->first == "Verbosity"){
 
+        }
+        else if(it->first == "Resource"){
+            
+        }
+        else if(it->first == "ProductID"){
+            
+        }
+        else if(it->first == "SerialNumber"){
+
+        }
+        else{
+            std::cout << "Invalid Field Found: " << it->first << std::endl;
+            return false;
         }
     }
     return true;
