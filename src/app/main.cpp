@@ -77,6 +77,7 @@ static string s_ChatRoom;
 static string s_Resource;
 static string s_Roster;
 static bool s_Compress = true;
+static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 
 
 static void simpleCallback(){
@@ -117,14 +118,14 @@ class SimpleBusObject : public BusObject {
     SimpleBusObject(BusAttachment& bus, const char* path)
         : BusObject(path) {
         QStatus status;
-        const InterfaceDescription* iface = bus.GetInterface("org.alljoyn.Config.Chariot.Xmpp");
+        const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
         assert(iface != NULL);
 
         // Here the value ANNOUNCED tells AllJoyn that this interface
         // should be announced
         status = AddInterface(*iface, ANNOUNCED);
         if (status != ER_OK) {
-            printf("Failed to add %s interface to the BusObject\n", "org.alljoyn.Config.Chariot.Xmpp");
+            printf("Failed to add %s interface to the BusObject\n", ifaceName);
         }
     }
 };
@@ -413,7 +414,11 @@ int main(int argc, char** argv)
     s_ChatRoom = configParser->GetField("Room");
     s_Resource = configParser->GetField("Resource");
 
-    istringstream(configParser->GetField("Compress")) >> s_Compress;
+    string tmp = configParser->GetField("Compress");
+    if(tmp != "")
+        istringstream(tmp) >> s_Compress;
+    else
+        s_Compress = 0;
 
     string verbosity = configParser->GetField("Verbosity");
 
@@ -431,8 +436,10 @@ int main(int argc, char** argv)
         util::_verboselogging = true;
     }
 
+    //ifaceName += configParser->GetField("ProductID") + "-" + configParser->GetField("SerialNumber");
+
     keyListener = new SrpKeyXListener();
-    keyListener->setPassCode("00000");
+    keyListener->setPassCode("000000");
 
     s_Bus = new BusAttachment("XMPPConnector", true);
 
@@ -460,6 +467,7 @@ int main(int argc, char** argv)
             getChatRoom(), 
             getResource(), 
             s_Compress);
+
     if(ER_OK != s_Conn->Init())
     {
         cout << "Could not initialize XMPPConnector" << endl;
@@ -473,7 +481,7 @@ int main(int argc, char** argv)
     status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
 
 
-    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn.conf","/etc/xmppconn/xmppconn.conf");
+    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf","/etc/xmppconn/xmppconn.conf");
     configDataStore->Initialize();
 
 
@@ -503,12 +511,12 @@ int main(int argc, char** argv)
 
     aboutService->SetPort(900);
 
-    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus);
+    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, s_Conn, busListener);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
     qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
         " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
-        "<interface name='org.alljoyn.Config.Chariot.Xmpp'>"
+        "<interface name='" + qcc::String(ifaceName.c_str()) + "'>"
         "<property name='Version' type='q' access='read'/>"
         "<method name='FactoryReset'>"
         "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
@@ -533,10 +541,10 @@ int main(int argc, char** argv)
         "<arg name='fieldList' type='as' direction='in'/>"
         "</method>"
         "</interface>"
-        "</node> ";
+        "</node>";
 
     status = s_Bus->CreateInterfacesFromXml(interface.c_str());
-    const InterfaceDescription* iface = s_Bus->GetInterface("org.alljoyn.Config.Chariot.Xmpp");  
+    const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
 
     SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
     status = s_Bus->RegisterBusObject(busObject);

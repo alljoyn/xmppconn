@@ -13,7 +13,7 @@ class ConfigParser
         ~ConfigParser();
         std::vector<std::string> GetErrors() const;
         std::string GetField(const char* field);
-        int SetField(const char* field, char* value);
+        int SetField(const char* field, const char* value);
         std::map<std::string, std::string> GetConfigMap();
         bool isValidConfig();
     private:
