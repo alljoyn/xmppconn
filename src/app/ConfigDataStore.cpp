@@ -14,8 +14,8 @@
 using namespace ajn;
 using namespace services;
 
-ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile) :
-    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile))
+ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, void(*func)()) :
+    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile)), restartConn(func)
 {
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
@@ -57,8 +57,7 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
         if(it->first == "Port"){
             value.Set("i", atoi(it->second.c_str()));
         }
-        else if(it->first == "Password"){
-            value.Set("s", "******");
+        else if(it->first == "Password"){ value.Set("s", "******");
         }
         else {
             value.Set("s", it->second.c_str());
@@ -85,6 +84,7 @@ void ConfigDataStore::FactoryReset()
     configFileWrite.close();
 
     Initialize();
+    restartConn();
 }
 
 ConfigDataStore::~ConfigDataStore()
@@ -122,7 +122,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         std::string str((std::istreambuf_iterator<char>(configFile)),
                 std::istreambuf_iterator<char>());
     }
-
+    restartConn();
     return status;
 }
 
@@ -148,6 +148,7 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
             status = aboutObjApi->Announce();
         }
     }
+    restartConn();
     return status;
 }
 

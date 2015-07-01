@@ -472,7 +472,8 @@ int main(int argc, char** argv)
 
 
     configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
-                                          "/etc/xmppconn/xmppconn.conf");
+                                          "/etc/xmppconn/xmppconn.conf",
+                                          onRestart);
     configDataStore->Initialize();
 
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
