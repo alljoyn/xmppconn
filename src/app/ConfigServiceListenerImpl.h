@@ -24,7 +24,7 @@
 
 class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
   public:
-    ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, XMPPConnector* conn, CommonBusListener* busListener);
+    ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, CommonBusListener* busListener, void(*func)());
     virtual QStatus Restart();
     virtual QStatus FactoryReset();
     virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
@@ -32,8 +32,8 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
   private:
     ConfigDataStore* m_ConfigDataStore;
     ajn::BusAttachment* m_Bus;
-    XMPPConnector* m_xmppConn;
     CommonBusListener* m_BusListener;
+    void (*m_onRestartCallback)();
     void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 

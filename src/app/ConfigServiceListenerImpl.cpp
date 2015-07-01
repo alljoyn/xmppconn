@@ -21,14 +21,15 @@
 using namespace ajn;
 using namespace services;
 
-ConfigServiceListenerImpl::ConfigServiceListenerImpl(ConfigDataStore& store, BusAttachment& bus, XMPPConnector* conn, CommonBusListener* busListener) :
-    ConfigService::Listener(), m_ConfigDataStore(&store), m_Bus(&bus), m_xmppConn(conn), m_BusListener(busListener)
+ConfigServiceListenerImpl::ConfigServiceListenerImpl(ConfigDataStore& store, BusAttachment& bus, CommonBusListener* busListener, void(*func)()) :
+    ConfigService::Listener(), m_ConfigDataStore(&store), m_Bus(&bus), m_BusListener(busListener), m_onRestartCallback(func)
 {
 }
 
 QStatus ConfigServiceListenerImpl::Restart()
 {
     std::cout << "Restart has been called !!!" << std::endl;
+    m_onRestartCallback();
     return ER_OK;
 }
 

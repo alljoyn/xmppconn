@@ -77,11 +77,18 @@ static string s_ChatRoom;
 static string s_Resource;
 static string s_Roster;
 static bool s_Compress = true;
+static bool CONTINUE_ON_RESTART = false;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 
 
 static void simpleCallback(){
     
+}
+static void onRestart(){
+    CONTINUE_ON_RESTART = true;
+    if(s_Conn) s_Conn->Stop();
+    s_Conn->Stop();
+    cout << "RESTART CALLED !!!!" << endl;
 }
 
 static inline string &ltrim(string &s) {
@@ -357,6 +364,7 @@ static void SigIntHandler(int sig)
     {
         s_Conn->Stop();
     }
+    CONTINUE_ON_RESTART = false;
     exit(1);
 }
 
@@ -461,22 +469,6 @@ int main(int argc, char** argv)
     // Create our XMPP connector
     /* TODO: Support multiple items in roster */
 
-    s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
-            getPassword(), 
-            getRoster(),
-            getChatRoom(), 
-            getResource(), 
-            s_Compress);
-
-    if(ER_OK != s_Conn->Init())
-    {
-        cout << "Could not initialize XMPPConnector" << endl;
-        cleanup();
-        return 1;
-    }
-
-    s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
-    s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
 
     status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
 
@@ -511,7 +503,7 @@ int main(int argc, char** argv)
 
     aboutService->SetPort(900);
 
-    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, s_Conn, busListener);
+    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, busListener, onRestart);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
     qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
@@ -569,8 +561,32 @@ int main(int argc, char** argv)
 
     status = aboutService->Announce();
     std::cout << QCC_StatusText(status) << endl;
+    
+    do{
+        s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
+                getPassword(), 
+                getRoster(),
+                getChatRoom(), 
+                getResource(), 
+                s_Compress);
 
-    s_Conn->Start();
+        if(ER_OK != s_Conn->Init())
+        {
+            cout << "Could not initialize XMPPConnector" << endl;
+            cleanup();
+            return 1;
+        }
+
+        s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
+        s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
+        s_Conn->Start();
+
+        if(s_Conn){
+            cout << "Destroying last instance" << endl;
+            delete s_Conn;
+        }
+
+    }while(CONTINUE_ON_RESTART);
 
     cleanup();
 }
