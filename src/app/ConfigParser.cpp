@@ -30,7 +30,7 @@ ConfigParser::ConfigParser( const char* filepath )
     {
         stringstream err;
         err << "Could not open " << filepath << "!";
-	errors.push_back(err.str());
+        errors.push_back(err.str());
         return;
     }
 
@@ -91,8 +91,6 @@ int ConfigParser::SetField(const char* field, const char* value)
     Document d;
     d.ParseStream(configStream);
 
-    std::cout << value << std::endl;
-
     if(!d.HasMember(field)){
         fclose(fp);
         err << "Could not set field " << field << "! NOT FOUND";
@@ -106,14 +104,10 @@ int ConfigParser::SetField(const char* field, const char* value)
     FileWriteStream configWriteStream(fp, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
-    std::cout << strlen(value) << std::endl;
-
     tmp.SetString(value, strlen(value));
-
     d.Accept(writer);
 
     std::ofstream of(configPath);
-
     of << writeBuffer;
 
     fclose(fp);
@@ -138,7 +132,7 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
     d.ParseStream(configStream);
 
     if(!d.IsObject()){
-       return configMap; 
+        return configMap; 
     }
 
 
@@ -185,16 +179,16 @@ bool ConfigParser::isValidConfig(){
 
         }
         else if(it->first == "Compress"){
-            
+
         }
         else if(it->first == "Verbosity"){
 
         }
         else if(it->first == "Resource"){
-            
+
         }
         else if(it->first == "ProductID"){
-            
+
         }
         else if(it->first == "SerialNumber"){
 

@@ -19,13 +19,10 @@
 
 SrpKeyXListener::SrpKeyXListener() : m_PassCode("000000"), m_GetPassCode(0)
 {
-
-
 }
 
 SrpKeyXListener::~SrpKeyXListener()
 {
-
 }
 
 void SrpKeyXListener::setPassCode(qcc::String const& passCode)
@@ -38,10 +35,13 @@ void SrpKeyXListener::setGetPassCode(void (*getPassCode)(qcc::String&))
     m_GetPassCode = getPassCode;
 }
 
-bool SrpKeyXListener::RequestCredentials(const char* authMechanism, const char* authPeer,
-                                         uint16_t authCount, const char* userId, uint16_t credMask, Credentials& creds)
+bool SrpKeyXListener::RequestCredentials(const char* authMechanism,
+                                         const char* authPeer,
+                                         uint16_t authCount,
+                                         const char* userId,
+                                         uint16_t credMask,
+                                         Credentials& creds)
 {
-    std::cout << "RequestCredentials for authenticating " << authPeer << " using mechanism " << authMechanism << std::endl;
     if (strcmp(authMechanism, "ALLJOYN_SRP_KEYX") == 0 || strcmp(authMechanism, "ALLJOYN_PIN_KEYX") == 0 || strcmp(authMechanism, "ALLJOYN_ECDHE_PSK") == 0) {
         if (credMask & AuthListener::CRED_PASSWORD) {
             if (authCount <= 3) {
@@ -49,7 +49,6 @@ bool SrpKeyXListener::RequestCredentials(const char* authMechanism, const char* 
                 if (m_GetPassCode) {
                     m_GetPassCode(passCodeFromGet);
                 }
-                std::cout << "RequestCredentials setPasscode to " << (m_GetPassCode ? passCodeFromGet.c_str() : m_PassCode.c_str()) << std::endl;
                 creds.SetPassword(m_GetPassCode ? passCodeFromGet.c_str() : m_PassCode.c_str());
                 return true;
             } else {

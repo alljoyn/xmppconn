@@ -1,5 +1,5 @@
-#ifndef __CONFIG_PARSER_H_
-#define __CONFIG_PARSER_H_
+#ifndef CONFIG_PARSER_H_
+#define CONFIG_PARSER_H_
 
 #include <string>
 #include <vector>

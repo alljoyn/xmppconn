@@ -1,5 +1,5 @@
-#ifndef ABOUT_DATA_STORE_H_
-#define ABOUT_DATA_STORE_H_
+#ifndef CONFIG_DATA_STORE_H_
+#define CONFIG_DATA_STORE_H_
 
 #include "app/ConfigParser.h"
 #include <stdio.h>

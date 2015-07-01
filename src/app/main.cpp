@@ -21,7 +21,6 @@
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
 #include "app/SrpKeyXListener.h"
-//#include "app/ConfigParser.cpp"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -60,6 +59,8 @@ using std::not1;
 using std::istringstream;
 using std::map;
 
+static bool s_Compress = true;
+static bool CONTINUE_ON_RESTART = false;
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
 static AboutObj* aboutObj = NULL;
@@ -76,130 +77,125 @@ static string s_Password = "test";
 static string s_ChatRoom;
 static string s_Resource;
 static string s_Roster;
-static bool s_Compress = true;
-static bool CONTINUE_ON_RESTART = false;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
+static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+                                    " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
+                                    "<interface name='" + qcc::String(ifaceName.c_str()) + "'>"
+                                    "<property name='Version' type='q' access='read'/>"
+                                    "<method name='FactoryReset'>"
+                                    "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
+                                    "</method>"
+                                    "<method name='Restart'>"
+                                    "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
+                                    "</method>"
+                                    "<method name='SetPasscode'>"
+                                    "<arg name='daemonRealm' type='s' direction='in'/>"
+                                    "<arg name='newPasscode' type='ay' direction='in'/>"
+                                    "</method>"
+                                    "<method name='GetConfigurations'>"
+                                    "<arg name='languageTag' type='s' direction='in'/>"
+                                    "<arg name='configData' type='a{sv}' direction='out'/>"
+                                    "</method>"
+                                    "<method name='UpdateConfigurations'>"
+                                    "<arg name='languageTag' type='s' direction='in'/>"
+                                    "<arg name='configMap' type='a{sv}' direction='in'/>"
+                                    "</method>"
+                                    "<method name='ResetConfigurations'>"
+                                    "<arg name='languageTag' type='s' direction='in'/>"
+                                    "<arg name='fieldList' type='as' direction='in'/>"
+                                    "</method>"
+                                    "</interface>"
+                                    "</node>";
 
-
-static void simpleCallback(){
-    
+static void simpleCallback()
+{
 }
+
 static void onRestart(){
     CONTINUE_ON_RESTART = true;
     if(s_Conn) s_Conn->Stop();
     s_Conn->Stop();
-    cout << "RESTART CALLED !!!!" << endl;
-}
-
-static inline string &ltrim(string &s) {
-        s.erase(s.begin(), find_if(s.begin(), s.end(), std::not1(ptr_fun<int, int>(isspace))));
-        return s;
-}
-
-static inline string &rtrim(string &s) {
-        s.erase(find_if(s.rbegin(), s.rend(), not1(ptr_fun<int, int>(isspace))).base(), s.end());
-        return s;
-}
-
-static inline string &trim(string &s) {
-        return ltrim(rtrim(s));
-}
-
-static inline vector<string> &split(const string &s, char delim, vector<string> &elems) {
-    stringstream ss(s);
-    string item;
-    while (getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-    return elems;
-}
-
-static inline vector<string> split(const string &s, char delim) {
-    vector<string> elems;
-    split(s, delim, elems);
-    return elems;
 }
 
 class SimpleBusObject : public BusObject {
-  public:
-    SimpleBusObject(BusAttachment& bus, const char* path)
-        : BusObject(path) {
-        QStatus status;
-        const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
-        assert(iface != NULL);
+    public:
+        SimpleBusObject(BusAttachment& bus, const char* path)
+            : BusObject(path) {
+                QStatus status;
+                const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
+                assert(iface != NULL);
 
-        // Here the value ANNOUNCED tells AllJoyn that this interface
-        // should be announced
-        status = AddInterface(*iface, ANNOUNCED);
-        if (status != ER_OK) {
-            printf("Failed to add %s interface to the BusObject\n", ifaceName.c_str());
-        }
-    }
+                status = AddInterface(*iface, ANNOUNCED);
+                if (status != ER_OK) {
+                    printf("Failed to add %s interface to the BusObject\n", ifaceName.c_str());
+                }
+            }
 };
+
 class SimplePropertyStore :
     public services::PropertyStore
 {
-public:
-    SimplePropertyStore(
-        MsgArg& allProperties
-        ) :
-        m_AllProperties(allProperties)
+    public:
+        SimplePropertyStore(
+                MsgArg& allProperties
+                ) :
+            m_AllProperties(allProperties)
     {
         m_AllProperties.Stabilize();
     }
 
-    ~SimplePropertyStore()
-    {}
+        ~SimplePropertyStore()
+        {}
 
-    QStatus
-    ReadAll(
-        const char* languageTag,
-        Filter      filter,
-        MsgArg&     all
-        )
-    {
-        all = m_AllProperties;
-        all.Stabilize();
-        return ER_OK;
-    }
+        QStatus
+            ReadAll(
+                    const char* languageTag,
+                    Filter      filter,
+                    MsgArg&     all
+                   )
+            {
+                all = m_AllProperties;
+                all.Stabilize();
+                return ER_OK;
+            }
 
-    QStatus
-    Update(
-        const char*   name,
-        const char*   languageTag,
-        const MsgArg* value
-        )
-    {
-        cout << "UPDATE CALLED" << endl;
-        return ER_NOT_IMPLEMENTED;
-    }
+        QStatus
+            Update(
+                    const char*   name,
+                    const char*   languageTag,
+                    const MsgArg* value
+                  )
+            {
+                cout << "UPDATE CALLED" << endl;
+                return ER_NOT_IMPLEMENTED;
+            }
 
-    QStatus
-    Delete(
-        const char* name,
-        const char* languageTag
-        )
-    {
-        cout << "DELETE CALLED" << endl;
-        return ER_NOT_IMPLEMENTED;
-    }
+        QStatus
+            Delete(
+                    const char* name,
+                    const char* languageTag
+                  )
+            {
+                cout << "DELETE CALLED" << endl;
+                return ER_NOT_IMPLEMENTED;
+            }
 
     private:
-    MsgArg m_AllProperties;
+        MsgArg m_AllProperties;
 };
 
 class AlertReceiver :
     public XMPPConnector::MessageReceiver,
     public SessionPortListener
 {
-public:
-    AlertReceiver(
-        BusAttachment* bus
-        ) :
-        m_bus(bus),
-        m_aboutPropertyStore(NULL),
-        m_notifService(NULL),
-        m_notifSender(NULL)
+    public:
+        AlertReceiver(
+                BusAttachment* bus
+                ) :
+            m_bus(bus),
+            m_aboutPropertyStore(NULL),
+            m_notifService(NULL),
+            m_notifSender(NULL)
     {
         qcc::String deviceid;
         services::GuidUtil::GetInstance()->GetDeviceIdString(&deviceid);
@@ -267,81 +263,81 @@ public:
         m_notifSender = m_notifService->initSend(m_bus, m_aboutPropertyStore);
     }
 
-    ~AlertReceiver()
-    {
-        // TODO: delete stuff
-    }
-
-    bool
-    AcceptSessionJoiner(
-        SessionPort        sessionPort,
-        const char*        joiner,
-        const SessionOpts& opts
-        )
-    {
-        return true;
-    }
-
-    void
-    AlertHandler(
-        const string& from,
-        const string& key,
-        const string& message,
-        void*         userdata
-        )
-    {
-        // Parse the message
-        istringstream msg_stream(message);
-        string token;
-        vector<string> lines;
-        while (getline(msg_stream, token, '\n'))
+        ~AlertReceiver()
         {
-            lines.push_back(token);
-        }
-        map<string,string> alarm_data;
-        for ( vector<string>::iterator it(lines.begin()); lines.end() != it; ++it )
-        {
-            istringstream line_stream(*it);
-            vector<string> tokens;
-            while (getline(line_stream, token, ':'))
-            {
-                tokens.push_back(token);
-            }
-            // Ignore lines with more than one colon
-            if ( tokens.size() == 2 )
-            {
-                // Add the key/value pair
-                alarm_data[tokens.at(0)] = tokens.at(1);
-            }
+            // TODO: delete stuff
         }
 
-        // Send the Description as an AllJoyn Notification
-        if ( alarm_data.end() != alarm_data.find("Description") )
-        {
-            // TODO:
-            cout << "Alarm Description: " << alarm_data.at("Description") << endl;
-            services::NotificationMessageType message_type = services::INFO;
-            services::NotificationText message("en", alarm_data.at("Description").c_str());
-            vector<services::NotificationText> messages;
-            messages.push_back(message);
-            services::Notification notification(message_type, messages);
-            QStatus status = m_notifSender->send(notification, 7200);
-            if (status != ER_OK)
+        bool
+            AcceptSessionJoiner(
+                    SessionPort        sessionPort,
+                    const char*        joiner,
+                    const SessionOpts& opts
+                    )
             {
-                cout << "Failed to send Alarm notification!" << endl;
+                return true;
             }
-            else
-            {
-                cout << "Successfully sent Alarm notification!" << endl;
-            }
-        }
-    }
 
-private:
-    BusAttachment*                 m_bus;
-    SimplePropertyStore*           m_aboutPropertyStore;
-    services::NotificationService* m_notifService;
-    services::NotificationSender*  m_notifSender;
+        void
+            AlertHandler(
+                    const string& from,
+                    const string& key,
+                    const string& message,
+                    void*         userdata
+                    )
+            {
+                // Parse the message
+                istringstream msg_stream(message);
+                string token;
+                vector<string> lines;
+                while (getline(msg_stream, token, '\n'))
+                {
+                    lines.push_back(token);
+                }
+                map<string,string> alarm_data;
+                for ( vector<string>::iterator it(lines.begin()); lines.end() != it; ++it )
+                {
+                    istringstream line_stream(*it);
+                    vector<string> tokens;
+                    while (getline(line_stream, token, ':'))
+                    {
+                        tokens.push_back(token);
+                    }
+                    // Ignore lines with more than one colon
+                    if ( tokens.size() == 2 )
+                    {
+                        // Add the key/value pair
+                        alarm_data[tokens.at(0)] = tokens.at(1);
+                    }
+                }
+
+                // Send the Description as an AllJoyn Notification
+                if ( alarm_data.end() != alarm_data.find("Description") )
+                {
+                    // TODO:
+                    cout << "Alarm Description: " << alarm_data.at("Description") << endl;
+                    services::NotificationMessageType message_type = services::INFO;
+                    services::NotificationText message("en", alarm_data.at("Description").c_str());
+                    vector<services::NotificationText> messages;
+                    messages.push_back(message);
+                    services::Notification notification(message_type, messages);
+                    QStatus status = m_notifSender->send(notification, 7200);
+                    if (status != ER_OK)
+                    {
+                        cout << "Failed to send Alarm notification!" << endl;
+                    }
+                    else
+                    {
+                        cout << "Successfully sent Alarm notification!" << endl;
+                    }
+                }
+            }
+
+    private:
+        BusAttachment*                 m_bus;
+        SimplePropertyStore*           m_aboutPropertyStore;
+        services::NotificationService* m_notifService;
+        services::NotificationSender*  m_notifSender;
 };
 
 void cleanup()
@@ -396,24 +392,13 @@ string getResource()
     return s_Resource;
 }
 
-int main(int argc, char** argv)
-{
-    signal(SIGINT, SigIntHandler);
-
-    // Read in the configuration file
-    ifstream conf_file(CONF_FILE.c_str());
-    if ( !conf_file.is_open() )
-    {
-        cerr << "Could not open " << CONF_FILE << "!" << endl;
-        exit(1);
-    }
-    conf_file.close();
+void getConfigurationFields(){
 
     ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
     if(!configParser->isValidConfig()){
-       cout << "Error parsing Config File: Invalid format" << endl;
-       cleanup();
-       return 1;
+        cout << "Error parsing Config File: Invalid format" << endl;
+        cleanup();
+        exit(1);
     }
 
     s_User = configParser->GetField("UserJID");
@@ -444,6 +429,23 @@ int main(int argc, char** argv)
         util::_verboselogging = true;
     }
 
+    delete configParser;
+
+}
+
+int main(int argc, char** argv)
+{
+    signal(SIGINT, SigIntHandler);
+
+    // Read in the configuration file
+    ifstream conf_file(CONF_FILE.c_str());
+    if ( !conf_file.is_open() )
+    {
+        cerr << "Could not open " << CONF_FILE << "!" << endl;
+        exit(1);
+    }
+    conf_file.close();
+
     //ifaceName += configParser->GetField("ProductID") + "-" + configParser->GetField("SerialNumber");
 
     keyListener = new SrpKeyXListener();
@@ -466,26 +468,17 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // Create our XMPP connector
-    /* TODO: Support multiple items in roster */
-
-
     status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
 
 
-    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf","/etc/xmppconn/xmppconn.conf");
+    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
+                                          "/etc/xmppconn/xmppconn.conf");
     configDataStore->Initialize();
-
-
-    // Check to see if the configDataStore is valid before sending the About Announcement
 
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
     ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
     ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
-    //s_Conn->AddSessionPortMatch("org.alljoyn.Config.Chariot.Xmpp", 900);
-    if (!aboutService) {
-        return ER_BUS_NOT_ALLOWED;
-    }
+    if (!aboutService) return ER_BUS_NOT_ALLOWED;
 
     busListener = new CommonBusListener(s_Bus, simpleCallback);
 
@@ -506,34 +499,6 @@ int main(int argc, char** argv)
     configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, busListener, onRestart);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
-    qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
-        " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
-        "<interface name='" + qcc::String(ifaceName.c_str()) + "'>"
-        "<property name='Version' type='q' access='read'/>"
-        "<method name='FactoryReset'>"
-        "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
-        "</method>"
-        "<method name='Restart'>"
-        "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
-        "</method>"
-        "<method name='SetPasscode'>"
-        "<arg name='daemonRealm' type='s' direction='in'/>"
-        "<arg name='newPasscode' type='ay' direction='in'/>"
-        "</method>"
-        "<method name='GetConfigurations'>"
-        "<arg name='languageTag' type='s' direction='in'/>"
-        "<arg name='configData' type='a{sv}' direction='out'/>"
-        "</method>"
-        "<method name='UpdateConfigurations'>"
-        "<arg name='languageTag' type='s' direction='in'/>"
-        "<arg name='configMap' type='a{sv}' direction='in'/>"
-        "</method>"
-        "<method name='ResetConfigurations'>"
-        "<arg name='languageTag' type='s' direction='in'/>"
-        "<arg name='fieldList' type='as' direction='in'/>"
-        "</method>"
-        "</interface>"
-        "</node>";
 
     status = s_Bus->CreateInterfacesFromXml(interface.c_str());
     const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
@@ -550,7 +515,7 @@ int main(int argc, char** argv)
     if(status != ER_OK) {
         std::cout << "Could not register the ConfigService BusObject" << std::endl;
         cleanup();
-        return 1; //Apropriate at this point?
+        return 1;
     }
 
     ajn::services::AboutObjApi* testService = ajn::services::AboutObjApi::getInstance();
@@ -561,8 +526,9 @@ int main(int argc, char** argv)
 
     status = aboutService->Announce();
     std::cout << QCC_StatusText(status) << endl;
-    
+
     do{
+        getConfigurationFields();
         s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
                 getPassword(), 
                 getRoster(),

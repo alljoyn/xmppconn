@@ -14,22 +14,20 @@
 using namespace ajn;
 using namespace services;
 
-
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile) :
     AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile))
 {
-    std::cout << "ConfigDataStore::AboutDataStore" << std::endl;
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
 
     SetNewFieldDetails("Server",       REQUIRED,   "s");
-    SetNewFieldDetails("Port",         EMPTY_MASK, "i");
-    SetNewFieldDetails("RoomJID",      EMPTY_MASK, "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
     SetNewFieldDetails("Password",     REQUIRED,   "s");
     SetNewFieldDetails("Roster",       REQUIRED,   "s");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
+    SetNewFieldDetails("Port",         EMPTY_MASK, "i");
+    SetNewFieldDetails("Room",         EMPTY_MASK, "s");
 
 
     uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
@@ -40,7 +38,6 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     this->SetDefaultLanguage("en");
     this->SetSupportedLanguage("en");
     this->SetDeviceName("My Device Name");
-    //DeviceId is a string encoded 128bit UUID
     this->SetDeviceId("93c06771-c725-48c2-b1ff-6a2a59d445b8");
     this->SetAppName("Application");
     this->SetManufacturer("Manufacturer");
@@ -54,12 +51,6 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
-    std::cout << "ConfigDataStore::Initialize " << m_configFileName << std::endl;
-    std::ifstream configFile(m_configFileName.c_str(), std::ios::binary);
-    std::string factoryStr((std::istreambuf_iterator<char>(configFile)),
-            std::istreambuf_iterator<char>());
-    std::cout << "Contains:" << std::endl << factoryStr << std::endl;
-
     MsgArg value; 
     std::map<std::string,std::string> configMap = configParser->GetConfigMap();
     for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
@@ -75,17 +66,13 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
         this->SetField(it->first.c_str(), value);
     }
 
+    std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
+    this->SetDeviceId(deviceID.c_str());
     m_IsInitialized = true;
-    std::cout << "ConfigDataStore::Initialize End" << std::endl;
 }
-
 
 void ConfigDataStore::FactoryReset()
 {
-    std::cout << "ConfigDataStore::FactoryReset" << std::endl;
-    std::cout << "Factory File: " << m_factoryConfigFileName << std::endl;
-    std::cout << "Config File: " << m_configFileName << std::endl;
-
     m_IsInitialized = false;
 
     std::ifstream factoryConfigFile(m_factoryConfigFileName.c_str(), std::ios::binary);
@@ -102,49 +89,38 @@ void ConfigDataStore::FactoryReset()
 
 ConfigDataStore::~ConfigDataStore()
 {
-    std::cout << "ConfigDataStore::~AboutDataStore" << std::endl;
+    delete configParser;
 }
 
 QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all)
 {
     QCC_UNUSED(filter);
-    std::cout << "ConfigDataStore::ReadAll" << std::endl;
     QStatus status = GetAboutData(&all, languageTag);
-
-    ///MsgArg value = all.GetElement("{sv}", "Password");
-    //value.
-    std::cout << "GetAboutData status = " << QCC_StatusText(status) << std::endl;
     return status;
 }
 
 QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
 {
-    std::cout << "ConfigDataStore::Update" << " name:" << name << " languageTag:" <<  languageTag << " value:" << value << std::endl;
-
     QStatus status = ER_INVALID_VALUE;
     char* chval = NULL;
     status = value->Get("s", &chval);
-    /*if (status == ER_OK)
-        status = SetField(name, *(const_cast<MsgArg*>(value)), languageTag);*/
 
     if (status == ER_OK) {
-        std::cout << "Setting config file with " << chval << std::endl;
-        configParser->SetField(name, chval);
         MsgArg value;
+
+        configParser->SetField(name, chval);
         value.Set("s", chval);
         this->SetField(name, value);
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {
             status = aboutObjApi->Announce();
-            std::cout << "Announce status " << QCC_StatusText(status) << std::endl;
         }
     }
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
     if (configFile) {
         std::string str((std::istreambuf_iterator<char>(configFile)),
                 std::istreambuf_iterator<char>());
-        std::cout << "Contains:" << std::endl << str << std::endl;
     }
 
     return status;
@@ -153,16 +129,9 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 {
     ConfigParser* factoryParser = new ConfigParser(m_factoryConfigFileName.c_str());
-    std::cout << "ConfigDataStore::Delete(" << name << ", " << languageTag << ")" << std::endl;
     QStatus status = ER_INVALID_VALUE;
 
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
-    if (configFile) {
-        std::string str((std::istreambuf_iterator<char>(configFile)),
-                std::istreambuf_iterator<char>());
-        std::cout << "Contains:" << std::endl << str << std::endl;
-        QStatus status;
-    }
 
     char* chval = NULL;
     MsgArg* value = new MsgArg;
@@ -177,16 +146,13 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {
             status = aboutObjApi->Announce();
-            std::cout << "Announce status " << QCC_StatusText(status) << std::endl;
         }
     }
-
     return status;
 }
 
 const qcc::String& ConfigDataStore::GetConfigFileName()
 {
-    std::cout << "ConfigDataStore::GetConfigFileName" << std::endl;
     return m_configFileName;
 }
 
@@ -200,10 +166,8 @@ QStatus ConfigDataStore::IsLanguageSupported(const char* languageTag)
      * returns this if a language is not supported
      */
     QStatus status = ((QStatus)0x911a);
-    std::cout << "ConfigDataStore::IsLanguageSupported languageTag = " << languageTag << std::endl;
     size_t langNum;
     langNum = GetSupportedLanguages();
-    std::cout << "Number of supported languages: " << langNum << std::endl;
     if (langNum > 0) {
         const char** langs = new const char*[langNum];
         GetSupportedLanguages(langs, langNum);
@@ -215,7 +179,5 @@ QStatus ConfigDataStore::IsLanguageSupported(const char* languageTag)
         }
         delete [] langs;
     }
-
-    std::cout << "Returning " << QCC_StatusText(status) << std::endl;
     return status;
 }
