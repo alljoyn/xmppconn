@@ -51,6 +51,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
+    if(configParser->isConfigValid()){
     MsgArg value; 
     std::map<std::string,std::string> configMap = configParser->GetConfigMap();
     for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
@@ -68,6 +69,7 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
     std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
     this->SetDeviceId(deviceID.c_str());
     m_IsInitialized = true;
+    }
 }
 
 void ConfigDataStore::FactoryReset()

@@ -151,8 +151,9 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
     return configMap;
 }
 
-bool ConfigParser::isValidConfig(){
+bool ConfigParser::isConfigValid(){
     map<string, string> configMap = GetConfigMap();
+    unsigned short foundRequiredCount = 0;
 
     if(configMap.empty()){
         return false;
@@ -161,21 +162,22 @@ bool ConfigParser::isValidConfig(){
     //TODO: Checker for valid XMPP Conf file format
     for(map<string, string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
         if(it->first == "Server"){
+            foundRequiredCount++;
 
         }
         else if(it->first == "Port"){
-
         }
         else if(it->first == "UserJID"){
-
+            foundRequiredCount++;
         }
         else if(it->first == "Room"){
 
         }
         else if(it->first == "Password"){
-
+            foundRequiredCount++;
         }
         else if(it->first == "Roster"){
+            foundRequiredCount++;
 
         }
         else if(it->first == "Compress"){
@@ -185,6 +187,7 @@ bool ConfigParser::isValidConfig(){
 
         }
         else if(it->first == "Resource"){
+            foundRequiredCount++;
 
         }
         else if(it->first == "ProductID"){
@@ -197,6 +200,10 @@ bool ConfigParser::isValidConfig(){
             std::cout << "Invalid Field Found: " << it->first << std::endl;
             return false;
         }
+    }
+
+    if(foundRequiredCount < 5){
+        std::cout << "Missing required fields!" << std::endl;
     }
     return true;
 }

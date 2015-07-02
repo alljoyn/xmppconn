@@ -395,7 +395,7 @@ string getResource()
 void getConfigurationFields(){
 
     ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
-    if(!configParser->isValidConfig()){
+    if(!configParser->isConfigValid()){
         cout << "Error parsing Config File: Invalid format" << endl;
         cleanup();
         exit(1);

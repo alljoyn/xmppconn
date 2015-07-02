@@ -15,7 +15,7 @@ class ConfigParser
         std::string GetField(const char* field);
         int SetField(const char* field, const char* value);
         std::map<std::string, std::string> GetConfigMap();
-        bool isValidConfig();
+        bool isConfigValid();
     private:
         ConfigParser() {} // Private to prevent use
         std::map<std::string, std::string> options;
