@@ -23,7 +23,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
     SetNewFieldDetails("Password",     REQUIRED,   "s");
-    SetNewFieldDetails("Roster",       REQUIRED,   "s");
+    SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
     SetNewFieldDetails("Port",         EMPTY_MASK, "i");
@@ -51,12 +51,19 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
+
     if(configParser->isConfigValid()){
     MsgArg value; 
     std::map<std::string,std::string> configMap = configParser->GetConfigMap();
     for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
         if(it->first == "Port"){
-            value.Set("i", atoi(it->second.c_str()));
+            value.Set("i", configParser->GetPort()); 
+        }
+        else if(it->first == "Roster"){
+            MsgArg arrayValue;
+            char** tmp = configParser->GetRosters();
+            arrayValue.Set("as", sizeof(tmp)/sizeof(tmp[0]), tmp);
+
         }
         else if(it->first == "Password"){ value.Set("s", "******");
         }
@@ -105,20 +112,41 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 {
     QStatus status = ER_INVALID_VALUE;
     char* chval = NULL;
-    status = value->Get("s", &chval);
+    int32_t intVal = 0;
+    if(strcmp(name, "Port") == 0){
+        status = value->Get("i", &intVal);
+        if (status == ER_OK) {
+            MsgArg value;
+            configParser->SetPort(intVal);
+            value.Set("i", &intVal);
+            this->SetField(name, value);
 
-    if (status == ER_OK) {
-        MsgArg value;
-
-        configParser->SetField(name, chval);
-        value.Set("s", chval);
-        this->SetField(name, value);
-
-        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi) {
-            status = aboutObjApi->Announce();
+            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
+            if (aboutObjApi) {
+                status = aboutObjApi->Announce();
+            }
         }
     }
+    else if(strcmp(name, "Roster") == 0){
+        //status = value->Get("as", )
+
+    }
+    else{
+        status = value->Get("s", &chval);
+        if (status == ER_OK) {
+            MsgArg value;
+
+            configParser->SetField(name, chval);
+            value.Set("s", chval);
+            this->SetField(name, value);
+
+            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
+            if (aboutObjApi) {
+                status = aboutObjApi->Announce();
+            }
+        }
+    }
+
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
     if (configFile) {
         std::string str((std::istreambuf_iterator<char>(configFile)),

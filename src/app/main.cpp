@@ -77,6 +77,7 @@ static string s_Password = "test";
 static string s_ChatRoom;
 static string s_Resource;
 static string s_Roster;
+static ConfigParser* configParser = NULL;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
                                     " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
@@ -394,7 +395,6 @@ string getResource()
 
 void getConfigurationFields(){
 
-    ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
     if(!configParser->isConfigValid()){
         cout << "Error parsing Config File: Invalid format" << endl;
         cleanup();
@@ -403,9 +403,13 @@ void getConfigurationFields(){
 
     s_User = configParser->GetField("UserJID");
     s_Password = configParser->GetField("Password");
-    s_Roster = configParser->GetField("Roster");
     s_ChatRoom = configParser->GetField("Room");
     s_Resource = configParser->GetField("Resource");
+
+
+    char** tmpRosters = configParser->GetRosters();
+    s_Roster = tmpRosters[0];
+
 
     string tmp = configParser->GetField("Compress");
     if(tmp != "")
@@ -446,12 +450,20 @@ int main(int argc, char** argv)
     }
     conf_file.close();
 
+    configParser = new ConfigParser(CONF_FILE.c_str());
+    configParser->isConfigValid();
+
     //ifaceName += configParser->GetField("ProductID") + "-" + configParser->GetField("SerialNumber");
 
     keyListener = new SrpKeyXListener();
     keyListener->setPassCode("000000");
 
     s_Bus = new BusAttachment("XMPPConnector", true);
+
+    string s_ProductID = configParser->GetField("ProductID");
+    string s_SerialNumber = configParser->GetField("SerialNumber");
+    string advertiseName = "global.chariot.direct." + s_ProductID + "_" + s_SerialNumber;
+    s_Bus->AdvertiseName("global.chariot.direct", TRANSPORT_ANY);
 
     // Set up bus attachment
     QStatus status = s_Bus->Start();

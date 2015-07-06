@@ -23,4 +23,3 @@ class SrpKeyXListener : public ajn::AuthListener {
 
 #endif
 
-
