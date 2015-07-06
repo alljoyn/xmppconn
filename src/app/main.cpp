@@ -75,6 +75,8 @@ static string s_ServiceName = "muc";
 static string s_User = "test";
 static string s_Password = "test";
 static string s_ChatRoom;
+static string s_ProductID;
+static string s_SerialNumber;
 static vector<string> s_Roster;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
@@ -396,6 +398,8 @@ void getConfigurationFields(){
     s_Password = configParser->GetField("UserPassword");
     s_Roster = configParser->GetRoster();
     s_ChatRoom = configParser->GetField("RoomJID");
+    s_SerialNumber = configParser->GetField("SerialNumber");
+    s_ProductID = configParser->GetField("ProductID");
 
     string tmp = configParser->GetField("Compress");
     if(tmp != "")
@@ -436,12 +440,18 @@ int main(int argc, char** argv)
     }
     conf_file.close();
 
-    //ifaceName += configParser->GetField("ProductID") + "-" + configParser->GetField("SerialNumber");
 
     keyListener = new SrpKeyXListener();
     keyListener->setPassCode("000000");
 
     s_Bus = new BusAttachment("XMPPConnector", true);
+
+    // We need to do this to get our product ID and serial number
+    getConfigurationFields();
+    // Build the interface name so we can advertise it
+    string ifaceName = "global.chariot." + s_ProductID + "_" + s_SerialNumber;
+    // Advertise the connector
+    s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
 
     // Set up bus attachment
     QStatus status = s_Bus->Start();
@@ -520,9 +530,6 @@ int main(int argc, char** argv)
 
     do{
         getConfigurationFields();
-        LOG_RELEASE("JID: %s", getJID().c_str());
-        LOG_RELEASE("Password: %s", getPassword().c_str());
-        LOG_RELEASE("ChatRoom: %s", getChatRoom().c_str());
         s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
                 getPassword(), 
                 getRoster(),
