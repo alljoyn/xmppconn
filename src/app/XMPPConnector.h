@@ -54,14 +54,13 @@ class XMPPConnector : public ajn::gw::GatewayConnector, TransportListener
     friend class RemoteBusObject;
 public:
     XMPPConnector(
-        ajn::BusAttachment* bus,
-        const std::string&  appName,
-        const std::string&  xmppJid,
-        const std::string&  xmppPassword,
-        const std::string&  xmppRoster,
-        const std::string&  xmppChatroom,
-        const std::string&  xmppResource,
-        const bool          compress
+        ajn::BusAttachment*             bus,
+        const std::string&              appName,
+        const std::string&              xmppJid,
+        const std::string&              xmppPassword,
+        const std::vector<std::string>& xmppRoster,
+        const std::string&              xmppChatroom,
+        const bool                      compress
         );
 
     virtual ~XMPPConnector();

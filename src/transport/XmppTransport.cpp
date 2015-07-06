@@ -24,20 +24,18 @@ const int KEEPALIVE_IN_SECONDS = 60;
 const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
 
 XmppTransport::XmppTransport(
-    TransportListener* listener,
-    const string&      jabberid,
-    const string&      password,
-    const string&      roster,
-    const string&      chatroom,
-    const string&      resource,
-    const bool         compress
+    TransportListener*    listener,
+    const string&         jabberid,
+    const string&         password,
+    const vector<string>& roster,
+    const string&         chatroom,
+    const bool            compress
     ) :
     Transport( listener ),
     m_jabberid(jabberid),
     m_password(password),
     m_roster(roster),
     m_chatroom(chatroom),
-    m_resource(resource),
     m_compress(compress)
 {
     xmpp_initialize();
@@ -60,7 +58,7 @@ XmppTransport::RunOnce()
     static bool initialized = false;
     if ( !initialized )
     {
-        xmpp_conn_set_jid(m_xmppconn, (m_jabberid + "/" + m_resource).c_str());
+        xmpp_conn_set_jid(m_xmppconn, m_jabberid.c_str());
         xmpp_conn_set_pass(m_xmppconn, m_password.c_str());
         // If we're using a chat room then listen to messages, otherwise
         //  assume directed communication (to m_roster)
@@ -137,14 +135,14 @@ XmppTransport::SendImpl(
 
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppctx);
     xmpp_stanza_set_name(messageStanza, "message");
-    if ( m_chatroom.empty() ) {
+    if ( m_chatroom.empty() && !m_roster.empty() ) {
         // TODO: When roster is actually a roster and not a destination
         //  we will need to instead add a parameter to this function
         //  and pass it in. We will also need to keep track of which AllJoyn
         //  bits are travelling to/from each destination. That will be done
         //  outside this class, however, so this function will blindly send
         //  to whoever was passed in as the destination.
-        xmpp_stanza_set_attribute(messageStanza, "to", m_roster.c_str());
+        xmpp_stanza_set_attribute(messageStanza, "to", m_roster.front().c_str());
         xmpp_stanza_set_type(messageStanza, "chat");
     }
     else{
@@ -199,7 +197,7 @@ XmppTransport::XmppStanzaHandler(
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
     const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-    if ( transport->m_roster != fromAttr )
+    if ( transport->m_roster.empty() || transport->m_roster.front() != fromAttr )
     {
         LOG_DEBUG("Ignoring message/chat from non-roster entity: %s", fromAttr);
         return 1;
@@ -293,7 +291,7 @@ XmppTransport::XmppPresenceHandler(
         // Ignore if it isn't in our roster
         // TODO: Eventually this will be a full roster, right now we support only a single destination
         const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-        if ( transport->m_roster != fromAttr ) {
+        if ( transport->m_roster.empty() || transport->m_roster.front() != fromAttr ) {
             LOG_DEBUG("Ignoring presence from non-roster entity: %s", fromAttr);
             return 1;
         }
@@ -362,7 +360,6 @@ XmppTransport::XmppRosterHandler(
         string message(buf);
         xmpp_free(xmpp_conn_get_context(conn), buf);
 
-        //string fromLocal = transport->m_chatroom+"/"+transport->m_resource;
         const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
         LOG_VERBOSE("From: %s", fromAttr);
         const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
@@ -395,14 +392,14 @@ XmppTransport::XmppConnectionHandler(
             xmpp_stanza_t* presence = xmpp_stanza_new(xmpp_conn_get_context(conn));
             xmpp_stanza_set_name(presence, "presence");
             xmpp_stanza_set_attribute(presence, "from",
-                    (transport->m_jabberid + "/" + transport->m_resource).c_str());
+                    transport->m_jabberid.c_str());
 
             // If a chat room was specified then build that into the
             //  presence message
             if ( !transport->m_chatroom.empty() ) {
                 // Set the "to" field for this presence message to the chatroom
                 xmpp_stanza_set_attribute(presence, "to",
-                    (transport->m_chatroom+"/"+transport->m_resource).c_str());
+                    transport->m_chatroom.c_str());
 
                 // Create a child object of the presence message called 'x' to
                 //  specify the XML namespace and hold the history object

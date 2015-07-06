@@ -12,9 +12,11 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdio.h>
+#include <vector>
 
 using namespace ajn;
 using namespace services;
+using namespace std;
 
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, void(*func)()) :
     AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile)), restartConn(func)
@@ -62,9 +64,16 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
                 value.Set("i", configParser->GetPort()); 
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
-                char** tmp = configParser->GetRosters();
-                value.Set("as", sizeof(tmp)/sizeof(tmp[0]), tmp);
-
+                vector<string> roster = configParser->GetRoster();
+                const char** tmp = new const char*[roster.size()];
+                size_t index(0);
+                for ( vector<string>::const_iterator it(roster.begin());
+                    roster.end() != it; ++it, ++index )
+                {
+                    tmp[index] = it->c_str();
+                }
+                value.Set("as", roster.size(), tmp);
+                delete[] tmp;
             }
             else if(strcmp(it->first.c_str(), "Password") == 0){ 
                 value.Set("s", "******");
@@ -135,17 +144,22 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         status = value->Get("as", &numItems, NULL);
         char** tmpArray = new char*[numItems];
         status = value->Get("as", &numItems, tmpArray);
+        vector<string> roster;
+        for ( int32_t index = 0; index < numItems; ++index )
+        {
+            roster.push_back(tmpArray[index]);
+        }
         if(status == ER_OK){
             MsgArg value;
-            configParser->SetRosters( tmpArray, numItems );
+            configParser->SetRoster( roster );
             value.Set("as", numItems, tmpArray);
             this->SetField(name, value, "en");
         }
-            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi) {
-                status = aboutObjApi->Announce();
-            }
-
+        delete[] tmpArray;
+        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
+        if (aboutObjApi) {
+            status = aboutObjApi->Announce();
+        }
     }
     else if(strcmp(name, "Password") == 0){
 

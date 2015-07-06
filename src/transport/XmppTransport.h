@@ -19,6 +19,7 @@
 
 #include "transport/Transport.h"
 #include <strophe.h>
+#include <vector>
 
 class XmppTransport : public Transport
 {
@@ -26,13 +27,12 @@ class XmppTransport : public Transport
 public:
 
     XmppTransport(
-        TransportListener*  listener,
-        const std::string&  jabberid,
-        const std::string&  password,
-        const std::string&  roster,
-        const std::string&  chatroom,
-        const std::string&  resource,
-        const bool          compress
+        TransportListener*              listener,
+        const std::string&              jabberid,
+        const std::string&              password,
+        const std::vector<std::string>& roster,
+        const std::string&              chatroom,
+        const bool                      compress
         );
     ~XmppTransport();
 
@@ -86,14 +86,13 @@ private:
         );
 
 private:
-    const std::string            m_jabberid;
-    const std::string            m_password;
-    const std::string            m_chatroom;
-    const std::string            m_roster;
-    const std::string            m_resource;
-    const bool                   m_compress;
-    xmpp_ctx_t*                  m_xmppctx;
-    xmpp_conn_t*                 m_xmppconn;
+    const std::string              m_jabberid;
+    const std::string              m_password;
+    const std::string              m_chatroom;
+    const std::vector<std::string> m_roster;
+    const bool                     m_compress;
+    xmpp_ctx_t*                    m_xmppctx;
+    xmpp_conn_t*                   m_xmppconn;
 };
 
 #endif // XMPPTRANSPORT_H_

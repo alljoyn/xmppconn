@@ -12,7 +12,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <fstream>
-#include <sstream>
 
 using namespace std;
 using namespace util::str;
@@ -74,14 +73,15 @@ string ConfigParser::GetField(const char* field)
     fclose(fp);
     return "";
 }
-char** ConfigParser::GetRosters(){
+vector<string> ConfigParser::GetRoster() const{
+    vector<string> roster;
     stringstream err;
     FILE* fp = fopen(configPath, "rb");
 
     if(!fp){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return roster; 
     }
 
     char readBuffer[65536];
@@ -93,22 +93,19 @@ char** ConfigParser::GetRosters(){
     if(d.HasMember("Roster") && d["Roster"].IsArray()){
         const Value& s = d["Roster"];
         fclose(fp);
-        char** tmp = new char*[s.Size()]; 
         for(SizeType i = 0; i < s.Size(); i++){
-            const char* tmpString = s[i].GetString();
-            tmp[i] = new char[strlen(tmpString)];
-            std::strcpy(tmp[i], tmpString); 
+            roster.push_back( s[i].GetString() );
         }
-        return tmp;
+        return roster;
     }
 
     err << "Could not find field Roster!";
     errors.push_back(err.str());
     fclose(fp);
-    return NULL; 
+    return roster; 
     
 }
-int ConfigParser::SetRosters(char** value, size_t numRosters){
+int ConfigParser::SetRoster(vector<string> roster){
     stringstream err;
     FILE* fpRead = fopen(configPath, "rb");
 
@@ -127,7 +124,7 @@ int ConfigParser::SetRosters(char** value, size_t numRosters){
     if(!d.HasMember("Roster")){
         fclose(fpRead);
         err << "Could not set field Roster! NOT FOUND";
-        return 1;
+        return -1;
     }
 
     Value& tmp = d["Roster"];
@@ -139,7 +136,7 @@ int ConfigParser::SetRosters(char** value, size_t numRosters){
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return -1; 
     }
 
     char writeBuffer[65536];
@@ -149,10 +146,11 @@ int ConfigParser::SetRosters(char** value, size_t numRosters){
     Value& tmpArray = d["Roster"];
     tmpArray.SetArray();
     Value newValue;
-    for(int i = 0; i < numRosters; i++){
-        newValue.SetString(value[i], strlen(value[i]));
+    for( vector<string>::const_iterator it(roster.begin());
+        roster.end() != it; ++it )
+    {
+        newValue.SetString(it->c_str(), it->size());
         tmpArray.PushBack(newValue, d.GetAllocator());
-
     }
     d.Accept(writer);
 
@@ -221,7 +219,7 @@ int ConfigParser::SetPort(int value){
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return -1; 
     }
 
     char writeBuffer[65536];
@@ -245,7 +243,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     if(!fpRead){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return -1; 
     }
 
     char readBuffer[65536];
@@ -257,7 +255,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     if(!d.HasMember(field)){
         fclose(fpRead);
         err << "Could not set field " << field << "! NOT FOUND";
-        return 1;
+        return -1;
     }
 
     Value& tmp = d[field];
@@ -269,7 +267,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
-        return NULL; 
+        return -1; 
     }
 
     char writeBuffer[65536];
@@ -337,38 +335,23 @@ bool ConfigParser::isConfigValid(){
     for(map<string, string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
         if(it->first == "Server"){
             foundRequiredCount++;
-
-        }
-        else if(it->first == "Port"){
         }
         else if(it->first == "UserJID"){
             foundRequiredCount++;
-        }
-        else if(it->first == "RoomJID"){
-
         }
         else if(it->first == "UserPassword"){
             foundRequiredCount++;
         }
         else if(it->first == "Roster"){
             foundRequiredCount++;
-
         }
-        else if(it->first == "Compress"){
-
-        }
-        else if(it->first == "Verbosity"){
-
-        }
-        else if(it->first == "Resource"){
-            foundRequiredCount++;
-
-        }
-        else if(it->first == "ProductID"){
-
-        }
-        else if(it->first == "SerialNumber"){
-
+        else if(it->first == "RoomJID" ||
+            it->first == "Compress" ||
+            it->first == "Verbosity" ||
+            it->first == "ProductID" ||
+            it->first == "SerialNumber" ||
+            it->first == "Port"){
+            // noop
         }
         else{
             std::cout << "Invalid Field Found: " << it->first << std::endl;
@@ -376,7 +359,7 @@ bool ConfigParser::isConfigValid(){
         }
     }
 
-    if(foundRequiredCount < 5){
+    if(foundRequiredCount < 4){
         std::cout << "Missing required fields!" << std::endl;
     }
     return true;

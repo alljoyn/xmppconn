@@ -391,14 +391,13 @@ const string XMPPConnector::ALLJOYN_CODE_GET_ALL_REPLY  = "__GET_ALL_REPLY";
 
 
 XMPPConnector::XMPPConnector(
-    BusAttachment* bus,
-    const string&  appName,
-    const string&  xmppJid,
-    const string&  xmppPassword,
-    const string&  xmppRoster,
-    const string&  xmppChatroom,
-    const string&  xmppResource,
-    const bool     compress
+    BusAttachment*        bus,
+    const string&         appName,
+    const string&         xmppJid,
+    const string&         xmppPassword,
+    const vector<string>& xmppRoster,
+    const string&         xmppChatroom,
+    const bool            compress
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
@@ -407,14 +406,8 @@ XMPPConnector::XMPPConnector(
     m_remoteAttachments(),
     m_propertyBus("propertyBus")
 {
-    // TODO: Remove this bus, we can create a GUID some other way
-    string resource(xmppResource);
-    if ( resource.empty() ) {
-        resource = bus->GetGlobalGUIDString().c_str();
-    }
     m_transport = new XmppTransport( this,
-            xmppJid, xmppPassword, xmppRoster, xmppChatroom,
-            resource, compress);
+        xmppJid, xmppPassword, xmppRoster, xmppChatroom, compress);
 
     pthread_mutex_init(&m_remoteAttachmentsMutex, NULL);
 

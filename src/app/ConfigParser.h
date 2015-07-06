@@ -17,13 +17,13 @@ class ConfigParser
         int GetPort();
         int SetPort(int value);
         std::map<std::string, std::string> GetConfigMap();
-        char** GetRosters();
-        int SetRosters(char** value, size_t numRosters);
+        std::vector<std::string> GetRoster() const;
+        int SetRoster(std::vector<std::string> roster);
         bool isConfigValid();
     private:
         ConfigParser() {} // Private to prevent use
         std::map<std::string, std::string> options;
-        std::vector<std::string> errors;
+        mutable std::vector<std::string> errors;
         const char* configPath;
 };
 
