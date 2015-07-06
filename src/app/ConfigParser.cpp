@@ -309,10 +309,10 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
 
 
     for(Value::MemberIterator it = d.MemberBegin(); it != d.MemberEnd(); ++it){
-        if(strcmp(it->name.GetString(),"Port")){
+        if(strcmp(it->name.GetString(),"Port") == 0){
             configMap[it->name.GetString()] = "";
         }
-        else if(strcmp(it->name.GetString(),"Roster")){
+        else if(strcmp(it->name.GetString(),"Roster") == 0){
             configMap[it->name.GetString()] = "";
         }
         else{ 

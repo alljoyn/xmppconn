@@ -10,6 +10,8 @@
 #include <iostream>
 #include <sstream>
 #include <sys/stat.h>
+#include <string.h>
+#include <stdio.h>
 
 using namespace ajn;
 using namespace services;
@@ -53,29 +55,30 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
 
     if(configParser->isConfigValid()){
-    MsgArg value; 
-    std::map<std::string,std::string> configMap = configParser->GetConfigMap();
-    for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        if(it->first == "Port"){
-            value.Set("i", configParser->GetPort()); 
-        }
-        else if(it->first == "Roster"){
-            MsgArg arrayValue;
-            char** tmp = configParser->GetRosters();
-            arrayValue.Set("as", sizeof(tmp)/sizeof(tmp[0]), tmp);
+        MsgArg value; 
+        std::map<std::string,std::string> configMap = configParser->GetConfigMap();
+        for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
+            if(strcmp(it->first.c_str(), "Port") == 0){
+                value.Set("i", configParser->GetPort()); 
+            }
+            else if(strcmp(it->first.c_str(), "Roster") == 0){
+                char** tmp = configParser->GetRosters();
+                value.Set("as", sizeof(tmp)/sizeof(tmp[0]), tmp);
 
+            }
+            else if(strcmp(it->first.c_str(), "Password") == 0){ 
+                value.Set("s", "******");
+            }
+            else {
+                value.Set("s", it->second.c_str());
+                this->SetField(it->first.c_str(), value);
+            }
+            this->SetField(it->first.c_str(), value);
         }
-        else if(it->first == "Password"){ value.Set("s", "******");
-        }
-        else {
-            value.Set("s", it->second.c_str());
-        }
-        this->SetField(it->first.c_str(), value);
-    }
 
-    std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
-    this->SetDeviceId(deviceID.c_str());
-    m_IsInitialized = true;
+        std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
+        this->SetDeviceId(deviceID.c_str());
+        m_IsInitialized = true;
     }
 }
 
@@ -128,7 +131,16 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         }
     }
     else if(strcmp(name, "Roster") == 0){
-        //status = value->Get("as", )
+        int32_t numItems = 0;
+        status = value->Get("as", &numItems, NULL);
+        char** tmpArray = new char*[numItems];
+        status = value->Get("as", &numItems, tmpArray);
+        if(status == ER_OK){
+            MsgArg value;
+            configParser->SetRosters( tmpArray, numItems );
+            value.Set("as", numItems, tmpArray);
+            this->SetField(name, value, "en");
+        }
 
     }
     else{
