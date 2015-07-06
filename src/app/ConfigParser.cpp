@@ -344,10 +344,10 @@ bool ConfigParser::isConfigValid(){
         else if(it->first == "UserJID"){
             foundRequiredCount++;
         }
-        else if(it->first == "Room"){
+        else if(it->first == "RoomJID"){
 
         }
-        else if(it->first == "Password"){
+        else if(it->first == "UserPassword"){
             foundRequiredCount++;
         }
         else if(it->first == "Roster"){

@@ -24,12 +24,12 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
-    SetNewFieldDetails("Password",     REQUIRED,   "s");
+    SetNewFieldDetails("UserPassword",     REQUIRED,   "s");
     SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
     SetNewFieldDetails("Port",         EMPTY_MASK, "i");
-    SetNewFieldDetails("Room",         EMPTY_MASK, "s");
+    SetNewFieldDetails("RoomJID",         EMPTY_MASK, "s");
 
 
     uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
@@ -141,7 +141,18 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             value.Set("as", numItems, tmpArray);
             this->SetField(name, value, "en");
         }
+            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
+            if (aboutObjApi) {
+                status = aboutObjApi->Announce();
+            }
 
+    }
+    else if(strcmp(name, "Password") == 0){
+
+        status = value->Get("s", &chval);
+        if (status == ER_OK) {
+            configParser->SetField(name, chval);
+        }
     }
     else{
         status = value->Get("s", &chval);

@@ -402,8 +402,8 @@ void getConfigurationFields(){
     }
 
     s_User = configParser->GetField("UserJID");
-    s_Password = configParser->GetField("Password");
-    s_ChatRoom = configParser->GetField("Room");
+    s_Password = configParser->GetField("UserPassword");
+    s_ChatRoom = configParser->GetField("RoomJID");
     s_Resource = configParser->GetField("Resource");
 
 
