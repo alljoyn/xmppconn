@@ -27,7 +27,8 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
     SetNewFieldDetails("UserPassword",     REQUIRED,   "s");
-    SetNewFieldDetails("Roster",       REQUIRED,   "as");
+    //TODO: SetNewFieldDetails("Roster",       REQUIRED,   "as");
+    SetNewFieldDetails("Roster",       REQUIRED,   "s");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
     SetNewFieldDetails("Port",         EMPTY_MASK, "i");
@@ -64,6 +65,7 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
                 value.Set("i", configParser->GetPort()); 
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
+                /* TODO: Use this for an array
                 vector<string> roster = configParser->GetRoster();
                 const char** tmp = new const char*[roster.size()];
                 size_t index(0);
@@ -74,13 +76,18 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
                 }
                 value.Set("as", roster.size(), tmp);
                 delete[] tmp;
+                */
+                /////////////// TEMPORARY
+                vector<string> roster = configParser->GetRoster();
+                string firstvalue = roster.empty() ? string() : roster.front();
+                value.Set("s", firstvalue.c_str());
+                /////////////// END TEMPORARY
             }
             else if(strcmp(it->first.c_str(), "Password") == 0){ 
                 value.Set("s", "******");
             }
             else {
                 value.Set("s", it->second.c_str());
-                this->SetField(it->first.c_str(), value);
             }
             this->SetField(it->first.c_str(), value);
         }
@@ -140,6 +147,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         }
     }
     else if(strcmp(name, "Roster") == 0){
+        /* TODO: This will need to be an array
         int32_t numItems = 0;
         status = value->Get("as", &numItems, NULL);
         char** tmpArray = new char*[numItems];
@@ -156,13 +164,29 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             this->SetField(name, value, "en");
         }
         delete[] tmpArray;
+        */
+        /////////////// TEMPORARY
+        status = value->Get("s", &chval);
+        if (status == ER_OK) {
+            // Update the config file
+            vector<string> roster;
+            roster.push_back(chval);
+            configParser->SetRoster( roster );
+
+            // Update our About service
+            MsgArg value;
+            value.Set("s", chval);
+            this->SetField(name, value);
+        }
+        /////////////// END TEMPORARY
+
+        // Re-announce
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {
             status = aboutObjApi->Announce();
         }
     }
     else if(strcmp(name, "Password") == 0){
-
         status = value->Get("s", &chval);
         if (status == ER_OK) {
             configParser->SetField(name, chval);
