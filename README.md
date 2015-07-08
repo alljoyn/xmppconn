@@ -92,6 +92,7 @@ Pull the source code from the repositor into the xmppconn folder under $ROOTPATH
 An AllJoyn daemon must be running on the same local system for this program to work. Refer to http://wiki.allseenalliance.org/gateway/getting\_started to learn how to set up your system with the proper AllJoyn dependencies.
 
 Once that is completed it is possible to install this application in two ways:
+
 1. As a normal AllJoyn application
 2. As an AllJoyn Gateway Connector application
 
@@ -112,7 +113,23 @@ If it is desired that xmppconn be installed do the following:
     cd /etc/rc3.d
     sudo ln -s ../init.d/xmppconn S95xmppconn
 
-Now it can be started:
+Next set up the configuration file:
+
+    sudo mkdir /etc/xmppconn
+    sudo cp conf/xmppconn_muc.conf /etc/xmppconn/xmppconn.conf
+
+The configuration file has a number of arguments. Some must be modified in order to connect to the server properly:
+
+    SERVER - the XMPP server (e.g. xmpp.chariot.global)
+    CHATROOM - name of the chat room (if blank, multi user chatrooms are not used)
+    USER - username to log in to the server
+    PASSWORD - password for the specified user
+    RESOURCE - the Jabber resource (the part that comes after the slash after the base JID)
+    ROSTER - the Full JabberID of the device that this is paired with
+    VERBOSITY - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose
+    COMPRESS - whether or not to compress the body of each message. This is recommended, and must match what the paired device is doing.
+
+After properly setting up the config file xmppconn can be started:
 
     sudo service xmppconn start
 
@@ -134,5 +151,3 @@ Copyright (c) 2015, Affinegy, Inc.
 Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
 
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
-
