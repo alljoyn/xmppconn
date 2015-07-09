@@ -449,7 +449,6 @@ int main(int argc, char** argv)
     getConfigurationFields();
     // Build the interface name so we can advertise it
     string ifaceName = "global.chariot." + s_ProductID + "_" + s_SerialNumber;
-    s_Bus->RequestName(ifaceName.c_str(), DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE);
 
     // Set up bus attachment
     QStatus status = s_Bus->Start();
