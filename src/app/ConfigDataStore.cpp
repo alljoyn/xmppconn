@@ -20,7 +20,7 @@ using namespace services;
 using namespace std;
 
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, RestartCallback func) :
-    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), restartConn(func), configParser(new ConfigParser(configFile))
+    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), m_restartCallback(func), m_configParser(new ConfigParser(configFile))
 {
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
@@ -45,7 +45,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetAppId(uuid, 16);
     char uuid_str[37];
     uuid_unparse_lower(uuid, uuid_str);
-//    configParser->SetField("AppId", uuid_str);
+//    m_configParser->SetField("AppId", uuid_str);
     SetDefaultLanguage("en");
     SetSupportedLanguage("en");
     SetDeviceName("My Device Name");
@@ -62,16 +62,16 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
-    if(configParser->isConfigValid() == true){
+    if(m_configParser->isConfigValid() == true){
         MsgArg value; 
-        std::map<std::string,std::string> configMap = configParser->GetConfigMap();
+        std::map<std::string,std::string> configMap = m_configParser->GetConfigMap();
         for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
             if(strcmp(it->first.c_str(), "Port") == 0){
-                value.Set("i", configParser->GetPort()); 
+                value.Set("i", m_configParser->GetPort()); 
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
                 /* TODO: Use this for an array
-                vector<string> roster = configParser->GetRoster();
+                vector<string> roster = m_configParser->GetRoster();
                 const char** tmp = new const char*[roster.size()];
                 size_t index(0);
                 for ( vector<string>::const_iterator it(roster.begin());
@@ -83,7 +83,7 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
                 delete[] tmp;
                 */
                 /////////////// TEMPORARY
-                vector<string> roster = configParser->GetRoster();
+                vector<string> roster = m_configParser->GetRoster();
                 string firstvalue = roster.empty() ? string() : roster.front();
                 value.Set("s", firstvalue.c_str());
                 /////////////// END TEMPORARY
@@ -97,20 +97,20 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
             this->SetField(it->first.c_str(), value);
         }
         uuid_t uuid;
-        if(configParser->GetField("AppId").empty()){
+        if(m_configParser->GetField("AppId").empty()){
             uuid_generate_random(uuid);
             this->SetAppId(uuid, 16);
             char uuid_str[37];
             uuid_unparse_lower(uuid, uuid_str);
-            configParser->SetField("AppId", uuid_str);
+            m_configParser->SetField("AppId", uuid_str);
         }
         else{
-            std::string uuidString = configParser->GetField("AppId");
+            std::string uuidString = m_configParser->GetField("AppId");
             uuid_parse(uuidString.c_str(), uuid);
             this->SetAppId(uuid, 16);
         }
 
-        std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
+        std::string deviceID = m_configParser->GetField("ProductID") + m_configParser->GetField("SerialNumber");
         this->SetDeviceId(deviceID.c_str());
         m_IsInitialized = true;
     }
@@ -130,12 +130,12 @@ void ConfigDataStore::FactoryReset()
     configFileWrite.close();
 
     Initialize();
-    restartConn();
+    m_restartCallback();
 }
 
 ConfigDataStore::~ConfigDataStore()
 {
-    delete configParser;
+    delete m_configParser;
 }
 
 QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all)
@@ -154,7 +154,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         status = value->Get("i", &intVal);
         if (status == ER_OK) {
             MsgArg value;
-            configParser->SetPort(intVal);
+            m_configParser->SetPort(intVal);
             value.Set("i", &intVal);
             this->SetField(name, value);
 
@@ -177,7 +177,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
            }
            if(status == ER_OK){
            MsgArg value;
-           configParser->SetRoster( roster );
+           m_configParser->SetRoster( roster );
            value.Set("as", numItems, tmpArray);
            this->SetField(name, value, "en");
            }
@@ -189,7 +189,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             // Update the config file
             vector<string> roster;
             roster.push_back(chval);
-            configParser->SetRoster( roster );
+            m_configParser->SetRoster( roster );
 
             // Update our About service
             MsgArg value;
@@ -207,7 +207,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
     else if(strcmp(name, "Password") == 0){
         status = value->Get("s", &chval);
         if (status == ER_OK) {
-            configParser->SetField(name, chval);
+            m_configParser->SetField(name, chval);
         }
     }
     else{
@@ -215,7 +215,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         if (status == ER_OK) {
             MsgArg value;
 
-            configParser->SetField(name, chval);
+            m_configParser->SetField(name, chval);
             value.Set("s", chval);
             this->SetField(name, value);
 
@@ -231,7 +231,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         std::string str((std::istreambuf_iterator<char>(configFile)),
                 std::istreambuf_iterator<char>());
     }
-    restartConn();
+    m_restartCallback();
     return status;
 }
 
@@ -250,14 +250,14 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         status = value->Set("s", tmp.c_str());
         status = this->SetField(name, *value, languageTag);
 
-        configParser->SetField(name, tmp.c_str());
+        m_configParser->SetField(name, tmp.c_str());
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {
             status = aboutObjApi->Announce();
         }
     }
-    restartConn();
+    m_restartCallback();
     return status;
 }
 

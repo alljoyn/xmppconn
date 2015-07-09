@@ -24,8 +24,8 @@ class ConfigDataStore : public AboutDataStoreInterface {
     qcc::String m_configFileName;
     qcc::String m_factoryConfigFileName;
     QStatus IsLanguageSupported(const char* languageTag);
-    RestartCallback restartConn;
-    ConfigParser* configParser;
+    RestartCallback m_restartCallback;
+    ConfigParser* m_configParser;
 };
 
 #endif
