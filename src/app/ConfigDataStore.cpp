@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <vector>
+#include <uuid/uuid.h>
 
 using namespace ajn;
 using namespace services;
@@ -35,11 +36,16 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetNewFieldDetails("RoomJID",         EMPTY_MASK, "s");
 
 
+    uuid_t uuid;
+    uuid_generate_random(uuid);
     uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
                         0x1E, 0x82, 0x11, 0xE4,
                         0x86, 0x51, 0xD1, 0x56,
                         0x1D, 0x5D, 0x46, 0xB0 };
-    this->SetAppId(appId, 16);
+    this->SetAppId(uuid, 16);
+    char uuid_str[37];
+    uuid_unparse_lower(uuid, uuid_str);
+//    configParser->SetField("AppId", uuid_str);
     this->SetDefaultLanguage("en");
     this->SetSupportedLanguage("en");
     this->SetDeviceName("My Device Name");
@@ -56,8 +62,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
 {
-
-    if(configParser->isConfigValid()){
+    if(configParser->isConfigValid() == true){
         MsgArg value; 
         std::map<std::string,std::string> configMap = configParser->GetConfigMap();
         for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
@@ -90,6 +95,19 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
                 value.Set("s", it->second.c_str());
             }
             this->SetField(it->first.c_str(), value);
+        }
+        uuid_t uuid;
+        if(configParser->GetField("AppId").empty()){
+            uuid_generate_random(uuid);
+            this->SetAppId(uuid, 16);
+            char uuid_str[37];
+            uuid_unparse_lower(uuid, uuid_str);
+            configParser->SetField("AppId", uuid_str);
+        }
+        else{
+            std::string uuidString = configParser->GetField("AppId");
+            uuid_parse(uuidString.c_str(), uuid);
+            this->SetAppId(uuid, 16);
         }
 
         std::string deviceID = configParser->GetField("ProductID") + configParser->GetField("SerialNumber");
@@ -148,23 +166,23 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
     }
     else if(strcmp(name, "Roster") == 0){
         /* TODO: This will need to be an array
-        int32_t numItems = 0;
-        status = value->Get("as", &numItems, NULL);
-        char** tmpArray = new char*[numItems];
-        status = value->Get("as", &numItems, tmpArray);
-        vector<string> roster;
-        for ( int32_t index = 0; index < numItems; ++index )
-        {
-            roster.push_back(tmpArray[index]);
-        }
-        if(status == ER_OK){
-            MsgArg value;
-            configParser->SetRoster( roster );
-            value.Set("as", numItems, tmpArray);
-            this->SetField(name, value, "en");
-        }
-        delete[] tmpArray;
-        */
+           int32_t numItems = 0;
+           status = value->Get("as", &numItems, NULL);
+           char** tmpArray = new char*[numItems];
+           status = value->Get("as", &numItems, tmpArray);
+           vector<string> roster;
+           for ( int32_t index = 0; index < numItems; ++index )
+           {
+           roster.push_back(tmpArray[index]);
+           }
+           if(status == ER_OK){
+           MsgArg value;
+           configParser->SetRoster( roster );
+           value.Set("as", numItems, tmpArray);
+           this->SetField(name, value, "en");
+           }
+           delete[] tmpArray;
+           */
         /////////////// TEMPORARY
         status = value->Get("s", &chval);
         if (status == ER_OK) {

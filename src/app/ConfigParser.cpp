@@ -56,7 +56,7 @@ string ConfigParser::GetField(const char* field)
         return ""; 
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -84,7 +84,7 @@ vector<string> ConfigParser::GetRoster() const{
         return roster; 
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -115,7 +115,7 @@ int ConfigParser::SetRoster(vector<string> roster){
         return -1; 
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -139,7 +139,7 @@ int ConfigParser::SetRoster(vector<string> roster){
         return -1; 
     }
 
-    char writeBuffer[65536];
+    char writeBuffer[655360];
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -170,7 +170,7 @@ int ConfigParser::GetPort(){
         return -1;
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -198,7 +198,7 @@ int ConfigParser::SetPort(int value){
         return -1; 
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -222,7 +222,7 @@ int ConfigParser::SetPort(int value){
         return -1; 
     }
 
-    char writeBuffer[65536];
+    char writeBuffer[655360];
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -246,7 +246,7 @@ int ConfigParser::SetField(const char* field, const char* value)
         return -1; 
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -270,7 +270,7 @@ int ConfigParser::SetField(const char* field, const char* value)
         return -1; 
     }
 
-    char writeBuffer[65536];
+    char writeBuffer[655360];
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -295,7 +295,7 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
         return configMap;
     }
 
-    char readBuffer[65536];
+    char readBuffer[655360];
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -346,11 +346,12 @@ bool ConfigParser::isConfigValid(){
             foundRequiredCount++;
         }
         else if(it->first == "RoomJID" ||
-            it->first == "Compress" ||
-            it->first == "Verbosity" ||
-            it->first == "ProductID" ||
-            it->first == "SerialNumber" ||
-            it->first == "Port"){
+                it->first == "Compress" ||
+                it->first == "Verbosity" ||
+                it->first == "ProductID" ||
+                it->first == "SerialNumber" ||
+                it->first == "Port" ||
+                it->first == "AppId"){
             // noop
         }
         else{
