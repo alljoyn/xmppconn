@@ -331,16 +331,11 @@ bool ConfigParser::isConfigValid(){
 
     //TODO: Checker for valid XMPP Conf file format
     for(map<string, string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        if(it->first == "Server"){
-            foundRequiredCount++;
-        }
-        else if(it->first == "UserJID"){
-            foundRequiredCount++;
-        }
-        else if(it->first == "UserPassword"){
-            foundRequiredCount++;
-        }
-        else if(it->first == "Roster"){
+        if(it->first == "Server" ||
+           it->first == "UserJID" ||
+           it->first == "UserPassword" ||
+           it->first == "Roster" ||
+           it->first == "AllJoynPasscode"){
             foundRequiredCount++;
         }
         else if(it->first == "RoomJID" ||
@@ -358,7 +353,7 @@ bool ConfigParser::isConfigValid(){
         }
     }
 
-    if(foundRequiredCount < 4){
+    if(foundRequiredCount < 5){
         std::cout << "Missing required fields!" << std::endl;
     }
     return true;

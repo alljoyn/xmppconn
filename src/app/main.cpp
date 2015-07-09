@@ -77,6 +77,7 @@ static string s_Password = "test";
 static string s_ChatRoom;
 static string s_ProductID;
 static string s_SerialNumber;
+static string s_AllJoynPasscode;
 static vector<string> s_Roster;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
@@ -400,6 +401,7 @@ void getConfigurationFields(){
     s_ChatRoom = configParser->GetField("RoomJID");
     s_SerialNumber = configParser->GetField("SerialNumber");
     s_ProductID = configParser->GetField("ProductID");
+    s_AllJoynPasscode = configParser->GetField("AllJoynPasscode");
 
     string tmp = configParser->GetField("Compress");
     if(tmp != "")
@@ -441,9 +443,6 @@ int main(int argc, char** argv)
     conf_file.close();
 
 
-    keyListener = new SrpKeyXListener();
-    keyListener->setPassCode("000000");
-
     s_Bus = new BusAttachment("XMPPConnector", true);
 
     // We need to do this to get our product ID and serial number
@@ -467,8 +466,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    keyListener = new SrpKeyXListener();
+    keyListener->setPassCode(s_AllJoynPasscode.c_str());
     status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
-
 
     configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
                                           "/etc/xmppconn/xmppconn.conf",
@@ -495,7 +495,6 @@ int main(int argc, char** argv)
     }
 
     aboutService->SetPort(900);
-
     // Advertise the connector
     s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
 
