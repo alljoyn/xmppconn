@@ -24,7 +24,7 @@ class ConfigParser
         ConfigParser() {} // Private to prevent use
         std::map<std::string, std::string> options;
         mutable std::vector<std::string> errors;
-        const char* configPath;
+        const std::string configPath;
 };
 
 #endif

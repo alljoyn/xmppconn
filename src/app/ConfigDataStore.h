@@ -9,7 +9,9 @@
 
 class ConfigDataStore : public AboutDataStoreInterface {
   public:
-    ConfigDataStore(const char* factoryConfigFile, const char* configFile, void(*func)());
+    typedef void (*RestartCallback)();
+
+    ConfigDataStore(const char* factoryConfigFile, const char* configFile, RestartCallback func);
     void FactoryReset();
     const qcc::String& GetConfigFileName();
     virtual ~ConfigDataStore();
@@ -22,7 +24,7 @@ class ConfigDataStore : public AboutDataStoreInterface {
     qcc::String m_configFileName;
     qcc::String m_factoryConfigFileName;
     QStatus IsLanguageSupported(const char* languageTag);
-    void (*restartConn)();
+    RestartCallback restartConn;
     ConfigParser* configParser;
 };
 

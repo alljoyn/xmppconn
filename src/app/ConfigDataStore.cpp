@@ -19,8 +19,8 @@ using namespace ajn;
 using namespace services;
 using namespace std;
 
-ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, void(*func)()) :
-    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), configParser(new ConfigParser(configFile)), restartConn(func)
+ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, RestartCallback func) :
+    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), restartConn(func), configParser(new ConfigParser(configFile))
 {
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
@@ -38,26 +38,26 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
     uuid_t uuid;
     uuid_generate_random(uuid);
-    uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14,
+    uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14, 
                         0x1E, 0x82, 0x11, 0xE4,
                         0x86, 0x51, 0xD1, 0x56,
                         0x1D, 0x5D, 0x46, 0xB0 };
-    this->SetAppId(uuid, 16);
+    SetAppId(uuid, 16);
     char uuid_str[37];
     uuid_unparse_lower(uuid, uuid_str);
 //    configParser->SetField("AppId", uuid_str);
-    this->SetDefaultLanguage("en");
-    this->SetSupportedLanguage("en");
-    this->SetDeviceName("My Device Name");
-    this->SetDeviceId("93c06771-c725-48c2-b1ff-6a2a59d445b8");
-    this->SetAppName("Application");
-    this->SetManufacturer("Manufacturer");
-    this->SetModelNumber("123456");
-    this->SetDescription("A poetic description of this application");
-    this->SetDateOfManufacture("2014-03-24");
-    this->SetSoftwareVersion("0.1.2");
-    this->SetHardwareVersion("0.0.1");
-    this->SetSupportUrl("http://www.example.org");
+    SetDefaultLanguage("en");
+    SetSupportedLanguage("en");
+    SetDeviceName("My Device Name");
+    SetDeviceId("93c06771-c725-48c2-b1ff-6a2a59d445b8");
+    SetAppName("Application");
+    SetManufacturer("Manufacturer");
+    SetModelNumber("123456");
+    SetDescription("A poetic description of this application");
+    SetDateOfManufacture("2014-03-24");
+    SetSoftwareVersion("0.1.2");
+    SetHardwareVersion("0.0.1");
+    SetSupportUrl("http://www.example.org");
 }
 
 void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)

@@ -21,7 +21,7 @@ using namespace rapidjson;
 // Map with keys to all possible fields with
 // values of valid regex.
 
-ConfigParser::ConfigParser( const char* filepath )
+ConfigParser::ConfigParser( const char* filepath ) : configPath(filepath)
 {
     // Ensure that we can open our config file
     ifstream conf_file(filepath);
@@ -32,8 +32,6 @@ ConfigParser::ConfigParser( const char* filepath )
         errors.push_back(err.str());
         return;
     }
-
-    configPath = filepath;
 }
 
 ConfigParser::~ConfigParser()
@@ -48,7 +46,7 @@ vector<string> ConfigParser::GetErrors() const
 string ConfigParser::GetField(const char* field)
 {
     stringstream err;
-    FILE* fp = fopen(configPath, "rb");
+    FILE* fp = fopen(configPath.c_str(), "rb");
 
     if(!fp){
         err << "Could not open file " << configPath << "!";
@@ -76,7 +74,7 @@ string ConfigParser::GetField(const char* field)
 vector<string> ConfigParser::GetRoster() const{
     vector<string> roster;
     stringstream err;
-    FILE* fp = fopen(configPath, "rb");
+    FILE* fp = fopen(configPath.c_str(), "rb");
 
     if(!fp){
         err << "Could not open file " << configPath << "!";
@@ -107,7 +105,7 @@ vector<string> ConfigParser::GetRoster() const{
 }
 int ConfigParser::SetRoster(vector<string> roster){
     stringstream err;
-    FILE* fpRead = fopen(configPath, "rb");
+    FILE* fpRead = fopen(configPath.c_str(), "rb");
 
     if(!fpRead){
         err << "Could not open file " << configPath << "!";
@@ -131,7 +129,7 @@ int ConfigParser::SetRoster(vector<string> roster){
     fclose(fpRead);
 
 
-    FILE* fpWrite = fopen(configPath, "wb");
+    FILE* fpWrite = fopen(configPath.c_str(), "wb");
 
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
@@ -154,7 +152,7 @@ int ConfigParser::SetRoster(vector<string> roster){
     }
     d.Accept(writer);
 
-    std::ofstream of(configPath);
+    std::ofstream of(configPath.c_str());
     of << writeBuffer;
 
     fclose(fpWrite);
@@ -162,7 +160,7 @@ int ConfigParser::SetRoster(vector<string> roster){
 }
 int ConfigParser::GetPort(){
     stringstream err;
-    FILE* fp = fopen(configPath, "rb");
+    FILE* fp = fopen(configPath.c_str(), "rb");
 
     if(!fp){
         err << "Could not open file " << configPath << "!";
@@ -190,7 +188,7 @@ int ConfigParser::GetPort(){
 }
 int ConfigParser::SetPort(int value){
     stringstream err;
-    FILE* fpRead = fopen(configPath, "rb");
+    FILE* fpRead = fopen(configPath.c_str(), "rb");
 
     if(!fpRead){
         err << "Could not open file " << configPath << "!";
@@ -214,7 +212,7 @@ int ConfigParser::SetPort(int value){
     fclose(fpRead);
 
 
-    FILE* fpWrite = fopen(configPath, "wb");
+    FILE* fpWrite = fopen(configPath.c_str(), "wb");
 
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
@@ -229,7 +227,7 @@ int ConfigParser::SetPort(int value){
     tmp.SetInt(value);
     d.Accept(writer);
 
-    std::ofstream of(configPath);
+    std::ofstream of(configPath.c_str());
     of << writeBuffer;
 
     fclose(fpWrite);
@@ -238,7 +236,7 @@ int ConfigParser::SetPort(int value){
 int ConfigParser::SetField(const char* field, const char* value)
 {
     stringstream err;
-    FILE* fpRead = fopen(configPath, "rb");
+    FILE* fpRead = fopen(configPath.c_str(), "rb");
 
     if(!fpRead){
         err << "Could not open file " << configPath << "!";
@@ -262,7 +260,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     fclose(fpRead);
 
 
-    FILE* fpWrite = fopen(configPath, "wb");
+    FILE* fpWrite = fopen(configPath.c_str(), "wb");
 
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
@@ -277,7 +275,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     tmp.SetString(value, strlen(value));
     d.Accept(writer);
 
-    std::ofstream of(configPath);
+    std::ofstream of(configPath.c_str());
     of << writeBuffer;
 
     fclose(fpWrite);
@@ -287,7 +285,7 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
     std::map<std::string, std::string> configMap;
 
     stringstream err;
-    FILE* fp = fopen(configPath, "rb");
+    FILE* fp = fopen(configPath.c_str(), "rb");
 
     if(!fp){
         err << "Could not open file " << configPath << "!";
