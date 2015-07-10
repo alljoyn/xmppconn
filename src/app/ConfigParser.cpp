@@ -17,14 +17,16 @@ using namespace std;
 using namespace util::str;
 using namespace rapidjson;
 
+static const size_t CONFIGPARSER_BUF_SIZE = 2048;
+
 // Possible approach to validation
 // Map with keys to all possible fields with
 // values of valid regex.
 
-ConfigParser::ConfigParser( const char* filepath ) : configPath(filepath)
+ConfigParser::ConfigParser( const std::string& filepath ) : configPath(filepath)
 {
     // Ensure that we can open our config file
-    ifstream conf_file(filepath);
+    ifstream conf_file(configPath.c_str());
     if ( !conf_file.is_open() )
     {
         stringstream err;
@@ -54,7 +56,7 @@ string ConfigParser::GetField(const char* field)
         return ""; 
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -82,7 +84,7 @@ vector<string> ConfigParser::GetRoster() const{
         return roster; 
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -113,7 +115,7 @@ int ConfigParser::SetRoster(vector<string> roster){
         return -1; 
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -137,7 +139,7 @@ int ConfigParser::SetRoster(vector<string> roster){
         return -1; 
     }
 
-    char writeBuffer[655360] = {};
+    char writeBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -168,7 +170,7 @@ int ConfigParser::GetPort(){
         return -1;
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -196,7 +198,7 @@ int ConfigParser::SetPort(int value){
         return -1; 
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -220,7 +222,7 @@ int ConfigParser::SetPort(int value){
         return -1; 
     }
 
-    char writeBuffer[655360] = {};
+    char writeBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -233,6 +235,7 @@ int ConfigParser::SetPort(int value){
     fclose(fpWrite);
 
 }
+
 int ConfigParser::SetField(const char* field, const char* value)
 {
     stringstream err;
@@ -244,7 +247,7 @@ int ConfigParser::SetField(const char* field, const char* value)
         return -1; 
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
     Document d;
@@ -268,7 +271,7 @@ int ConfigParser::SetField(const char* field, const char* value)
         return -1; 
     }
 
-    char writeBuffer[655360] = {};
+    char writeBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
@@ -293,7 +296,7 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
         return configMap;
     }
 
-    char readBuffer[655360] = {};
+    char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fp, readBuffer, sizeof(readBuffer));
 
     Document d;

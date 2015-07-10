@@ -1,4 +1,5 @@
 #include "app/ConfigDataStore.h"
+#include "app/ConfigParser.h"
 
 #include <alljoyn/config/AboutDataStoreInterface.h>
 #include <alljoyn/about/AboutServiceApi.h>
@@ -21,8 +22,7 @@ using namespace std;
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func) :
     AboutDataStoreInterface(factoryConfigFile, configFile),
     m_IsInitialized(false), m_configFileName(configFile), m_factoryConfigFileName(factoryConfigFile),
-    m_restartCallback(func), m_configParser(new ConfigParser(configFile)),
-    m_appId(appId), m_deviceId(deviceId)
+    m_restartCallback(func), m_appId(appId), m_deviceId(deviceId)
 {
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
@@ -50,16 +50,17 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 
 void ConfigDataStore::Initialize()
 {
-    if(m_configParser->isConfigValid() == true){
+    ConfigParser configParser(m_configFileName.c_str());
+    if(configParser.isConfigValid() == true){
         MsgArg value; 
-        std::map<std::string,std::string> configMap = m_configParser->GetConfigMap();
+        std::map<std::string,std::string> configMap = configParser.GetConfigMap();
         for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
             if(strcmp(it->first.c_str(), "Port") == 0){
-                value.Set("i", m_configParser->GetPort()); 
+                value.Set("i", configParser.GetPort()); 
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
                 /* TODO: Use this for an array
-                vector<string> roster = m_configParser->GetRoster();
+                vector<string> roster = configParser.GetRoster();
                 const char** tmp = new const char*[roster.size()];
                 size_t index(0);
                 for ( vector<string>::const_iterator it(roster.begin());
@@ -71,7 +72,7 @@ void ConfigDataStore::Initialize()
                 delete[] tmp;
                 */
                 /////////////// TEMPORARY
-                vector<string> roster = m_configParser->GetRoster();
+                vector<string> roster = configParser.GetRoster();
                 string firstvalue = roster.empty() ? string() : roster.front();
                 value.Set("s", firstvalue.c_str());
                 /////////////// END TEMPORARY
@@ -110,7 +111,6 @@ void ConfigDataStore::FactoryReset()
 
 ConfigDataStore::~ConfigDataStore()
 {
-    delete m_configParser;
 }
 
 QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all)
@@ -125,13 +125,14 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
     QStatus status = ER_INVALID_VALUE;
     char* chval = NULL;
     int32_t intVal = 0;
+    ConfigParser configParser(m_configFileName.c_str());
     if(strcmp(name, "Port") == 0){
         status = value->Get("i", &intVal);
         if (status == ER_OK) {
-            MsgArg value;
-            m_configParser->SetPort(intVal);
-            value.Set("i", &intVal);
-            SetField(name, value);
+            MsgArg newvalue;
+            configParser.SetPort(intVal);
+            newvalue.Set("i", &intVal);
+            SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
             if (aboutObjApi) {
@@ -151,10 +152,10 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
            roster.push_back(tmpArray[index]);
            }
            if(status == ER_OK){
-           MsgArg value;
-           m_configParser->SetRoster( roster );
-           value.Set("as", numItems, tmpArray);
-           SetField(name, value, "en");
+           MsgArg newvalue;
+           configParser.SetRoster( roster );
+           newvalue.Set("as", numItems, tmpArray);
+           SetField(name, newvalue, "en");
            }
            delete[] tmpArray;
            */
@@ -164,12 +165,12 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             // Update the config file
             vector<string> roster;
             roster.push_back(chval);
-            m_configParser->SetRoster( roster );
+            configParser.SetRoster( roster );
 
             // Update our About service
-            MsgArg value;
-            value.Set("s", chval);
-            SetField(name, value);
+            MsgArg newvalue;
+            newvalue.Set("s", chval);
+            SetField(name, newvalue);
         }
         /////////////// END TEMPORARY
 
@@ -182,17 +183,17 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
     else if(strcmp(name, "Password") == 0){
         status = value->Get("s", &chval);
         if (status == ER_OK) {
-            m_configParser->SetField(name, chval);
+            configParser.SetField(name, chval);
         }
     }
     else{
         status = value->Get("s", &chval);
         if (status == ER_OK) {
-            MsgArg value;
+            configParser.SetField(name, chval);
 
-            m_configParser->SetField(name, chval);
-            value.Set("s", chval);
-            SetField(name, value);
+            MsgArg newvalue;
+            newvalue.Set("s", chval);
+            SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
             if (aboutObjApi) {
@@ -212,20 +213,19 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
 QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 {
-    ConfigParser* factoryParser = new ConfigParser(m_factoryConfigFileName.c_str());
+    ConfigParser factoryParser(m_factoryConfigFileName.c_str());
     QStatus status = ER_INVALID_VALUE;
-
-    std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
 
     char* chval = NULL;
     MsgArg* value = new MsgArg;
     status = GetField(name, value, languageTag);
     if (status == ER_OK) {
-        std::string tmp = factoryParser->GetField(name);
+        std::string tmp = factoryParser.GetField(name);
         status = value->Set("s", tmp.c_str());
         status = SetField(name, *value, languageTag);
 
-        m_configParser->SetField(name, tmp.c_str());
+        ConfigParser configParser(m_configFileName.c_str());
+        configParser.SetField(name, tmp.c_str());
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
         if (aboutObjApi) {

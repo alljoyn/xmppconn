@@ -1,7 +1,6 @@
 #ifndef CONFIG_DATA_STORE_H_
 #define CONFIG_DATA_STORE_H_
 
-#include "app/ConfigParser.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
@@ -26,7 +25,6 @@ class ConfigDataStore : public AboutDataStoreInterface {
     std::string m_factoryConfigFileName;
     QStatus IsLanguageSupported(const char* languageTag);
     RestartCallback m_restartCallback;
-    ConfigParser* m_configParser;
     std::string m_appId;
     std::string m_deviceId;
 };

@@ -21,6 +21,7 @@
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
 #include "app/SrpKeyXListener.h"
+#include "app/ConfigParser.h"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -387,49 +388,49 @@ string getChatRoom()
     return s_ChatRoom;
 }
 
-string getAppId( ConfigParser* configParser )
+string getAppId( ConfigParser& configParser )
 {
     uuid_t uuid;
     string uuidString;
     // Try to find the AppId from ConfigParser and create+add it if it isn't there
-    if(configParser->GetField("AppId").empty()){
+    if(configParser.GetField("AppId").empty()){
         uuid_generate_random(uuid);
         char uuid_str[37];
         uuid_unparse_lower(uuid, uuid_str);
         uuidString = uuid_str;
-        configParser->SetField("AppId", uuid_str);
+        configParser.SetField("AppId", uuid_str);
     }
     else{
-        uuidString = configParser->GetField("AppId");
+        uuidString = configParser.GetField("AppId");
     }
     return uuidString;
 }
 
 void getConfigurationFields(){
 
-    ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
-    if(!configParser->isConfigValid()){
+    ConfigParser configParser(CONF_FILE.c_str());
+    if(!configParser.isConfigValid()){
         LOG_RELEASE("Error parsing Config File: Invalid format");
         cleanup();
         exit(1);
     }
 
-    s_User = configParser->GetField("UserJID");
-    s_Password = configParser->GetField("UserPassword");
-    s_Roster = configParser->GetRoster();
-    s_ChatRoom = configParser->GetField("RoomJID");
-    s_SerialNumber = configParser->GetField("SerialNumber");
-    s_ProductID = configParser->GetField("ProductID");
-    s_AllJoynPasscode = configParser->GetField("AllJoynPasscode");
+    s_User = configParser.GetField("UserJID");
+    s_Password = configParser.GetField("UserPassword");
+    s_Roster = configParser.GetRoster();
+    s_ChatRoom = configParser.GetField("RoomJID");
+    s_SerialNumber = configParser.GetField("SerialNumber");
+    s_ProductID = configParser.GetField("ProductID");
+    s_AllJoynPasscode = configParser.GetField("AllJoynPasscode");
     s_AppId = getAppId(configParser);
 
-    string tmp = configParser->GetField("Compress");
+    string tmp = configParser.GetField("Compress");
     if(tmp != "")
         istringstream(tmp) >> s_Compress;
     else
         s_Compress = 0;
 
-    string verbosity = configParser->GetField("Verbosity");
+    string verbosity = configParser.GetField("Verbosity");
 
     if(verbosity == "0"){
         util::_dbglogging = false;
@@ -444,9 +445,6 @@ void getConfigurationFields(){
         util::_dbglogging = true;
         util::_verboselogging = true;
     }
-
-    delete configParser;
-
 }
 
 int main(int argc, char** argv)

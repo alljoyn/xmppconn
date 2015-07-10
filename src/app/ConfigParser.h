@@ -9,7 +9,7 @@
 class ConfigParser
 {
     public:
-        ConfigParser( const char* filepath );
+        ConfigParser( const std::string& filepath );
         ~ConfigParser();
         std::vector<std::string> GetErrors() const;
         std::string GetField(const char* field);
