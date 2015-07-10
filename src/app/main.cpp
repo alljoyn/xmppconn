@@ -519,7 +519,7 @@ int main(int argc, char** argv)
     }
 
     // Build the interface name so we can advertise it
-    string ifaceName = "global.chariot." + s_AppId;
+    string ifaceName = "global.chariot.C" + s_AppId;
     ifaceName.erase(std::remove(ifaceName.begin(), ifaceName.end(), '-'), ifaceName.end());
     LOG_DEBUG("Interface Name: %s", ifaceName.c_str());
 
