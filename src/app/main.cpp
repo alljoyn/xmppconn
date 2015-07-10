@@ -454,14 +454,14 @@ int main(int argc, char** argv)
     if (ER_OK != status) {
         LOG_RELEASE("Error starting bus: %s", QCC_StatusText(status));
         cleanup();
-        return 1;
+        return status;
     }
 
     status = s_Bus->Connect();
     if (ER_OK != status) {
         LOG_RELEASE("Error connecting bus: %s", QCC_StatusText(status));
         cleanup();
-        return 1;
+        return status;
     }
 
     keyListener = new SrpKeyXListener();
@@ -535,20 +535,22 @@ int main(int argc, char** argv)
     status = configService->Register();
     if(status != ER_OK) {
         LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
+        cleanup();
+        return status;
     }
 
     status = s_Bus->RegisterBusObject(*configService);
     if(status != ER_OK) {
         LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
         cleanup();
-        return 1;
+        return status;
     }
 
     status = aboutService->Announce();
     if(status != ER_OK) {
         LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
         cleanup();
-        return 1;
+        return status;
     }
 
     do{
@@ -562,9 +564,9 @@ int main(int argc, char** argv)
         status = s_Conn->Init();
         if(ER_OK != status)
         {
-            LOG_RELEASE("Could not initialize XMPPConnector. Reason: %s", QCC_StatusText(status));
+            LOG_RELEASE("Could not initialize XMPPConnector! Reason: %s", QCC_StatusText(status));
             cleanup();
-            return 1;
+            return status;
         }
 
         s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
