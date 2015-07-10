@@ -15,15 +15,15 @@ class ConfigDataStore : public AboutDataStoreInterface {
     ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func);
     void Initialize();
     void FactoryReset();
-    const qcc::String& GetConfigFileName();
+    std::string GetConfigFileName() const;
     virtual ~ConfigDataStore();
     virtual QStatus ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all);
     virtual QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value);
     virtual QStatus Delete(const char* name, const char* languageTag);
   private:
     bool m_IsInitialized;
-    qcc::String m_configFileName;
-    qcc::String m_factoryConfigFileName;
+    std::string m_configFileName;
+    std::string m_factoryConfigFileName;
     QStatus IsLanguageSupported(const char* languageTag);
     RestartCallback m_restartCallback;
     ConfigParser* m_configParser;

@@ -19,12 +19,11 @@ using namespace services;
 using namespace std;
 
 ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func) :
-    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), m_restartCallback(func), m_configParser(new ConfigParser(configFile)),
+    AboutDataStoreInterface(factoryConfigFile, configFile),
+    m_IsInitialized(false), m_configFileName(configFile), m_factoryConfigFileName(factoryConfigFile),
+    m_restartCallback(func), m_configParser(new ConfigParser(configFile)),
     m_appId(appId), m_deviceId(deviceId)
 {
-    m_configFileName.assign(configFile);
-    m_factoryConfigFileName.assign(factoryConfigFile);
-
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
     SetNewFieldDetails("UserPassword",     REQUIRED,   "s");
@@ -237,7 +236,7 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
     return status;
 }
 
-const qcc::String& ConfigDataStore::GetConfigFileName()
+std::string ConfigDataStore::GetConfigFileName() const
 {
     return m_configFileName;
 }
