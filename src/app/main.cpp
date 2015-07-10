@@ -47,7 +47,6 @@ using namespace ajn::gw;
 using std::stringstream;
 using std::ifstream;
 using std::getline;
-using std::cout;
 using std::cerr;
 using std::endl;
 using std::string;
@@ -168,7 +167,7 @@ class SimplePropertyStore :
                     const MsgArg* value
                   )
             {
-                cout << "UPDATE CALLED" << endl;
+                LOG_DEBUG("UPDATE CALLED");
                 return ER_NOT_IMPLEMENTED;
             }
 
@@ -178,7 +177,7 @@ class SimplePropertyStore :
                     const char* languageTag
                   )
             {
-                cout << "DELETE CALLED" << endl;
+                LOG_DEBUG("DELETE CALLED");
                 return ER_NOT_IMPLEMENTED;
             }
 
@@ -317,7 +316,7 @@ class AlertReceiver :
                 if ( alarm_data.end() != alarm_data.find("Description") )
                 {
                     // TODO:
-                    cout << "Alarm Description: " << alarm_data.at("Description") << endl;
+                    LOG_DEBUG("Alarm Description: %s", alarm_data.at("Description").c_str());
                     services::NotificationMessageType message_type = services::INFO;
                     services::NotificationText message("en", alarm_data.at("Description").c_str());
                     vector<services::NotificationText> messages;
@@ -326,11 +325,11 @@ class AlertReceiver :
                     QStatus status = m_notifSender->send(notification, 7200);
                     if (status != ER_OK)
                     {
-                        cout << "Failed to send Alarm notification!" << endl;
+                        LOG_RELEASE("Failed to send Alarm notification! Reason; %s", QCC_StatusText(status));
                     }
                     else
                     {
-                        cout << "Successfully sent Alarm notification!" << endl;
+                        LOG_RELEASE("Successfully sent Alarm notification! Reason; %s", QCC_StatusText(status));
                     }
                 }
             }
@@ -357,7 +356,7 @@ void cleanup()
 
 static void SigIntHandler(int sig)
 {
-    cout << "Handling SIGINT" << endl;
+    LOG_RELEASE("Handling SIGINT");
     if(s_Conn)
     {
         s_Conn->Stop();
@@ -390,7 +389,7 @@ void getConfigurationFields(){
 
     ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
     if(!configParser->isConfigValid()){
-        cout << "Error parsing Config File: Invalid format" << endl;
+        LOG_RELEASE("Error parsing Config File: Invalid format");
         cleanup();
         exit(1);
     }
@@ -437,7 +436,7 @@ int main(int argc, char** argv)
     ifstream conf_file(CONF_FILE.c_str());
     if ( !conf_file.is_open() )
     {
-        cerr << "Could not open " << CONF_FILE << "!" << endl;
+        LOG_RELEASE("Could not open %s!", CONF_FILE.c_str());
         exit(1);
     }
     conf_file.close();
@@ -453,14 +452,14 @@ int main(int argc, char** argv)
     // Set up bus attachment
     QStatus status = s_Bus->Start();
     if (ER_OK != status) {
-        cout << "Error starting bus: " << QCC_StatusText(status) << endl;
+        LOG_RELEASE("Error starting bus: %s", QCC_StatusText(status));
         cleanup();
         return 1;
     }
 
     status = s_Bus->Connect();
     if (ER_OK != status) {
-        cout << "Error connecting bus: " << QCC_StatusText(status) << endl;
+        LOG_RELEASE("Error connecting bus: %s", QCC_StatusText(status));
         cleanup();
         return 1;
     }
@@ -477,7 +476,10 @@ int main(int argc, char** argv)
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
     ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
     ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
-    if (!aboutService) return ER_BUS_NOT_ALLOWED;
+    if (!aboutService){
+        LOG_RELEASE("Failed to get About Service instance!");
+        return ER_BUS_NOT_ALLOWED;
+    }
 
     busListener = new CommonBusListener(s_Bus, simpleCallback);
 
@@ -485,48 +487,69 @@ int main(int argc, char** argv)
     SessionPort sp = 900;
     SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, transportMask);
 
-    busListener->setSessionPort(900);
+    busListener->setSessionPort(sp);
 
     s_Bus->RegisterBusListener(*busListener);
     status = s_Bus->BindSessionPort(sp, opts, *busListener);
     if (status != ER_OK) {
+        LOG_RELEASE("Failed to bind session port %d! Reason: %s", sp, QCC_StatusText(status));
+        cleanup();
         return status;
     }
 
-    aboutService->SetPort(900);
     // Advertise the connector
-    s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
+    aboutService->SetPort(sp);
+    status = s_Bus->RequestName(ifaceName.c_str(), DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE);
+    if ( ER_OK != status ){
+        LOG_RELEASE("Failed to request advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
+        cleanup();
+        return status;
+    }
+    status = s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
+    if ( ER_OK != status ){
+        LOG_RELEASE("Failed to advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
+        cleanup();
+        return status;
+    }
 
     configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, busListener, onRestart);
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
 
     status = s_Bus->CreateInterfacesFromXml(interface.c_str());
+    if ( ER_OK != status ){
+        LOG_RELEASE("Failed to interfaces from xml! Reason: %s", QCC_StatusText(status));
+        cleanup();
+        return status;
+    }
     const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
 
     SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
     status = s_Bus->RegisterBusObject(busObject);
+    if ( ER_OK != status ){
+        LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
+        cleanup();
+        return status;
+    }
 
     status = configService->Register();
     if(status != ER_OK) {
-        std::cout << "Could not register the ConfigService" << std::endl;
+        LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
     }
 
     status = s_Bus->RegisterBusObject(*configService);
     if(status != ER_OK) {
-        std::cout << "Could not register the ConfigService BusObject" << std::endl;
+        LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
         cleanup();
         return 1;
     }
 
-    ajn::services::AboutObjApi* testService = ajn::services::AboutObjApi::getInstance();
-
-    if (!testService) {
-        cout << ER_BUS_NOT_ALLOWED << endl; 
-    }
-
     status = aboutService->Announce();
-    std::cout << QCC_StatusText(status) << endl;
+    if(status != ER_OK) {
+        LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
+        cleanup();
+        return 1;
+    }
 
     do{
         getConfigurationFields();
@@ -536,9 +559,10 @@ int main(int argc, char** argv)
                 getChatRoom(),
                 s_Compress);
 
-        if(ER_OK != s_Conn->Init())
+        status = s_Conn->Init();
+        if(ER_OK != status)
         {
-            cout << "Could not initialize XMPPConnector" << endl;
+            LOG_RELEASE("Could not initialize XMPPConnector. Reason: %s", QCC_StatusText(status));
             cleanup();
             return 1;
         }
@@ -548,7 +572,7 @@ int main(int argc, char** argv)
         s_Conn->Start();
 
         if(s_Conn){
-            cout << "Destroying last instance" << endl;
+            LOG_DEBUG("Destroying last instance");
             delete s_Conn;
             s_Conn = 0;
         }
