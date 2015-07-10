@@ -4,6 +4,7 @@
 #include "app/ConfigParser.h"
 #include <stdio.h>
 #include <iostream>
+#include <string>
 #include <alljoyn/config/AboutDataStoreInterface.h>
 #include <alljoyn/BusAttachment.h>
 
@@ -11,14 +12,14 @@ class ConfigDataStore : public AboutDataStoreInterface {
   public:
     typedef void (*RestartCallback)();
 
-    ConfigDataStore(const char* factoryConfigFile, const char* configFile, RestartCallback func);
+    ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func);
+    void Initialize();
     void FactoryReset();
     const qcc::String& GetConfigFileName();
     virtual ~ConfigDataStore();
     virtual QStatus ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all);
     virtual QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value);
     virtual QStatus Delete(const char* name, const char* languageTag);
-    void Initialize(qcc::String deviceId = qcc::String(), qcc::String appId = qcc::String());
   private:
     bool m_IsInitialized;
     qcc::String m_configFileName;
@@ -26,6 +27,8 @@ class ConfigDataStore : public AboutDataStoreInterface {
     QStatus IsLanguageSupported(const char* languageTag);
     RestartCallback m_restartCallback;
     ConfigParser* m_configParser;
+    std::string m_appId;
+    std::string m_deviceId;
 };
 
 #endif

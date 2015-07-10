@@ -29,6 +29,7 @@
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
 #include <qcc/StringUtil.h>
+#include <uuid/uuid.h>
 
 #include <iostream>
 #include <fstream>
@@ -77,6 +78,7 @@ static string s_ChatRoom;
 static string s_ProductID;
 static string s_SerialNumber;
 static string s_AllJoynPasscode;
+static string s_AppId;
 static vector<string> s_Roster;
 static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
@@ -385,6 +387,24 @@ string getChatRoom()
     return s_ChatRoom;
 }
 
+string getAppId( ConfigParser* configParser )
+{
+    uuid_t uuid;
+    string uuidString;
+    // Try to find the AppId from ConfigParser and create+add it if it isn't there
+    if(configParser->GetField("AppId").empty()){
+        uuid_generate_random(uuid);
+        char uuid_str[37];
+        uuid_unparse_lower(uuid, uuid_str);
+        uuidString = uuid_str;
+        configParser->SetField("AppId", uuid_str);
+    }
+    else{
+        uuidString = configParser->GetField("AppId");
+    }
+    return uuidString;
+}
+
 void getConfigurationFields(){
 
     ConfigParser* configParser = new ConfigParser(CONF_FILE.c_str());
@@ -401,6 +421,7 @@ void getConfigurationFields(){
     s_SerialNumber = configParser->GetField("SerialNumber");
     s_ProductID = configParser->GetField("ProductID");
     s_AllJoynPasscode = configParser->GetField("AllJoynPasscode");
+    s_AppId = getAppId(configParser);
 
     string tmp = configParser->GetField("Compress");
     if(tmp != "")
@@ -446,8 +467,6 @@ int main(int argc, char** argv)
 
     // We need to do this to get our product ID and serial number
     getConfigurationFields();
-    // Build the interface name so we can advertise it
-    string ifaceName = "global.chariot." + s_ProductID + "_" + s_SerialNumber;
 
     // Set up bus attachment
     QStatus status = s_Bus->Start();
@@ -470,6 +489,8 @@ int main(int argc, char** argv)
 
     configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
                                           "/etc/xmppconn/xmppconn.conf",
+                                          s_AppId.c_str(),
+                                          (s_ProductID + s_SerialNumber).c_str(),
                                           onRestart);
     configDataStore->Initialize();
 
@@ -496,6 +517,11 @@ int main(int argc, char** argv)
         cleanup();
         return status;
     }
+
+    // Build the interface name so we can advertise it
+    string ifaceName = "global.chariot." + s_AppId;
+    ifaceName.erase(std::remove(ifaceName.begin(), ifaceName.end(), '-'), ifaceName.end());
+    LOG_DEBUG("Interface Name: %s", ifaceName.c_str());
 
     // Advertise the connector
     aboutService->SetPort(sp);

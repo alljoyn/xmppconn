@@ -13,14 +13,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <vector>
-#include <uuid/uuid.h>
 
 using namespace ajn;
 using namespace services;
 using namespace std;
 
-ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, RestartCallback func) :
-    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), m_restartCallback(func), m_configParser(new ConfigParser(configFile))
+ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func) :
+    AboutDataStoreInterface(factoryConfigFile, configFile), m_IsInitialized(false), m_restartCallback(func), m_configParser(new ConfigParser(configFile)),
+    m_appId(appId), m_deviceId(deviceId)
 {
     m_configFileName.assign(configFile);
     m_factoryConfigFileName.assign(factoryConfigFile);
@@ -35,17 +35,6 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetNewFieldDetails("Port",         EMPTY_MASK, "i");
     SetNewFieldDetails("RoomJID",         EMPTY_MASK, "s");
 
-
-    uuid_t uuid;
-    uuid_generate_random(uuid);
-    uint8_t appId[] = { 0x01, 0xB3, 0xBA, 0x14, 
-                        0x1E, 0x82, 0x11, 0xE4,
-                        0x86, 0x51, 0xD1, 0x56,
-                        0x1D, 0x5D, 0x46, 0xB0 };
-    SetAppId(uuid, 16);
-    char uuid_str[37];
-    uuid_unparse_lower(uuid, uuid_str);
-//    m_configParser->SetField("AppId", uuid_str);
     SetDefaultLanguage("en");
     SetSupportedLanguage("en");
     SetDeviceName("My Device Name");
@@ -60,7 +49,7 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
     SetSupportUrl("http://www.example.org");
 }
 
-void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
+void ConfigDataStore::Initialize()
 {
     if(m_configParser->isConfigValid() == true){
         MsgArg value; 
@@ -94,24 +83,11 @@ void ConfigDataStore::Initialize(qcc::String deviceId, qcc::String appId)
             else {
                 value.Set("s", it->second.c_str());
             }
-            this->SetField(it->first.c_str(), value);
-        }
-        uuid_t uuid;
-        if(m_configParser->GetField("AppId").empty()){
-            uuid_generate_random(uuid);
-            this->SetAppId(uuid, 16);
-            char uuid_str[37];
-            uuid_unparse_lower(uuid, uuid_str);
-            m_configParser->SetField("AppId", uuid_str);
-        }
-        else{
-            std::string uuidString = m_configParser->GetField("AppId");
-            uuid_parse(uuidString.c_str(), uuid);
-            this->SetAppId(uuid, 16);
+            SetField(it->first.c_str(), value);
         }
 
-        std::string deviceID = m_configParser->GetField("ProductID") + m_configParser->GetField("SerialNumber");
-        this->SetDeviceId(deviceID.c_str());
+        SetAppId(m_appId.c_str());
+        SetDeviceId(m_deviceId.c_str());
         m_IsInitialized = true;
     }
 }
@@ -156,7 +132,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             MsgArg value;
             m_configParser->SetPort(intVal);
             value.Set("i", &intVal);
-            this->SetField(name, value);
+            SetField(name, value);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
             if (aboutObjApi) {
@@ -179,7 +155,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
            MsgArg value;
            m_configParser->SetRoster( roster );
            value.Set("as", numItems, tmpArray);
-           this->SetField(name, value, "en");
+           SetField(name, value, "en");
            }
            delete[] tmpArray;
            */
@@ -194,7 +170,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             // Update our About service
             MsgArg value;
             value.Set("s", chval);
-            this->SetField(name, value);
+            SetField(name, value);
         }
         /////////////// END TEMPORARY
 
@@ -217,7 +193,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
             m_configParser->SetField(name, chval);
             value.Set("s", chval);
-            this->SetField(name, value);
+            SetField(name, value);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
             if (aboutObjApi) {
@@ -244,11 +220,11 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 
     char* chval = NULL;
     MsgArg* value = new MsgArg;
-    status = this->GetField(name, value, languageTag);
+    status = GetField(name, value, languageTag);
     if (status == ER_OK) {
         std::string tmp = factoryParser->GetField(name);
         status = value->Set("s", tmp.c_str());
-        status = this->SetField(name, *value, languageTag);
+        status = SetField(name, *value, languageTag);
 
         m_configParser->SetField(name, tmp.c_str());
 
