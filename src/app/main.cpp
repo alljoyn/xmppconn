@@ -20,7 +20,6 @@
 #include "app/ConfigServiceListenerImpl.h"
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
-#include "app/SrpKeyXListener.h"
 #include "app/ConfigParser.h"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
@@ -69,7 +68,6 @@ static CommonBusListener* busListener = NULL;
 static ConfigDataStore* configDataStore = NULL;
 static ConfigServiceListenerImpl* configServiceListener = NULL;
 static ajn::services::ConfigService* configService = NULL;
-static SrpKeyXListener* keyListener = NULL;
 const string CONF_FILE = "/etc/xmppconn/xmppconn.conf";
 static string s_Server = "xmpp.chariot.global";
 static string s_ServiceName = "muc";
@@ -481,10 +479,6 @@ int main(int argc, char** argv)
         return status;
     }
 
-    keyListener = new SrpKeyXListener();
-    keyListener->setPassCode(s_AllJoynPasscode.c_str());
-    status = s_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(keyListener));
-
     configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
                                           "/etc/xmppconn/xmppconn.conf",
                                           s_AppId.c_str(),
@@ -536,7 +530,8 @@ int main(int argc, char** argv)
         return status;
     }
 
-    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, busListener, onRestart);
+    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, *s_Bus, busListener, onRestart, CONF_FILE);
+
     configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
 
 

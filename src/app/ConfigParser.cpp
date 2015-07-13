@@ -337,8 +337,7 @@ bool ConfigParser::isConfigValid(){
         if(it->first == "Server" ||
            it->first == "UserJID" ||
            it->first == "UserPassword" ||
-           it->first == "Roster" ||
-           it->first == "AllJoynPasscode"){
+           it->first == "Roster"){
             foundRequiredCount++;
         }
         else if(it->first == "RoomJID" ||
@@ -347,7 +346,8 @@ bool ConfigParser::isConfigValid(){
                 it->first == "ProductID" ||
                 it->first == "SerialNumber" ||
                 it->first == "Port" ||
-                it->first == "AppId"){
+                it->first == "AppId" ||
+                it->first == "AllJoynPasscode"){
             // noop
         }
         else{

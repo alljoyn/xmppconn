@@ -6,10 +6,13 @@
 #include "common/CommonBusListener.h"
 
 #include <alljoyn/config/ConfigService.h>
+#include <string>
+
+class SrpKeyXListener;
 
 class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener {
     public:
-        ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, CommonBusListener* busListener, void(*func)());
+        ConfigServiceListenerImpl(ConfigDataStore& store, ajn::BusAttachment& bus, CommonBusListener* busListener, void(*func)(), const std::string& configFilePath);
         virtual QStatus Restart();
         virtual QStatus FactoryReset();
         virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
@@ -19,6 +22,8 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
         ajn::BusAttachment* m_Bus;
         CommonBusListener* m_BusListener;
         void (*m_onRestartCallback)();
+        std::string m_ConfigFilePath;
+        SrpKeyXListener* m_KeyListener;
         void PersistPassword(const char* daemonRealm, const char* passcode);
 };
 
