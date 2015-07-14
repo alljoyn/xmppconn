@@ -41,6 +41,7 @@
 #include <functional> 
 #include <cctype>
 #include <locale>
+#include <sys/inotify.h>
 
 using namespace ajn;
 using namespace ajn::gw;
@@ -60,7 +61,7 @@ using std::istringstream;
 using std::map;
 
 static bool s_Compress = true;
-static bool CONTINUE_ON_RESTART = false;
+static bool s_Continue = false;
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
 static AboutObj* aboutObj = NULL;
@@ -68,9 +69,8 @@ static CommonBusListener* busListener = NULL;
 static ConfigDataStore* configDataStore = NULL;
 static ConfigServiceListenerImpl* configServiceListener = NULL;
 static ajn::services::ConfigService* configService = NULL;
-const string CONF_FILE = "/etc/xmppconn/xmppconn.conf";
-static string s_Server = "xmpp.chariot.global";
-static string s_ServiceName = "muc";
+const string CONF_DIR  = "/etc/xmppconn";
+const string CONF_FILE = CONF_DIR + "/xmppconn.conf";
 static string s_User = "test";
 static string s_Password = "test";
 static string s_ChatRoom;
@@ -114,9 +114,11 @@ static void simpleCallback()
 }
 
 static void onRestart(){
-    CONTINUE_ON_RESTART = true;
-    if(s_Conn) s_Conn->Stop();
-    s_Conn->Stop();
+    s_Continue = true;
+    if(s_Conn)
+    {
+        s_Conn->Stop();
+    }
 }
 
 class SimpleBusObject : public BusObject {
@@ -362,7 +364,7 @@ static void SigIntHandler(int sig)
     {
         s_Conn->Stop();
     }
-    CONTINUE_ON_RESTART = false;
+    s_Continue = false;
     exit(1);
 }
 
@@ -405,12 +407,25 @@ string getAppId( ConfigParser& configParser )
 }
 
 void getConfigurationFields(){
-
     ConfigParser configParser(CONF_FILE.c_str());
     if(!configParser.isConfigValid()){
         LOG_RELEASE("Error parsing Config File: Invalid format");
         cleanup();
         exit(1);
+    }
+
+    string verbosity = configParser.GetField("Verbosity");
+    if(verbosity == "2"){
+        util::_dbglogging = true;
+        util::_verboselogging = true;
+    }
+    else if( verbosity == "1" ){
+        util::_dbglogging = true;
+        util::_verboselogging = false;
+    }
+    else{
+        util::_dbglogging = false;
+        util::_verboselogging = false;
     }
 
     s_User = configParser.GetField("UserJID");
@@ -427,22 +442,6 @@ void getConfigurationFields(){
         istringstream(tmp) >> s_Compress;
     else
         s_Compress = 0;
-
-    string verbosity = configParser.GetField("Verbosity");
-
-    if(verbosity == "0"){
-        util::_dbglogging = false;
-        util::_verboselogging = false;
-
-    }
-    else if( verbosity == "1" ){
-        util::_dbglogging = true;
-        util::_verboselogging = false;
-    }
-    else{
-        util::_dbglogging = true;
-        util::_verboselogging = true;
-    }
 }
 
 int main(int argc, char** argv)
@@ -573,32 +572,72 @@ int main(int argc, char** argv)
     }
 
     do{
+        bool waitForConfigChange(false);
         getConfigurationFields();
-        s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
-                getPassword(), 
-                getRoster(),
-                getChatRoom(),
-                s_Compress);
-
-        status = s_Conn->Init();
-        if(ER_OK != status)
+        if ( getJID().empty() ||
+             getPassword().empty() ||
+             getRoster().empty() ||
+             getChatRoom().empty() )
         {
-            LOG_RELEASE("Could not initialize XMPPConnector! Reason: %s", QCC_StatusText(status));
-            cleanup();
-            return status;
+            LOG_RELEASE("Configuration doesn't contain XMPP parameters.");
+            waitForConfigChange = true;
         }
 
-        s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
-        s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
-        s_Conn->Start();
+        if ( !waitForConfigChange )
+        {
+            s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
+                    getPassword(), 
+                    getRoster(),
+                    getChatRoom(),
+                    s_Compress);
 
-        if(s_Conn){
-            LOG_DEBUG("Destroying last instance");
-            delete s_Conn;
-            s_Conn = 0;
+            LOG_RELEASE("Initializing XMPPConnector");
+            status = s_Conn->Init();
+            if(ER_OK != status)
+            {
+                LOG_RELEASE("Could not initialize XMPPConnector! Reason: %s", QCC_StatusText(status));
+                waitForConfigChange = true;
+            }
+            else
+            {
+                s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
+                s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
+                s_Conn->Start();
+            }
+
+            if(s_Conn){
+                delete s_Conn;
+                s_Conn = 0;
+            }
+        }
+        
+        if ( waitForConfigChange )
+        {
+            int fd = inotify_init();
+            if ( -1 == fd )
+            {
+                LOG_RELEASE("Could not initialize inotify! Exiting...");
+                cleanup();
+                return errno;
+            }
+            int wd = inotify_add_watch(fd, CONF_FILE.c_str(), IN_MODIFY);
+            if ( -1 == wd )
+            {
+                LOG_RELEASE("Could not add watch on conf file! Exiting...");
+                cleanup();
+                return errno;
+            }
+            LOG_RELEASE("Waiting for configuration changes before trying to connect to the XMPP server...");
+            inotify_event evt = {};
+            read(fd, &evt, sizeof(evt));
+            inotify_rm_watch(fd, wd);
+            close(fd);
+
+            waitForConfigChange = false;
+            s_Continue = true;
         }
 
-    }while(CONTINUE_ON_RESTART);
+    }while(s_Continue);
 
     cleanup();
 }

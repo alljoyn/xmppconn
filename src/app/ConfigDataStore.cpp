@@ -1,5 +1,6 @@
 #include "app/ConfigDataStore.h"
 #include "app/ConfigParser.h"
+#include "common/xmppconnutil.h"
 
 #include <alljoyn/config/AboutDataStoreInterface.h>
 #include <alljoyn/about/AboutServiceApi.h>
@@ -26,33 +27,51 @@ ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* conf
 {
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
-    SetNewFieldDetails("UserPassword",     REQUIRED,   "s");
+    SetNewFieldDetails("UserPassword", REQUIRED,   "s");
     //TODO: SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("Roster",       REQUIRED,   "s");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
     SetNewFieldDetails("Port",         EMPTY_MASK, "i");
-    SetNewFieldDetails("RoomJID",         EMPTY_MASK, "s");
-
-    SetDefaultLanguage("en");
-    SetSupportedLanguage("en");
-    SetDeviceName("My Device Name");
-    SetDeviceId("93c06771-c725-48c2-b1ff-6a2a59d445b8");
-    SetAppName("Application");
-    SetManufacturer("Manufacturer");
-    SetModelNumber("123456");
-    SetDescription("A poetic description of this application");
-    SetDateOfManufacture("2014-03-24");
-    SetSoftwareVersion("0.1.2");
-    SetHardwareVersion("0.0.1");
-    SetSupportUrl("http://www.example.org");
+    SetNewFieldDetails("RoomJID",      EMPTY_MASK, "s");
 }
 
 void ConfigDataStore::Initialize()
 {
     ConfigParser configParser(m_configFileName.c_str());
     if(configParser.isConfigValid() == true){
-        MsgArg value; 
+        // Set the about fields
+        SetDefaultLanguage("en");
+        SetSupportedLanguage("en");
+        SetDeviceName(configParser.GetField("DeviceName").c_str());
+        LOG_VERBOSE("DeviceName: %s", configParser.GetField("DeviceName").c_str());
+        SetDeviceId(m_deviceId.c_str());
+        LOG_VERBOSE("DeviceId: %s", m_deviceId.c_str());
+        SetAppName(configParser.GetField("AppName").c_str());
+        LOG_VERBOSE("AppName: %s", configParser.GetField("AppName").c_str());
+        SetManufacturer(configParser.GetField("Manufacturer").c_str());
+        LOG_VERBOSE("Manufacturer: %s", configParser.GetField("Manufacturer").c_str());
+        SetModelNumber(configParser.GetField("ModelNumber").c_str());
+        LOG_VERBOSE("ModelNumber: %s", configParser.GetField("ModelNumber").c_str());
+        SetDescription(configParser.GetField("Description").c_str());
+        LOG_VERBOSE("Description: %s", configParser.GetField("Description").c_str());
+        SetDateOfManufacture(configParser.GetField("DateOfManufacture").c_str());
+        LOG_VERBOSE("DateOfManufacture: %s", configParser.GetField("DateOfManufacture").c_str());
+        SetSoftwareVersion(configParser.GetField("SoftwareVersion").c_str());
+        LOG_VERBOSE("SoftwareVersion: %s", configParser.GetField("SoftwareVersion").c_str());
+        SetHardwareVersion(configParser.GetField("HardwareVersion").c_str());
+        LOG_VERBOSE("HardwareVersion: %s", configParser.GetField("HardwareVersion").c_str());
+        SetSupportUrl(configParser.GetField("SupportUrl").c_str());
+        LOG_VERBOSE("SupportUrl: %s", configParser.GetField("SupportUrl").c_str());
+
+        // Prime with blank values for required values that may not be in the config file
+        MsgArg value;
+        value.Set("s","");
+        SetField("Server", value);
+        SetField("UserJID", value);
+        SetField("UserPassword", value);
+        SetField("Roster", value);
+
         std::map<std::string,std::string> configMap = configParser.GetConfigMap();
         for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
             if(strcmp(it->first.c_str(), "Port") == 0){
@@ -89,6 +108,10 @@ void ConfigDataStore::Initialize()
         SetAppId(m_appId.c_str());
         SetDeviceId(m_deviceId.c_str());
         m_IsInitialized = true;
+    }
+    else
+    {
+        LOG_RELEASE("Configuration file is not valid!")
     }
 }
 

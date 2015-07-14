@@ -64,8 +64,13 @@ string ConfigParser::GetField(const char* field)
 
     if(d.HasMember(field)){
         Value& s = d[field];
+        string value;
+        if ( s.IsString() )
+        {
+            value = s.GetString();
+        }
         fclose(fp);
-        return s.GetString();
+        return value;
     }
 
     err << "Could not find field " << field << "!";
@@ -253,15 +258,19 @@ int ConfigParser::SetField(const char* field, const char* value)
     Document d;
     d.ParseStream(configStream);
 
-    if(!d.HasMember(field)){
-        fclose(fpRead);
-        err << "Could not set field " << field << "! NOT FOUND";
-        return -1;
+    Value tmp;
+    if(d.HasMember(field)){
+        tmp = d[field];
     }
-
-    Value& tmp = d[field];
+    else
+    {
+        Value vField;
+        Value vValue;
+        vField.SetString(field, strlen(field), d.GetAllocator());
+        vValue.SetString(value, strlen(value), d.GetAllocator());
+        d.AddMember(vField, vValue, d.GetAllocator());
+    }
     fclose(fpRead);
-
 
     FILE* fpWrite = fopen(configPath.c_str(), "wb");
 
@@ -308,14 +317,23 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
 
 
     for(Value::MemberIterator it = d.MemberBegin(); it != d.MemberEnd(); ++it){
+        if ( !it->name.IsString() )
+        {
+            LOG_RELEASE("Warning: JSON key value is not a string.");
+            continue;
+        }
         if(strcmp(it->name.GetString(),"Port") == 0){
             configMap[it->name.GetString()] = "";
         }
         else if(strcmp(it->name.GetString(),"Roster") == 0){
             configMap[it->name.GetString()] = "";
         }
-        else{ 
-            configMap[it->name.GetString()] = it->value.GetString();
+        else{
+            // Ignore non-string
+            if ( it->value.IsString() )
+            {
+                configMap[it->name.GetString()] = it->value.GetString();
+            }
         }
     }
 
@@ -334,20 +352,29 @@ bool ConfigParser::isConfigValid(){
 
     //TODO: Checker for valid XMPP Conf file format
     for(map<string, string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
-        if(it->first == "Server" ||
-           it->first == "UserJID" ||
-           it->first == "UserPassword" ||
-           it->first == "Roster"){
+        if(it->first == "ProductID" ||
+           it->first == "SerialNumber"){
             foundRequiredCount++;
         }
-        else if(it->first == "RoomJID" ||
+        else if(it->first == "Server" ||
+                it->first == "UserJID" ||
+                it->first == "UserPassword" ||
+                it->first == "Roster" ||
+                it->first == "RoomJID" ||
                 it->first == "Compress" ||
                 it->first == "Verbosity" ||
-                it->first == "ProductID" ||
-                it->first == "SerialNumber" ||
                 it->first == "Port" ||
                 it->first == "AppId" ||
-                it->first == "AllJoynPasscode"){
+                it->first == "AllJoynPasscode" ||
+                it->first == "DeviceName" ||
+                it->first == "AppName" ||
+                it->first == "Manufacturer" ||
+                it->first == "ModelNumber" ||
+                it->first == "Description" ||
+                it->first == "DateOfManufacture" ||
+                it->first == "SoftwareVersion" ||
+                it->first == "HardwareVersion" ||
+                it->first == "SupportUrl"){
             // noop
         }
         else{
@@ -356,7 +383,7 @@ bool ConfigParser::isConfigValid(){
         }
     }
 
-    if(foundRequiredCount < 5){
+    if(foundRequiredCount < 2){
         std::cout << "Missing required fields!" << std::endl;
     }
     return true;
