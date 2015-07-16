@@ -126,13 +126,20 @@ int ConfigParser::SetRoster(vector<string> roster){
     Document d;
     d.ParseStream(configStream);
 
-    if(!d.HasMember("Roster")){
-        fclose(fpRead);
-        err << "Could not set field Roster! NOT FOUND";
-        return -1;
+
+    Value tmp;
+    if(d.HasMember("Roster")){
+        tmp = d["Roster"];
+    }
+    else
+    {
+        Value vField;
+        Value vValue;
+        vField.SetString("Roster", strlen("Roster"), d.GetAllocator());
+        vValue.SetString("", strlen(""), d.GetAllocator());
+        d.AddMember(vField, vValue, d.GetAllocator());
     }
 
-    Value& tmp = d["Roster"];
     fclose(fpRead);
 
 

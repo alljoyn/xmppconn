@@ -26,7 +26,7 @@ m_onRestartCallback(func), m_ConfigFilePath(configFilePath), m_KeyListener(new S
         parser.SetField("AllJoynPasscode", passcode.c_str());
     }
     m_KeyListener->setPassCode(passcode.c_str());
-    QStatus status = m_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(m_KeyListener));
+    QStatus status = m_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(m_KeyListener), "/opt/alljoyn/apps/xmppconn/store/.alljoyn_keystore.ks");
     if ( ER_OK != status )
     {
         LOG_RELEASE("Failed to enable AllJoyn Peer Security! Reason: %s", QCC_StatusText(status));
@@ -84,6 +84,7 @@ ConfigServiceListenerImpl::~ConfigServiceListenerImpl()
 void ConfigServiceListenerImpl::PersistPassword(const char* /*daemonRealm*/, const char* passcode)
 {
     ConfigParser parser(m_ConfigFilePath);
-    parser.SetField("AllJoynPasscode", passcode);
+    if(passcode != NULL || strlen(passcode) != 0)
+        parser.SetField("AllJoynPasscode", passcode);
     m_KeyListener->setPassCode(passcode);
 }
