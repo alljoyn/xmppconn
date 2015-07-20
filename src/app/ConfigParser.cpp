@@ -126,20 +126,20 @@ int ConfigParser::SetRoster(vector<string> roster){
     Document d;
     d.ParseStream(configStream);
 
-
-    Value tmp;
-    if(d.HasMember("Roster")){
-        tmp = d["Roster"];
+    if(!d.HasMember("Roster")){
+        Value::AllocatorType& a(d.GetAllocator());
+        d.AddMember("Roster", "", a);
     }
-    else
+
+    Value& tmpArray = d["Roster"];
+    tmpArray.SetArray();
+    Value newValue;
+    for( vector<string>::const_iterator it(roster.begin());
+        roster.end() != it; ++it )
     {
-        Value vField;
-        Value vValue;
-        vField.SetString("Roster", strlen("Roster"), d.GetAllocator());
-        vValue.SetString("", strlen(""), d.GetAllocator());
-        d.AddMember(vField, vValue, d.GetAllocator());
+        newValue.SetString(it->c_str(), it->size());
+        tmpArray.PushBack(newValue, d.GetAllocator());
     }
-
     fclose(fpRead);
 
 
@@ -154,20 +154,7 @@ int ConfigParser::SetRoster(vector<string> roster){
     char writeBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
-
-    Value& tmpArray = d["Roster"];
-    tmpArray.SetArray();
-    Value newValue;
-    for( vector<string>::const_iterator it(roster.begin());
-        roster.end() != it; ++it )
-    {
-        newValue.SetString(it->c_str(), it->size());
-        tmpArray.PushBack(newValue, d.GetAllocator());
-    }
     d.Accept(writer);
-
-    std::ofstream of(configPath.c_str());
-    of << writeBuffer;
 
     fclose(fpWrite);
 
@@ -265,17 +252,20 @@ int ConfigParser::SetField(const char* field, const char* value)
     Document d;
     d.ParseStream(configStream);
 
-    Value tmp;
     if(d.HasMember(field)){
-        tmp = d[field];
+        Value& tmp(d[field]);
+        tmp.SetString(StringRef(value));
     }
     else
     {
-        Value vField;
-        Value vValue;
-        vField.SetString(field, strlen(field), d.GetAllocator());
-        vValue.SetString(value, strlen(value), d.GetAllocator());
-        d.AddMember(vField, vValue, d.GetAllocator());
+        Value::AllocatorType& a(d.GetAllocator());
+        d.AddMember(StringRef(field), StringRef(value), a);
+        if(!d.HasMember(field)){
+            fclose(fpRead);
+            err << "Failed to set field '" << field << "'' in config file " << configPath << "!";
+            errors.push_back(err.str());
+            return -1; 
+        }
     }
     fclose(fpRead);
 
@@ -291,11 +281,7 @@ int ConfigParser::SetField(const char* field, const char* value)
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
 
-    tmp.SetString(value, strlen(value));
     d.Accept(writer);
-
-    std::ofstream of(configPath.c_str());
-    of << writeBuffer;
 
     fclose(fpWrite);
 }

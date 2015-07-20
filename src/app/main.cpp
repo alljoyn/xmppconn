@@ -632,6 +632,9 @@ int main(int argc, char** argv)
             read(fd, &evt, sizeof(evt));
             inotify_rm_watch(fd, wd);
             close(fd);
+            // TODO: This is necessary to allow the other thread to complete writing to the file before we 
+            //  continue. We should do this in a more robust manner.
+            sleep(1);
 
             waitForConfigChange = false;
             s_Continue = true;

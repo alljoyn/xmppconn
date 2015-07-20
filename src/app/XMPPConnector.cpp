@@ -451,10 +451,15 @@ XMPPConnector::Init()
 
     if(!m_initialized)
     {
-        QStatus err = GatewayConnector::init();
+        err = GatewayConnector::init();
         if(err == ER_OK)
         {
             m_initialized = true;
+        }
+        else
+        {
+            LOG_RELEASE("Failed to initialize the Gateway Connector. Reason: %s",
+                QCC_StatusText(err));
         }
     }
 
