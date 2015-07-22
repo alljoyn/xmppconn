@@ -147,7 +147,9 @@ XmppTransport::SendImpl(
         xmpp_stanza_set_type(messageStanza, "chat");
     }
     else{
-        xmpp_stanza_set_attribute(messageStanza, "to", m_chatroom.c_str());
+        std::string tmp = m_chatroom;
+        tmp = tmp.substr(0, tmp.find("/"));
+        xmpp_stanza_set_attribute(messageStanza, "to", tmp.c_str());
         xmpp_stanza_set_type(messageStanza, "groupchat");
     }
 
