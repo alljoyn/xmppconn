@@ -585,7 +585,7 @@ int main(int argc, char** argv)
 
         if ( !waitForConfigChange )
         {
-            s_Conn = new XMPPConnector(s_Bus, "XMPP", getJID(),
+            s_Conn = new XMPPConnector(s_Bus, "xmppconn", getJID(),
                     getPassword(), 
                     getRoster(),
                     getChatRoom(),

@@ -2300,58 +2300,72 @@ XMPPConnector::MessageReceived(
     if(typeCode == ALLJOYN_CODE_ADVERTISEMENT)
     {
         ReceiveAdvertisement(source, message);
+        LOG_DEBUG("Received Advertisement");
     }
     else if(typeCode == ALLJOYN_CODE_ADVERT_LOST)
     {
         ReceiveAdvertisementLost(source, message);
+        LOG_DEBUG("Received Lost Advertisement");
     }
     else if(typeCode == ALLJOYN_CODE_ANNOUNCE)
     {
         ReceiveAnnounce(source, message);
+        LOG_DEBUG("Received Announce");
     }
     else if(typeCode == ALLJOYN_CODE_METHOD_CALL)
     {
         ReceiveMethodCall(source, message);
+        LOG_DEBUG("Receieved Method Call");
     }
     else if(typeCode == ALLJOYN_CODE_METHOD_REPLY)
     {
         ReceiveMethodReply(source, message);
+        LOG_DEBUG("Received Method Reply");
     }
     else if(typeCode == ALLJOYN_CODE_SIGNAL)
     {
         ReceiveSignal(source, message);
+        LOG_DEBUG("Received Signal");
     }
     else if(typeCode == ALLJOYN_CODE_JOIN_REQUEST)
     {
         ReceiveJoinRequest(source, message);
+        LOG_DEBUG("Received Join Request");
     }
     else if(typeCode == ALLJOYN_CODE_JOIN_RESPONSE)
     {
         ReceiveJoinResponse(source, message);
+        LOG_DEBUG("Received Join Response");
     }
     else if(typeCode == ALLJOYN_CODE_SESSION_JOINED)
     {
         ReceiveSessionJoined(source, message);
+        LOG_DEBUG("Received Session Joined");
     }
     else if(typeCode == ALLJOYN_CODE_SESSION_LOST)
     {
         ReceiveSessionLost(source, message);
+        LOG_DEBUG("Recieved Session Lost");
     }
     else if(typeCode == ALLJOYN_CODE_GET_PROPERTY)
     {
         ReceiveGetRequest(source, message);
+        LOG_DEBUG("Received Get Request");
     }
     else if(typeCode == ALLJOYN_CODE_GET_PROP_REPLY)
     {
         ReceiveGetReply(source, message);
+        LOG_DEBUG("Received Get Reply");
     }
     else if(typeCode == ALLJOYN_CODE_GET_ALL)
     {
         ReceiveGetAllRequest(source, message);
+        LOG_DEBUG("Received Get All Requests");
     }
     else if(typeCode == ALLJOYN_CODE_GET_ALL_REPLY)
     {
         ReceiveGetAllReply(source, message);
+        LOG_DEBUG("Received Get All Reply");
     }
     else
     {
