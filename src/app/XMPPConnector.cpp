@@ -1667,6 +1667,7 @@ XMPPConnector::ReceiveJoinRequest(
             from, joiner, &objects);
 
     SessionId id = 0;
+    SessionId lastId = bus->GetSessionIdByPeer(joinee);
     if(!bus)
     {
         LOG_RELEASE("Failed to create bus attachment to proxy session!");
@@ -1684,6 +1685,7 @@ XMPPConnector::ReceiveJoinRequest(
         if ( err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED && id == 0 )
         {
             SessionId tempid = bus->GetSessionIdByPeer(joinee);
+            tempid = lastId;
             if ( tempid == 0 )
             {
                 SessionId pending = m_sessionTracker.GetSession(joiner);

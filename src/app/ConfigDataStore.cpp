@@ -70,6 +70,8 @@ void ConfigDataStore::Initialize()
         SetField("Server", value);
         SetField("UserJID", value);
         SetField("UserPassword", value);
+        SetField("SerialNumber", value);
+        SetField("ProductID", value);
         SetField("Roster", value);
 
         std::map<std::string,std::string> configMap = configParser.GetConfigMap();
@@ -96,7 +98,7 @@ void ConfigDataStore::Initialize()
                 value.Set("s", firstvalue.c_str());
                 /////////////// END TEMPORARY
             }
-            else if(strcmp(it->first.c_str(), "Password") == 0){ 
+            else if(strcmp(it->first.c_str(), "UserPassword") == 0){ 
                 value.Set("s", "******");
             }
             else {
@@ -203,7 +205,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             status = aboutObjApi->Announce();
         }
     }
-    else if(strcmp(name, "Password") == 0){
+    else if(strcmp(name, "UserPassword") == 0){
         status = value->Get("s", &chval);
         if (status == ER_OK) {
             configParser.SetField(name, chval);
