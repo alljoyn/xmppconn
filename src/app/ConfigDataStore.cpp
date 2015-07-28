@@ -1,3 +1,19 @@
+/** 
+ * Copyright (c) 2015, Affinegy, Inc.
+ * 
+ * Permission to use, copy, modify, and/or distribute this software for any 
+ * purpose with or without fee is hereby granted, provided that the above 
+ * copyright notice and this permission notice appear in all copies. 
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES 
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF 
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY 
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES 
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION 
+ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
+ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+ */ 
+
 #include "app/ConfigDataStore.h"
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
@@ -20,15 +36,25 @@ using namespace ajn;
 using namespace services;
 using namespace std;
 
-ConfigDataStore::ConfigDataStore(const char* factoryConfigFile, const char* configFile, const char* appId, const char* deviceId, RestartCallback func) :
-    AboutDataStoreInterface(factoryConfigFile, configFile),
-    m_IsInitialized(false), m_configFileName(configFile), m_factoryConfigFileName(factoryConfigFile),
-    m_restartCallback(func), m_appId(appId), m_deviceId(deviceId)
+ConfigDataStore::ConfigDataStore(
+        const char* factoryConfigFile,
+        const char* configFile,
+        const char* appId,
+        const char* deviceId,
+        RestartCallback func
+        ) :
+        AboutDataStoreInterface(factoryConfigFile, configFile),
+        m_IsInitialized(false),
+        m_configFileName(configFile),
+        m_factoryConfigFileName(factoryConfigFile),
+        m_restartCallback(func),
+        m_appId(appId),
+        m_deviceId(deviceId)
 {
+    //TODO: SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("Server",       REQUIRED,   "s");
     SetNewFieldDetails("UserJID",      REQUIRED,   "s");
     SetNewFieldDetails("UserPassword", REQUIRED,   "s");
-    //TODO: SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("Roster",       REQUIRED,   "s");
     SetNewFieldDetails("SerialNumber", REQUIRED,   "s");
     SetNewFieldDetails("ProductID",    REQUIRED,   "s");
@@ -81,17 +107,17 @@ void ConfigDataStore::Initialize()
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
                 /* TODO: Use this for an array
-                vector<string> roster = configParser.GetRoster();
-                const char** tmp = new const char*[roster.size()];
-                size_t index(0);
-                for ( vector<string>::const_iterator it(roster.begin());
-                    roster.end() != it; ++it, ++index )
-                {
-                    tmp[index] = it->c_str();
-                }
-                value.Set("as", roster.size(), tmp);
-                delete[] tmp;
-                */
+                   vector<string> roster = configParser.GetRoster();
+                   const char** tmp = new const char*[roster.size()];
+                   size_t index(0);
+                   for ( vector<string>::const_iterator it(roster.begin());
+                   roster.end() != it; ++it, ++index )
+                   {
+                   tmp[index] = it->c_str();
+                   }
+                   value.Set("as", roster.size(), tmp);
+                   delete[] tmp;
+                   */
                 /////////////// TEMPORARY
                 vector<string> roster = configParser.GetRoster();
                 string firstvalue = roster.empty() ? string() : roster.front();
@@ -123,7 +149,7 @@ void ConfigDataStore::FactoryReset()
 
     std::ifstream factoryConfigFile(m_factoryConfigFileName.c_str(), std::ios::binary);
     std::string str((std::istreambuf_iterator<char>(factoryConfigFile)),
-            std::istreambuf_iterator<char>());
+                     std::istreambuf_iterator<char>());
     factoryConfigFile.close();
 
     std::ofstream configFileWrite(m_configFileName.c_str(), std::ofstream::out | std::ofstream::trunc);
@@ -148,24 +174,27 @@ QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter
 QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
 {
     QStatus status = ER_INVALID_VALUE;
+    ConfigParser configParser(m_configFileName.c_str());
     char* chval = NULL;
     int32_t intVal = 0;
-    ConfigParser configParser(m_configFileName.c_str());
-    if(strcmp(name, "Port") == 0){
+
+    if(strcmp(name, "Port") == 0)
+    {
         status = value->Get("i", &intVal);
         if (status == ER_OK) {
             MsgArg newvalue;
+
             configParser.SetPort(intVal);
             newvalue.Set("i", &intVal);
             SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi) {
+            if (aboutObjApi)
                 status = aboutObjApi->Announce();
-            }
         }
     }
-    else if(strcmp(name, "Roster") == 0){
+    else if(strcmp(name, "Roster") == 0)\
+    {
         /* TODO: This will need to be an array
            int32_t numItems = 0;
            status = value->Get("as", &numItems, NULL);
@@ -186,7 +215,8 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
            */
         /////////////// TEMPORARY
         status = value->Get("s", &chval);
-        if (status == ER_OK) {
+        if (status == ER_OK) 
+        {
             // Update the config file
             vector<string> roster;
             roster.push_back(chval);
@@ -201,19 +231,20 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
         // Re-announce
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi) {
+        if (aboutObjApi)
             status = aboutObjApi->Announce();
-        }
     }
-    else if(strcmp(name, "UserPassword") == 0){
+    else if(strcmp(name, "UserPassword") == 0)
+    {
         status = value->Get("s", &chval);
-        if (status == ER_OK) {
+        if (status == ER_OK)
             configParser.SetField(name, chval);
-        }
     }
-    else{
+    else
+    {
         status = value->Get("s", &chval);
-        if (status == ER_OK) {
+        if (status == ER_OK)
+        {
             configParser.SetField(name, chval);
 
             MsgArg newvalue;
@@ -221,17 +252,17 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi) {
+            if (aboutObjApi)
                 status = aboutObjApi->Announce();
-            }
         }
     }
 
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
-    if (configFile) {
+    if (configFile){
         std::string str((std::istreambuf_iterator<char>(configFile)),
-                std::istreambuf_iterator<char>());
+                         std::istreambuf_iterator<char>());
     }
+
     m_restartCallback();
     return status;
 }
@@ -240,12 +271,14 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 {
     ConfigParser factoryParser(m_factoryConfigFileName.c_str());
     QStatus status = ER_INVALID_VALUE;
-
-    char* chval = NULL;
     MsgArg* value = new MsgArg;
+    char* chval = NULL;
+
     status = GetField(name, value, languageTag);
-    if (status == ER_OK) {
+    if (status == ER_OK)
+    {
         std::string tmp = factoryParser.GetField(name);
+
         status = value->Set("s", tmp.c_str());
         status = SetField(name, *value, languageTag);
 
@@ -253,10 +286,10 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         configParser.SetField(name, tmp.c_str());
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi) {
+        if (aboutObjApi)
             status = aboutObjApi->Announce();
-        }
     }
+
     m_restartCallback();
     return status;
 }
@@ -264,30 +297,4 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 std::string ConfigDataStore::GetConfigFileName() const
 {
     return m_configFileName;
-}
-
-QStatus ConfigDataStore::IsLanguageSupported(const char* languageTag)
-{
-    /*
-     * This looks hacky. But we need this because ER_LANGUAGE_NOT_SUPPORTED was not a part of
-     * AllJoyn Core in 14.06 and is defined in alljoyn/services/about/cpp/inc/alljoyn/about/PropertyStore.h
-     * with a value 0xb001 whereas in 14.12 the About support was incorporated in AllJoyn Core and
-     * ER_LANGUAGE_NOT_SUPPORTED is now a part of QStatus enum with a value of 0x911a and AboutData
-     * returns this if a language is not supported
-     */
-    QStatus status = ((QStatus)0x911a);
-    size_t langNum;
-    langNum = GetSupportedLanguages();
-    if (langNum > 0) {
-        const char** langs = new const char*[langNum];
-        GetSupportedLanguages(langs, langNum);
-        for (size_t i = 0; i < langNum; ++i) {
-            if (0 == strcmp(languageTag, langs[i])) {
-                status = ER_OK;
-                break;
-            }
-        }
-        delete [] langs;
-    }
-    return status;
 }

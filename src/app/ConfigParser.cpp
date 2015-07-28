@@ -1,5 +1,22 @@
+/** 
+ * Copyright (c) 2015, Affinegy, Inc.
+ * 
+ * Permission to use, copy, modify, and/or distribute this software for any 
+ * purpose with or without fee is hereby granted, provided that the above 
+ * copyright notice and this permission notice appear in all copies. 
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES 
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF 
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY 
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES 
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION 
+ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
+ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
+ */ 
+
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
+
 #include "rapidjson/document.h"
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/stringbuffer.h"
@@ -19,10 +36,6 @@ using namespace rapidjson;
 
 static const size_t CONFIGPARSER_BUF_SIZE = 2048;
 
-// Possible approach to validation
-// Map with keys to all possible fields with
-// values of valid regex.
-
 ConfigParser::ConfigParser( const std::string& filepath ) : configPath(filepath)
 {
     // Ensure that we can open our config file
@@ -32,7 +45,6 @@ ConfigParser::ConfigParser( const std::string& filepath ) : configPath(filepath)
         stringstream err;
         err << "Could not open " << filepath << "!";
         errors.push_back(err.str());
-        return;
     }
 }
 
@@ -76,9 +88,11 @@ string ConfigParser::GetField(const char* field)
     err << "Could not find field " << field << "!";
     errors.push_back(err.str());
     fclose(fp);
+
     return "";
 }
-vector<string> ConfigParser::GetRoster() const{
+vector<string> ConfigParser::GetRoster() const
+{
     vector<string> roster;
     stringstream err;
     FILE* fp = fopen(configPath.c_str(), "rb");
@@ -96,21 +110,25 @@ vector<string> ConfigParser::GetRoster() const{
     d.ParseStream(configStream);
 
     if(d.HasMember("Roster") && d["Roster"].IsArray()){
-        const Value& s = d["Roster"];
         fclose(fp);
+
+        const Value& s = d["Roster"];
         for(SizeType i = 0; i < s.Size(); i++){
             roster.push_back( s[i].GetString() );
         }
+
         return roster;
     }
 
     err << "Could not find field Roster!";
     errors.push_back(err.str());
     fclose(fp);
+
     return roster; 
     
 }
-int ConfigParser::SetRoster(vector<string> roster){
+int ConfigParser::SetRoster(vector<string> roster)
+{
     stringstream err;
     FILE* fpRead = fopen(configPath.c_str(), "rb");
 
@@ -142,9 +160,7 @@ int ConfigParser::SetRoster(vector<string> roster){
     }
     fclose(fpRead);
 
-
     FILE* fpWrite = fopen(configPath.c_str(), "wb");
-
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
@@ -157,9 +173,9 @@ int ConfigParser::SetRoster(vector<string> roster){
     d.Accept(writer);
 
     fclose(fpWrite);
-
 }
-int ConfigParser::GetPort(){
+int ConfigParser::GetPort()
+{
     stringstream err;
     FILE* fp = fopen(configPath.c_str(), "rb");
 
@@ -184,10 +200,11 @@ int ConfigParser::GetPort(){
     err << "Could not find field [Port]!";
     errors.push_back(err.str());
     fclose(fp);
-    return -1; 
 
+    return -1; 
 }
-int ConfigParser::SetPort(int value){
+int ConfigParser::SetPort(int value)
+{
     stringstream err;
     FILE* fpRead = fopen(configPath.c_str(), "rb");
 
@@ -212,9 +229,7 @@ int ConfigParser::SetPort(int value){
     Value& tmp = d["Port"];
     fclose(fpRead);
 
-
     FILE* fpWrite = fopen(configPath.c_str(), "wb");
-
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
@@ -232,7 +247,6 @@ int ConfigParser::SetPort(int value){
     of << writeBuffer;
 
     fclose(fpWrite);
-
 }
 
 int ConfigParser::SetField(const char* field, const char* value)
@@ -245,7 +259,6 @@ int ConfigParser::SetField(const char* field, const char* value)
         errors.push_back(err.str());
         return -1; 
     }
-
     char readBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileReadStream configStream(fpRead, readBuffer, sizeof(readBuffer));
 
@@ -270,7 +283,6 @@ int ConfigParser::SetField(const char* field, const char* value)
     fclose(fpRead);
 
     FILE* fpWrite = fopen(configPath.c_str(), "wb");
-
     if(!fpWrite){
         err << "Could not open file " << configPath << "!";
         errors.push_back(err.str());
@@ -280,13 +292,13 @@ int ConfigParser::SetField(const char* field, const char* value)
     char writeBuffer[CONFIGPARSER_BUF_SIZE] = {};
     FileWriteStream configWriteStream(fpWrite, writeBuffer, sizeof(writeBuffer));
     PrettyWriter<FileWriteStream> writer(configWriteStream);
-
     d.Accept(writer);
 
     fclose(fpWrite);
 }
 
-std::map<std::string, std::string> ConfigParser::GetConfigMap(){
+std::map<std::string, std::string> ConfigParser::GetConfigMap()
+{
     std::map<std::string, std::string> configMap;
 
     stringstream err;
@@ -329,16 +341,16 @@ std::map<std::string, std::string> ConfigParser::GetConfigMap(){
             }
         }
     }
-
     fclose(fp);
 
     return configMap;
 }
 
-bool ConfigParser::isConfigValid(){
-    map<string, string> configMap = GetConfigMap();
+bool ConfigParser::isConfigValid()
+{
     unsigned short foundRequiredCount = 0;
 
+    map<string, string> configMap = GetConfigMap();
     if(configMap.empty()){
         return false;
     }
@@ -376,8 +388,8 @@ bool ConfigParser::isConfigValid(){
         }
     }
 
-    if(foundRequiredCount < 2){
+    if(foundRequiredCount < 2)
         std::cout << "Missing required fields!" << std::endl;
-    }
+
     return true;
 }
