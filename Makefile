@@ -1,5 +1,11 @@
-CC        := g++
-LD        := g++
+ifeq	($(CPU),arm)
+    CC	:= $(WORKING)/build/bin/arm-linux-gnueabihf-g++
+    LD	:= $(WORKING)/build/bin/arm-linux-gnueabihf-g++
+else
+    CC	:= g++
+    LD	:= g++
+endif
+
 CFLAGS    := -std=c++98 -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX -g3 -g
 #CFLAGS    := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
 #CXXFLAGS  := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
@@ -25,6 +31,10 @@ $1/%.o: %.cpp
 endef
 
 LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lexpat -lssl -lcrypto -lresolv -lstdc++ -lpthread -lrt -lz -lgcc_s -lc -luuid
+
+ifeq	($(CPU),arm)
+    LIBS += -llzma
+endif
 
 ifdef RAPIDJSON_PATH
     INCLUDES += -I$(RAPIDJSON_PATH)
