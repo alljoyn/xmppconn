@@ -116,7 +116,7 @@ If it is desired that xmppconn be installed do the following:
 Next set up the configuration file:
 
     sudo mkdir /etc/xmppconn
-    sudo cp conf/xmppconn_muc.conf /etc/xmppconn/xmppconn.conf
+    sudo cp conf/xmppconn.conf /etc/xmppconn/xmppconn.conf
 
 The configuration file has a number of arguments. Some must be modified in order to connect to the server properly:
 
