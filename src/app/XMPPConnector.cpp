@@ -14,13 +14,17 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "XMPPConnector.h"                                                      // TODO: internal documentation
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <cerrno>
 #include <stdint.h>
 #include <pthread.h>
+#include <fstream>
+#include <iostream>
+
+#include "XMPPConnector.h"                                                      // TODO: internal documentation
 #include "transport/XmppTransport.h"
 #include "RemoteBusAttachment.h"
 #include "RemoteBusListener.h"
@@ -1576,6 +1580,7 @@ XMPPConnector::ReceiveAnnounce(
             else
             {
                 interfaceNames.push_back(line.c_str());
+                writeInterfaceToManifest(line);
             }
         }
     }
@@ -2492,4 +2497,86 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
     }
     }
 
+}
+
+void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementProp, const char* elementValue){
+    if (currentKey == NULL || currentKey->type != XML_ELEMENT_NODE || currentKey->children == NULL) {
+        return;
+    }
+
+    xmlNode* obj_key = currentKey->children;
+    if (obj_key == NULL || obj_key->type != XML_ELEMENT_NODE || obj_key->children == NULL) {
+        return;
+    }
+
+    const xmlChar* keyName = currentKey->name;
+    for(xmlNode* child_key = obj_key->children; child_key != NULL; child_key = child_key->next){
+        if (child_key->type != XML_ELEMENT_NODE || child_key->children == NULL) {
+            continue;
+        }
+        const xmlChar* keyName = child_key->name;
+
+        if (xmlStrEqual(keyName, (const xmlChar*)"interfaces")) {
+            xmlNode* node_child = xmlNewChild(child_key, NULL, BAD_CAST "interface", BAD_CAST elementValue);
+            xmlNewProp(node_child, BAD_CAST "name", BAD_CAST elementProp);
+            xmlAddChild(child_key, node_child);
+        }
+    }
+
+}
+
+
+void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
+{
+    std::ifstream ifs(m_manifestFilePath.c_str());
+    std::string content((std::istreambuf_iterator<char>(ifs)),
+            (std::istreambuf_iterator<char>()));
+    ifs.close();
+
+    if (content.empty()) {
+        LOG_RELEASE("Could not read manifest file");
+        return;
+    }
+
+    if (content.find(interfaceName) != std::string::npos){
+        LOG_VERBOSE("Interface %s is already present in the Manifest.", interfaceName.c_str());
+        return;
+    }
+    
+    LOG_VERBOSE("Adding interface %s to Manifest file.", interfaceName.c_str());
+
+    xmlNodePtr nodeptr=NULL , node = NULL , node_child =NULL;
+    xmlDocPtr doc = xmlParseMemory(content.c_str(), content.size());
+    if (doc == NULL) {
+        LOG_RELEASE("Could not parse XML from memory");
+        xmlFreeDoc(doc);
+        xmlCleanupParser();
+        return;
+    }
+
+    xmlNode* root_element = xmlDocGetRootElement(doc);
+
+    for(xmlNode* currentKey = root_element->children; currentKey != NULL; currentKey = currentKey->next) {
+
+        if (currentKey->type != XML_ELEMENT_NODE || currentKey->children == NULL) {
+            continue;
+        }
+
+        const xmlChar* keyName = currentKey->name;
+        const xmlChar* value = currentKey->children->content;
+
+
+        if (xmlStrEqual(keyName, (const xmlChar*)"exposedServices")) {
+            std::string ifaceNameProp = interfaceName.substr(interfaceName.rfind('.')+1, std::string::npos) + "Interface";
+            addInterfaceXMLTag(currentKey, ifaceNameProp.c_str(), interfaceName.c_str());
+        }
+    }
+
+    xmlLineNumbersDefault(1);
+    xmlThrDefIndentTreeOutput(1);
+    xmlKeepBlanksDefault(0);
+
+    xmlSaveFormatFile(m_manifestFilePath.c_str(), doc, 1);
+    xmlFreeDoc(doc);
+    xmlCleanupParser();
 }

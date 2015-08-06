@@ -21,7 +21,7 @@ OBJ       := $(patsubst src/%.cpp,build/%.o,$(SRC))
 
 BUILD_DIR := $(addprefix $(BUILD_ROOT),$(MODULES))
 
-INCLUDES  := $(addprefix -I,$(SRC_DIR)) -Isrc
+INCLUDES  := $(addprefix -I,$(SRC_DIR)) -Isrc -I/usr/include/libxml2
 
 vpath %.cpp $(SRC_DIR)
 

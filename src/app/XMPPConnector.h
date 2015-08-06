@@ -33,6 +33,10 @@
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <libxml/xmlwriter.h>
+
 #include "transport/Transport.h"
 #include "common/xmppconnutil.h"
 #include "common/SessionTracker.h"
@@ -133,6 +137,10 @@ protected:
 #endif // !NO_AJ_GATEWAY
 
 private:
+#ifndef NO_AJ_GATEWAY
+   vector<std::string> discoveredInterfaces;
+   const std::string m_manifestFilePath = "/opt/alljoyn/apps/xmppconn/Manifest.xml";
+#endif
     bool m_initialized;
 
     struct RemoteObjectDescription
@@ -142,34 +150,34 @@ private:
     };
 
     RemoteBusAttachment* GetRemoteAttachment(
-        const std::string&                          from,
-        const std::string&                          remoteName,
-        const std::vector<RemoteObjectDescription>* objects = NULL
-        );
+            const std::string&                          from,
+            const std::string&                          remoteName,
+            const std::vector<RemoteObjectDescription>* objects = NULL
+            );
     RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
-        const std::string& from,
-        const std::string& advertisedName
-        );
+            const std::string& from,
+            const std::string& advertisedName
+            );
     void DeleteRemoteAttachment(
-        const std::string&    from,
-        RemoteBusAttachment*& attachment
-        );
+            const std::string&    from,
+            RemoteBusAttachment*& attachment
+            );
 
     ajn::BusAttachment* CreateBusAttachment(
-        const std::string& from
-        );
+            const std::string& from
+            );
     ajn::BusAttachment* GetBusAttachment(
-        const std::string& from
-        );
+            const std::string& from
+            );
     void DeleteBusAttachment(
-        const std::string& from
-        );
+            const std::string& from
+            );
     AllJoynListener* GetBusListener(
-        const std::string& from
-        );
+            const std::string& from
+            );
     void DeleteBusListener(
-        const std::string& from
-        );
+            const std::string& from
+            );
 
     std::map<std::string,ajn::BusAttachment*>   m_buses;
     std::map<std::string,AllJoynListener*>      m_listeners;
@@ -191,118 +199,118 @@ private:
 
     // Originally XmppTranport code, moved into XMPPConnector
     void
-    NameOwnerChanged(
-        const char* wellKnownName,
-        const char* uniqueName
-        );
+        NameOwnerChanged(
+                const char* wellKnownName,
+                const char* uniqueName
+                );
 
     void
-    SendAdvertisement(
-        const std::string&                           name,
-        const std::vector<util::bus::BusObjectInfo>& busObjects
-        );
+        SendAdvertisement(
+                const std::string&                           name,
+                const std::vector<util::bus::BusObjectInfo>& busObjects
+                );
     void
-    SendAdvertisementLost(
-        const std::string& name
-        );
+        SendAdvertisementLost(
+                const std::string& name
+                );
     void
-    SendAnnounce(
-        uint16_t                                   version,
-        uint16_t                                   port,
-        const std::string&                         busName,
-        const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
-        const ajn::services::AnnounceHandler::AboutData&          aboutData,
-        const vector<util::bus::BusObjectInfo>&    busObjects
-        );
+        SendAnnounce(
+                uint16_t                                   version,
+                uint16_t                                   port,
+                const std::string&                         busName,
+                const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
+                const ajn::services::AnnounceHandler::AboutData&          aboutData,
+                const vector<util::bus::BusObjectInfo>&    busObjects
+                );
     void
-    SendJoinRequest(
-        const std::string&                           remoteName,
-        SessionPort                                  sessionPort,
-        const char*                                  joiner,
-        const SessionOpts&                           opts,
-        const std::vector<util::bus::BusObjectInfo>& busObjects
-        );
+        SendJoinRequest(
+                const std::string&                           remoteName,
+                SessionPort                                  sessionPort,
+                const char*                                  joiner,
+                const SessionOpts&                           opts,
+                const std::vector<util::bus::BusObjectInfo>& busObjects
+                );
     void
-    SendJoinResponse(
-        const std::string& joinee,
-        ajn::SessionId     sessionId
-        );
+        SendJoinResponse(
+                const std::string& joinee,
+                ajn::SessionId     sessionId
+                );
     void
-    SendSessionJoined(
-        const std::string& joiner,
-        const std::string& joinee,
-        ajn::SessionPort   port,
-        ajn::SessionId     remoteId,
-        ajn::SessionId     localId
-        );
+        SendSessionJoined(
+                const std::string& joiner,
+                const std::string& joinee,
+                ajn::SessionPort   port,
+                ajn::SessionId     remoteId,
+                ajn::SessionId     localId
+                );
     void
-    SendSessionLost(
-        const std::string& peer,
-        ajn::SessionId     id
-        );
+        SendSessionLost(
+                const std::string& peer,
+                ajn::SessionId     id
+                );
     void
-    SendMethodCall(
-        const InterfaceDescription::Member* member,
-        ajn::Message&                       message,
-        const std::string&                  busName,
-        const std::string&                  objectPath
-        );
+        SendMethodCall(
+                const InterfaceDescription::Member* member,
+                ajn::Message&                       message,
+                const std::string&                  busName,
+                const std::string&                  objectPath
+                );
     void
-    SendMethodReply(
-        const std::string& destName,
-        const std::string& destPath,
-        ajn::Message&      reply
-        );
+        SendMethodReply(
+                const std::string& destName,
+                const std::string& destPath,
+                ajn::Message&      reply
+                );
     void
-    SendSignal(
-        const InterfaceDescription::Member* member,
-        const char*                         srcPath,
-        ajn::Message&                       message
-        );
+        SendSignal(
+                const InterfaceDescription::Member* member,
+                const char*                         srcPath,
+                ajn::Message&                       message
+                );
     void
-    SendGetRequest(
-        const std::string& ifaceName,
-        const std::string& propName,
-        const std::string& destName,
-        const std::string& destPath
-        );
+        SendGetRequest(
+                const std::string& ifaceName,
+                const std::string& propName,
+                const std::string& destName,
+                const std::string& destPath
+                );
     void
-    SendGetReply(
-        const std::string& destName,
-        const std::string& destPath,
-        const ajn::MsgArg& replyArg
-        );
+        SendGetReply(
+                const std::string& destName,
+                const std::string& destPath,
+                const ajn::MsgArg& replyArg
+                );
     void
-    SendSetRequest(
-        const std::string& ifaceName,
-        const std::string& propName,
-        const ajn::MsgArg& msgArg,
-        const std::string& destName,
-        const std::string& destPath
-        );
+        SendSetRequest(
+                const std::string& ifaceName,
+                const std::string& propName,
+                const ajn::MsgArg& msgArg,
+                const std::string& destName,
+                const std::string& destPath
+                );
     void
-    SendSetReply(
-        const std::string& destName,
-        const std::string& destPath,
-        QStatus            replyStatus
-        );
+        SendSetReply(
+                const std::string& destName,
+                const std::string& destPath,
+                QStatus            replyStatus
+                );
     void
-    SendGetAllRequest(
-        const InterfaceDescription::Member* member,
-        const std::string&                  destName,
-        const std::string&                  destPath
-        );
+        SendGetAllRequest(
+                const InterfaceDescription::Member* member,
+                const std::string&                  destName,
+                const std::string&                  destPath
+                );
     void
-    SendGetAllReply(
-        const std::string& destName,
-        const std::string& destPath,
-        const ajn::MsgArg& replyArgs
-        );
+        SendGetAllReply(
+                const std::string& destName,
+                const std::string& destPath,
+                const ajn::MsgArg& replyArgs
+                );
 
     std::vector<XMPPConnector::RemoteObjectDescription>
-    ParseBusObjectInfo(
-        std::istringstream& msgStream
-        );
+        ParseBusObjectInfo(
+                std::istringstream& msgStream
+                );
 
     void ReceiveAdvertisement(const std::string& from, const std::string& message);
     void ReceiveAdvertisementLost(const std::string& from, const std::string& message);
@@ -322,21 +330,33 @@ private:
     void ReceiveGetAllReply(const std::string& from, const std::string& message);
 
     void
-    MessageReceived(
-        const std::string& source,
-        const std::string& message
-        );
+        MessageReceived(
+                const std::string& source,
+                const std::string& message
+                );
     void
-    GlobalConnectionStateChanged(
-        const Transport::ConnectionState& new_state,
-        const Transport::ConnectionError& error
-        );
+        GlobalConnectionStateChanged(
+                const Transport::ConnectionState& new_state,
+                const Transport::ConnectionError& error
+                );
     void
-    RemoteSourcePresenceStateChanged(
-        const std::string&                source,
-        const Transport::ConnectionState& new_state,
-        const Transport::ConnectionError& error
-        );
+        RemoteSourcePresenceStateChanged(
+                const std::string&                source,
+                const Transport::ConnectionState& new_state,
+                const Transport::ConnectionError& error
+                );
+
+#ifndef NO_AJ_GATEWAY
+    void
+        addInterfaceXMLTag(xmlNode* currentKey,
+                           const char* elementProp,
+                           const char* elementValue);
+
+    void
+        writeInterfaceToManifest(
+                const std::string& interfaceName
+                );
+#endif
 
     std::map<std::string, std::string> m_wellKnownNameMap;
 
