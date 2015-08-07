@@ -2537,9 +2537,26 @@ void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
         LOG_RELEASE("Could not read manifest file");
         return;
     }
+    
+    int remotedTagBeginPos = content.find("<remotedServices>");
+    int exposedTagBeginPos = content.find("<exposedServices>");
+    int remotedTagEndPos = content.rfind("</remotedServices>");
+    int exposedTagEndPos = content.rfind("</exposedServices>");
 
-    if (content.find(interfaceName) != std::string::npos){
-        LOG_VERBOSE("Interface %s is already present in the Manifest.", interfaceName.c_str());
+    if( remotedTagBeginPos == std::string::npos ||
+        exposedTagBeginPos == std::string::npos ||
+        remotedTagEndPos == std::string::npos ||
+        exposedTagEndPos == std::string::npos){
+        LOG_RELEASE("Manifest file seems to have incorrect format");
+        return;
+    }
+
+    if (content.substr(exposedTagBeginPos, exposedTagEndPos-exposedTagBeginPos).find(interfaceName) != std::string::npos){
+        LOG_VERBOSE("Interface %s is already present in the Manifest exposedServices.", interfaceName.c_str());
+        return;
+    }
+    if (content.substr(remotedTagBeginPos, remotedTagEndPos-remotedTagEndPos).find(interfaceName) != std::string::npos){
+        LOG_VERBOSE("Interface %s is already present in the Manifest remotedServices.", interfaceName.c_str());
         return;
     }
     
@@ -2566,8 +2583,11 @@ void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
         const xmlChar* value = currentKey->children->content;
 
 
+        std::string ifaceNameProp = interfaceName.substr(interfaceName.rfind('.')+1, std::string::npos) + "Interface";
         if (xmlStrEqual(keyName, (const xmlChar*)"exposedServices")) {
-            std::string ifaceNameProp = interfaceName.substr(interfaceName.rfind('.')+1, std::string::npos) + "Interface";
+            addInterfaceXMLTag(currentKey, ifaceNameProp.c_str(), interfaceName.c_str());
+        }
+        else if (xmlStrEqual(keyName, (const xmlChar*)"remotedServices")) {
             addInterfaceXMLTag(currentKey, ifaceNameProp.c_str(), interfaceName.c_str());
         }
     }
