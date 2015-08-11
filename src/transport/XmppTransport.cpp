@@ -46,132 +46,17 @@ XmppTransport::XmppTransport(
 
 XmppTransport::~XmppTransport()
 {
-	printf("ANDREY: Destroying XmppTransport\n");
     xmpp_conn_release(m_xmppconn);
     xmpp_ctx_free(m_xmppctx);
     xmpp_shutdown();
 }
 
-#if 0
-int XmppTransport::handle_reply(xmpp_conn_t * const conn,
-		 xmpp_stanza_t * const stanza,
-		 void * const userdata)
-{
-	printf("ANDREY: Roster handle_reply()\n");
-	XmppTransport* transport = static_cast<XmppTransport*>(userdata);
-    xmpp_stanza_t *query, *item;
-    char *type, *name;
-
-    type = xmpp_stanza_get_type(stanza);
-    if (strcmp(type, "error") == 0)
-    	fprintf(stderr, "ERROR: query failed\n");
-    else {
-	query = xmpp_stanza_get_child_by_name(stanza, "query");
-	printf("******************** Roster: ****************\n");
-    char* buf = NULL;
-    size_t buflen = 0;
-	xmpp_stanza_to_text(stanza, &buf, &buflen);
-	printf("%s\n\n", buf);
-
-	printf("Entering loop\n");
-	item = xmpp_stanza_get_children(query);
-	printf("Get children successful\n");
-	for (item = xmpp_stanza_get_children(query); item;
-	     item = xmpp_stanza_get_next(item))
-	    if ((name = xmpp_stanza_get_attribute(item, "name")))
-		printf("\t %s (%s) sub=%s\n",
-		       name,
-		       xmpp_stanza_get_attribute(item, "jid"),
-		       xmpp_stanza_get_attribute(item, "subscription"));
-	    else
-		printf("\t %s sub=%s\n",
-		       xmpp_stanza_get_attribute(item, "jid"),
-		       xmpp_stanza_get_attribute(item, "subscription"));
-	printf("END OF LIST\n");
-    }
-
-    printf("ANDREY: Setting up presence object\n");
-
-    // Set up our presence message
-    xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(conn);
-    printf("ANDREY: xmppCtx == %x, transport->m_xmppctx = %x\n", xmppCtx, transport->m_xmppctx);
-
-    //xmpp_stanza_t* presence = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-    xmpp_stanza_t* presence = xmpp_stanza_new(xmppCtx);
-
-    printf("ANDREY: Setting presence name\n");
-    int status = xmpp_stanza_set_name(presence, "presence");
-    printf("xmpp_stanza_set_name ret'd %d\n", status);
-
-    //if (transport->m_jabberid.empty())
-    //	printf("Empty JabberID!\n");
-
-    printf("Transport ptr in handle_reply: %x\n", transport);
-    printf("JID is %s\n", transport->m_jabberid.c_str());
-
-    xmpp_stanza_set_attribute(presence, "from",
-            transport->m_jabberid.c_str());
-
-    // If a chat room was specified then build that into the
-    //  presence message
-    printf("ANDREY: checking if chatroom empty\n");
-    if ( !transport->m_chatroom.empty() ) {
-        // Set the "to" field for this presence message to the chatroom
-    	printf("Andrey: Setting to\n");
-        xmpp_stanza_set_attribute(presence, "to",
-                transport->m_chatroom.c_str());
-
-        // Create a child object of the presence message called 'x' to
-        //  specify the XML namespace and hold the history object
-        xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-        xmpp_stanza_set_name(x, "x");
-        printf("ANDREY: Setting x\n");
-        xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
-
-        // Create a child object of 'x' called 'history' and set it to 0
-        //  so that we don't keep the chat history
-        xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-        printf("ANDREY: Setting history\n");
-        xmpp_stanza_set_name(history, "history");
-        xmpp_stanza_set_attribute(history, "maxchars", "0");
-
-        printf("ANDREY: Setting text\n");
-        // Add the child XML nodes
-        xmpp_stanza_add_child(x, history);
-        xmpp_stanza_release(history);
-        xmpp_stanza_add_child(presence, x);
-        xmpp_stanza_release(x);
-    }
-    else
-    {
-        xmpp_stanza_set_attribute(presence, "to",
-                transport->m_roster[0].c_str());
-    }
-
-    // Logging
-    LOG_DEBUG("Sending XMPP presence message");
-    char* buf = NULL;
-    size_t buflen = 0;
-    xmpp_stanza_to_text(presence, &buf, &buflen);
-    LOG_VERBOSE("Presence Message: %s", buf);
-    xmpp_free(xmppCtx, buf);
-
-    // Send our presence message
-    xmpp_send(conn, presence);
-    xmpp_stanza_release(presence);
-
-    printf("ANDREY: Returning from handle_reply\n");
-	return 0;
-}
-#endif
 
 Transport::ConnectionError
 XmppTransport::RunOnce()
 {
 	static int runOnceCount = 0;
-	//printf("ANDREY: XmppTransport::RunOnce() %d\n", ++runOnceCount);
     ConnectionError err = none;
-
 
     static bool initialized = false;
     if ( !initialized )
@@ -191,11 +76,9 @@ XmppTransport::RunOnce()
         xmpp_handler_add(
                 m_xmppconn, XmppPresenceHandler, NULL, "presence", NULL, this);
 
-        printf("ANDREY: Adding XmppRosterHandler\n");
-        sleep(1);
         xmpp_handler_add(
                 m_xmppconn, XmppRosterHandler, "jabber:iq:roster", "iq", NULL, this);
-        printf("ANDREY: Adding XmppConnectionHandler\n");
+
         if ( 0 != xmpp_connect_client(
                 m_xmppconn, NULL, 0, XmppConnectionHandler, this) )
         {
@@ -258,7 +141,6 @@ XmppTransport::SendImpl(
 
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppctx);
     xmpp_stanza_set_name(messageStanza, "message");
-    printf("ANDREY: chatroom.empty() = %d\n", m_chatroom.empty());
 
     if ( m_chatroom.empty() && !m_roster.empty() ) {
         // TODO: When roster is actually a roster and not a destination
@@ -300,6 +182,57 @@ XmppTransport::SendImpl(
 
     return none;
 }
+
+
+void XmppTransport::AddToRoster(XmppTransport* transport, xmpp_ctx_t* connectionCtx)
+{
+	xmpp_stanza_t *iq, *query, *rosterItem;
+	char* buf;
+	size_t buflen;
+
+	// Add roster line from the config file to roster on the server
+	iq = xmpp_stanza_new(transport->m_xmppctx);
+	xmpp_stanza_set_name(iq, "iq");
+	xmpp_stanza_set_type(iq, "set");
+	xmpp_stanza_set_id(iq, "roster_add");
+
+	query = xmpp_stanza_new(transport->m_xmppctx);
+	xmpp_stanza_set_name(query, "query");
+	xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
+
+	rosterItem = xmpp_stanza_new(transport->m_xmppctx);
+	xmpp_stanza_set_name(rosterItem, "item");
+	xmpp_stanza_set_attribute(rosterItem, "jid", transport->m_roster.front().c_str());
+
+	xmpp_stanza_add_child(query, rosterItem);
+	xmpp_stanza_add_child(iq, query);
+	xmpp_stanza_to_text(iq, &buf, &buflen);
+	LOG_VERBOSE("Sending roster push: %s\n", buf);
+	xmpp_send(transport->m_xmppconn, iq);
+
+	xmpp_stanza_release(rosterItem);
+	xmpp_stanza_release(query);
+	xmpp_stanza_release(iq);
+
+	// Get the updated roster
+	iq = xmpp_stanza_new(transport->m_xmppctx);
+	xmpp_stanza_set_name(iq, "iq");
+	xmpp_stanza_set_type(iq, "get");
+	xmpp_stanza_set_id(iq, "roster_get");
+
+	query = xmpp_stanza_new(transport->m_xmppctx);
+	xmpp_stanza_set_name(query, "query");
+	xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
+	xmpp_stanza_add_child(iq, query);
+
+	xmpp_stanza_to_text(iq, &buf, &buflen);
+	LOG_VERBOSE("Sending roster get request: %s\n", buf);
+
+	xmpp_send(transport->m_xmppconn, iq);
+	xmpp_stanza_release(query);
+	xmpp_stanza_release(iq);
+}
+
 
 int
 XmppTransport::XmppStanzaHandler(
@@ -393,7 +326,6 @@ XmppTransport::XmppPresenceHandler(
         void* const          userdata
         )
 {
-    	printf("ANDREY: XmppTransport::XmppPresenceHandler()\n");
 
     FNLOG
         XmppTransport* transport = static_cast<XmppTransport*>(userdata);
@@ -472,7 +404,6 @@ XmppTransport::XmppPresenceHandler(
         }
     }
 
-    printf("ANDREY: Exiting XMPP presence handler\n");
     return 1;
 }
 
@@ -485,14 +416,9 @@ XmppTransport::XmppRosterHandler(
 {
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
-    // TODO: Implement. Right now this is just a placeholder
-
-    printf("ANDREY: XmppTransport::XmppRosterHandler()\n");
-
     FNLOG
         if ( 0 == strcmp("iq", xmpp_stanza_get_name(stanza)) )
         {
-        	printf("ANDREY: Received Roster Stanza\n");
             LOG_DEBUG("Received Roster Stanza");
 
             char* buf = 0;
@@ -512,214 +438,69 @@ XmppTransport::XmppRosterHandler(
             LOG_VERBOSE("To: %s", toAttr);
 
 
-            // If stanza received is a "result", send presence message
+            // If received a reply with the updated roster, send presence message
             string typeAttr = xmpp_stanza_get_attribute(stanza, "type");
             if (typeAttr == "result")
             {
-            	printf("ANDREY: Received roster result\n");
             	XmppTransport* transport = static_cast<XmppTransport*>(userdata);
                 xmpp_stanza_t *query, *item;
                 char *type, *name;
 
-                type = xmpp_stanza_get_type(stanza);
-                if (strcmp(type, "error") == 0)
-                	fprintf(stderr, "ERROR: query failed\n");
-                else {
-            	query = xmpp_stanza_get_child_by_name(stanza, "query");
-            	printf("******************** Roster: ****************\n");
-                char* buf = NULL;
-                size_t buflen = 0;
-            	xmpp_stanza_to_text(stanza, &buf, &buflen);
-            	printf("%s\n\n", buf);
+				// Set up our presence message
+				xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(conn);
+				xmpp_stanza_t* presence = xmpp_stanza_new(xmppCtx);
+				xmpp_stanza_set_name(presence, "presence");
+				xmpp_stanza_set_attribute(presence, "from",
+						transport->m_jabberid.c_str());
 
-            	for (item = xmpp_stanza_get_children(query); item;
-            	     item = xmpp_stanza_get_next(item))
-            	    if ((name = xmpp_stanza_get_attribute(item, "name")))
-            		printf("\t %s (%s) sub=%s\n",
-            		       name,
-            		       xmpp_stanza_get_attribute(item, "jid"),
-            		       xmpp_stanza_get_attribute(item, "subscription"));
-            	    else
-            		printf("\t %s sub=%s\n",
-            		       xmpp_stanza_get_attribute(item, "jid"),
-            		       xmpp_stanza_get_attribute(item, "subscription"));
-            	printf("END OF LIST\n");
-                }
+				// If a chat room was specified then build that into the
+				//  presence message
+				if ( !transport->m_chatroom.empty() ) {
+					// Set the "to" field for this presence message to the chatroom
+					xmpp_stanza_set_attribute(presence, "to",
+							transport->m_chatroom.c_str());
 
-                printf("ANDREY: Setting up presence object\n");
+					// Create a child object of the presence message called 'x' to
+					//  specify the XML namespace and hold the history object
+					xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
+					xmpp_stanza_set_name(x, "x");
+					xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
 
-                // Set up our presence message
-                xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(conn);
-                printf("ANDREY: xmppCtx == %x, transport->m_xmppctx = %x\n", xmppCtx, transport->m_xmppctx);
+					// Create a child object of 'x' called 'history' and set it to 0
+					//  so that we don't keep the chat history
+					xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
+					xmpp_stanza_set_name(history, "history");
+					xmpp_stanza_set_attribute(history, "maxchars", "0");
 
-                //xmpp_stanza_t* presence = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-                xmpp_stanza_t* presence = xmpp_stanza_new(xmppCtx);
+					// Add the child XML nodes
+					xmpp_stanza_add_child(x, history);
+					xmpp_stanza_release(history);
+					xmpp_stanza_add_child(presence, x);
+					xmpp_stanza_release(x);
+				}
+				else	// Set the "to" field for this presence message to the roster entity
+				{	    // TODO: Handle multiple roster entries
+					xmpp_stanza_set_attribute(presence, "to",
+							transport->m_roster[0].c_str());
+				}
 
-                printf("ANDREY: Setting presence name\n");
-                int status = xmpp_stanza_set_name(presence, "presence");
-                printf("xmpp_stanza_set_name ret'd %d\n", status);
+				// Logging
+				LOG_DEBUG("Sending XMPP presence message");
+				char* buf = NULL;
+				size_t buflen = 0;
+				xmpp_stanza_to_text(presence, &buf, &buflen);
+				LOG_VERBOSE("Presence Message: %s", buf);
+				xmpp_free(xmppCtx, buf);
 
-                //if (transport->m_jabberid.empty())
-                //	printf("Empty JabberID!\n");
-
-                //printf("Transport ptr in handle_reply: %x\n", transport);
-                //printf("JID is %s\n", transport->m_jabberid.c_str());
-
-                xmpp_stanza_set_attribute(presence, "from",
-                        transport->m_jabberid.c_str());
-
-                // If a chat room was specified then build that into the
-                //  presence message
-                printf("ANDREY: checking if chatroom empty\n");
-                if ( !transport->m_chatroom.empty() ) {
-                    // Set the "to" field for this presence message to the chatroom
-                	printf("Andrey: Setting to\n");
-                    xmpp_stanza_set_attribute(presence, "to",
-                            transport->m_chatroom.c_str());
-
-                    // Create a child object of the presence message called 'x' to
-                    //  specify the XML namespace and hold the history object
-                    xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-                    xmpp_stanza_set_name(x, "x");
-                    printf("ANDREY: Setting x\n");
-                    xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
-
-                    // Create a child object of 'x' called 'history' and set it to 0
-                    //  so that we don't keep the chat history
-                    xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
-                    printf("ANDREY: Setting history\n");
-                    xmpp_stanza_set_name(history, "history");
-                    xmpp_stanza_set_attribute(history, "maxchars", "0");
-
-                    printf("ANDREY: Setting text\n");
-                    // Add the child XML nodes
-                    xmpp_stanza_add_child(x, history);
-                    xmpp_stanza_release(history);
-                    xmpp_stanza_add_child(presence, x);
-                    xmpp_stanza_release(x);
-                }
-                else
-                {
-                    //xmpp_stanza_set_attribute(presence, "to",
-                    //        transport->m_roster[0].c_str());
-                }
-
-                // Logging
-                LOG_DEBUG("Sending XMPP presence message");
-                char* buf = NULL;
-                size_t buflen = 0;
-                xmpp_stanza_to_text(presence, &buf, &buflen);
-                LOG_VERBOSE("Presence Message: %s", buf);
-                xmpp_free(xmppCtx, buf);
-
-                // Send our presence message
-                xmpp_send(conn, presence);
-                xmpp_stanza_release(presence);
-
-                printf("ANDREY: Finished sending presence msg\n");
+				// Send our presence message
+				xmpp_send(conn, presence);
+				xmpp_stanza_release(presence);
             }
-
-
         }
-
-    printf("ANDREY: Exiting XmppRosterHandler\n");
 
     return 1;
 }
 
-
-void XmppTransport::AddToRoster(XmppTransport* transport, xmpp_ctx_t* connectionCtx)
-{
-   	///////////////////////////////
-		// ANDREY: Roster enabling code
-
-		xmpp_stanza_t *iq, *query;
-		xmpp_stanza_t* rosterItem;
-		char* buf;
-		size_t buflen;
-
-		// Add item to roster
-		printf("ANDREY: Adding item to roster\n");
-		iq = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(iq, "iq");
-		xmpp_stanza_set_type(iq, "set");
-		xmpp_stanza_set_id(iq, "roster");
-
-		query = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(query, "query");
-		xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
-
-		printf("Roster contains %d entries\n", transport->m_roster.size());
-		printf("Roster: %s\n", transport->m_roster.front().c_str());
-		printf("ANDREY: generating roster item\n");
-		rosterItem = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(rosterItem, "item");
-		xmpp_stanza_set_attribute(rosterItem, "jid", transport->m_roster.front().c_str());
-		//xmpp_stanza_set_attribute(rosterItem, "subscription", "both");
-
-		//xmpp_stanza_to_text(rosterItem, &buf, &buflen);
-		//printf("ANDREY: rosterItem stanza: %s\n", buf);
-
-		xmpp_stanza_add_child(query, rosterItem);
-
-		//xmpp_stanza_to_text(query, &buf, &buflen);
-		//printf("ANDREY: query stanza: %s\n", buf);
-
-		xmpp_stanza_add_child(iq, query);
-
-		xmpp_stanza_to_text(iq, &buf, &buflen);
-
-		printf("ANDREY: Sending roster push: %s\n", buf);
-		xmpp_send(transport->m_xmppconn, iq);
-
-		printf("ANDREY: Deleting XMPP stanzas\n");
-		xmpp_stanza_release(rosterItem);
-		xmpp_stanza_release(query);
-		xmpp_stanza_release(iq);
-
-		// Make a subscribe request to see client's presence
-		xmpp_stanza_t *presence = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(presence, "presence");
-        xmpp_stanza_set_type(presence, "subscribe");
-        xmpp_stanza_set_id(presence, "subscribe");
-        xmpp_stanza_set_attribute(presence, "to", transport->m_roster[0].c_str());
-
-		xmpp_stanza_to_text(presence, &buf, &buflen);
-
-		printf("ANDREY: Sending subscribe request: %s\n", buf);
-		xmpp_send(transport->m_xmppconn, presence);
-		////////////////////////////////////
-
-		// Make a second request to get the roster list
-		/* create iq stanza for request */
-		iq = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(iq, "iq");
-		xmpp_stanza_set_type(iq, "get");
-		xmpp_stanza_set_id(iq, "roster2");
-
-		query = xmpp_stanza_new(transport->m_xmppctx);
-		xmpp_stanza_set_name(query, "query");
-		xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
-
-		xmpp_stanza_add_child(iq, query);
-
-		/* set up reply handler */
-		//xmpp_id_handler_add(transport->m_xmppconn, handle_reply, "roster2", transport);
-
-		/* send out the stanza */
-
-		xmpp_stanza_to_text(iq, &buf, &buflen);
-		printf("ANDREY: Sending roster request after adding item to roster: %s\n", buf);
-
-		xmpp_send(transport->m_xmppconn, iq);
-
-		/* we can release the stanza since it belongs to iq now */
-		xmpp_stanza_release(query);
-		/* release the stanza */
-		xmpp_stanza_release(iq);
-
-    	/////////////////////////
-}
 
     void
 XmppTransport::XmppConnectionHandler(
@@ -731,7 +512,6 @@ XmppTransport::XmppConnectionHandler(
         )
 {
 
-    printf("ANDREY: XmppTransport::XmppConnectionHandler()\n");
     FNLOG
         XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     ConnectionState prevConnState = transport->GetConnectionState();
@@ -741,15 +521,9 @@ XmppTransport::XmppConnectionHandler(
     {
         case XMPP_CONN_CONNECT:
             {
-
                 transport->GlobalConnectionStateChanged( connected, none );
-
                 xmpp_ctx_t* connectionCtx = xmpp_conn_get_context(conn);
                 AddToRoster(transport, connectionCtx);
-
-                printf("Transport ptr: %x\n", transport);
-
-
                 break;
             }
         case XMPP_CONN_DISCONNECT:
