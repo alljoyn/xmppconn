@@ -21,6 +21,10 @@
 #include <strophe.h>
 #include <vector>
 
+int handle_reply(xmpp_conn_t * const conn,
+		 xmpp_stanza_t * const stanza,
+		 void * const userdata);
+
 class XmppTransport : public Transport
 {
     XmppTransport() : Transport(0), m_compress(false) {}
@@ -50,6 +54,10 @@ private:
     SendImpl(
         const std::string& message
     );
+
+    static
+    void
+    AddToRoster(XmppTransport* transport, xmpp_ctx_t* connectionCtx);
 
     static
     int

@@ -511,6 +511,7 @@ int main(int argc, char** argv)
 
     // Build the interface name so we can advertise it
     string ifaceName = "global.chariot.C" + s_AppId;
+    printf("ANDREY: In app main, ifaceName = %s\n", ifaceName.c_str());
     ifaceName.erase(std::remove(ifaceName.begin(), ifaceName.end(), '-'), ifaceName.end());
     LOG_DEBUG("Interface Name: %s", ifaceName.c_str());
 
@@ -576,8 +577,8 @@ int main(int argc, char** argv)
         getConfigurationFields();
         if ( getJID().empty() ||
              getPassword().empty() ||
-             getRoster().empty() ||
-             getChatRoom().empty() )
+             getRoster().empty()
+            )
         {
             LOG_RELEASE("Configuration doesn't contain XMPP parameters.");
             waitForConfigChange = true;
@@ -640,6 +641,7 @@ int main(int argc, char** argv)
             s_Continue = true;
         }
 
+    printf("ANDREY: Waiting\n");
     }while(s_Continue);
 
     cleanup();
