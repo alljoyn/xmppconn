@@ -282,6 +282,7 @@ XmppTransport::XmppStanzaHandler(
 
     // Logging
     LOG_DEBUG("Received message/chat stanza");
+    LOG_DEBUG("From: %s", fromAttr);
     LOG_VERBOSE("Stanza: %s", message.c_str());
 
     FNLOG
