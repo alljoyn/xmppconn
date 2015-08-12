@@ -21,9 +21,6 @@
 #include <strophe.h>
 #include <vector>
 
-int handle_reply(xmpp_conn_t * const conn,
-		 xmpp_stanza_t * const stanza,
-		 void * const userdata);
 
 class XmppTransport : public Transport
 {
@@ -57,7 +54,7 @@ private:
 
     static
     void
-    AddToRoster(XmppTransport* transport, xmpp_ctx_t* connectionCtx);
+    AddToRoster(XmppTransport* transport);
 
     static
     int
