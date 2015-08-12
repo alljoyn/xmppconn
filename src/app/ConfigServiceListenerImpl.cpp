@@ -37,8 +37,7 @@ ConfigServiceListenerImpl::ConfigServiceListenerImpl(
         m_KeyListener(new SrpKeyXListener()),
         m_Bus(&bus),
         m_ConfigFilePath(configFilePath),
-        m_onRestartCallback(func),
-        ConfigService::Listener()
+        m_onRestartCallback(func)
 {
     ConfigParser parser(m_ConfigFilePath);
     std::string passcode = parser.GetField("AllJoynPasscode");

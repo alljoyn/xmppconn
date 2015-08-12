@@ -295,6 +295,7 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         }
     }
 
+    delete value;
     m_restartCallback();
     return status;
 }
