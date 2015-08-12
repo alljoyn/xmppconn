@@ -32,13 +32,13 @@ ConfigServiceListenerImpl::ConfigServiceListenerImpl(
         void(*func)(),
         const std::string& configFilePath
         ) :
-        ConfigService::Listener(),
         m_ConfigDataStore(&store),
-        m_Bus(&bus),
         m_BusListener(busListener),
-        m_onRestartCallback(func),
+        m_KeyListener(new SrpKeyXListener()),
+        m_Bus(&bus),
         m_ConfigFilePath(configFilePath),
-        m_KeyListener(new SrpKeyXListener())
+        m_onRestartCallback(func),
+        ConfigService::Listener()
 {
     ConfigParser parser(m_ConfigFilePath);
     std::string passcode = parser.GetField("AllJoynPasscode");
@@ -51,8 +51,9 @@ ConfigServiceListenerImpl::ConfigServiceListenerImpl(
 
     m_KeyListener->setPassCode(passcode.c_str());
     QStatus status = m_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(m_KeyListener)); 
-    if ( ER_OK != status )
+    if ( ER_OK != status ){
         LOG_RELEASE("Failed to enable AllJoyn Peer Security! Reason: %s", QCC_StatusText(status));
+    }
 }
 
 QStatus ConfigServiceListenerImpl::Restart()
@@ -63,13 +64,16 @@ QStatus ConfigServiceListenerImpl::Restart()
 
 QStatus ConfigServiceListenerImpl::FactoryReset()
 {
+
+    LOG_VERBOSE("FactoryRest has been called");
     QStatus status = ER_OK;
     m_ConfigDataStore->FactoryReset();
     m_Bus->ClearKeyStore();
 
     AboutObjApi* aboutObjApi = AboutObjApi::getInstance();
-    if (aboutObjApi)
+    if (aboutObjApi){
         status = aboutObjApi->Announce();
+    }
 
     return status;
 }

@@ -44,12 +44,12 @@ ConfigDataStore::ConfigDataStore(
         RestartCallback func
         ) :
         AboutDataStoreInterface(factoryConfigFile, configFile),
-        m_IsInitialized(false),
         m_configFileName(configFile),
         m_factoryConfigFileName(factoryConfigFile),
-        m_restartCallback(func),
         m_appId(appId),
-        m_deviceId(deviceId)
+        m_deviceId(deviceId),
+        m_restartCallback(func),
+        m_IsInitialized(false)
 {
     //TODO: SetNewFieldDetails("Roster",       REQUIRED,   "as");
     SetNewFieldDetails("Server",       REQUIRED,   "s");
@@ -158,6 +158,7 @@ void ConfigDataStore::FactoryReset()
 
     Initialize();
     m_restartCallback();
+    LOG_VERBOSE("FactoryReset has completed");
 }
 
 ConfigDataStore::~ConfigDataStore()
@@ -189,11 +190,12 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi)
+            if (aboutObjApi){
                 status = aboutObjApi->Announce();
+            }
         }
     }
-    else if(strcmp(name, "Roster") == 0)\
+    else if(strcmp(name, "Roster") == 0)
     {
         /* TODO: This will need to be an array
            int32_t numItems = 0;
@@ -231,14 +233,16 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
         // Re-announce
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi)
+        if (aboutObjApi){
             status = aboutObjApi->Announce();
+        }
     }
     else if(strcmp(name, "UserPassword") == 0)
     {
         status = value->Get("s", &chval);
-        if (status == ER_OK)
+        if (status == ER_OK){
             configParser.SetField(name, chval);
+        }
     }
     else
     {
@@ -252,15 +256,16 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             SetField(name, newvalue);
 
             AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi)
+            if (aboutObjApi){
                 status = aboutObjApi->Announce();
+            }
         }
     }
 
     std::ifstream configFile(m_factoryConfigFileName.c_str(), std::ios::binary);
     if (configFile){
         std::string str((std::istreambuf_iterator<char>(configFile)),
-                         std::istreambuf_iterator<char>());
+                std::istreambuf_iterator<char>());
     }
 
     m_restartCallback();
@@ -272,7 +277,6 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
     ConfigParser factoryParser(m_factoryConfigFileName.c_str());
     QStatus status = ER_INVALID_VALUE;
     MsgArg* value = new MsgArg;
-    char* chval = NULL;
 
     status = GetField(name, value, languageTag);
     if (status == ER_OK)
@@ -286,8 +290,9 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         configParser.SetField(name, tmp.c_str());
 
         AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi)
+        if (aboutObjApi){
             status = aboutObjApi->Announce();
+        }
     }
 
     m_restartCallback();

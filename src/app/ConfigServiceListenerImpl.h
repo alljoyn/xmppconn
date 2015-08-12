@@ -13,6 +13,7 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. 
  */ 
+
 #ifndef CONFIGSERVICELISTENERIMPL_H_
 #define CONFIGSERVICELISTENERIMPL_H_
 #pragma once
@@ -35,11 +36,16 @@ class ConfigServiceListenerImpl : public ajn::services::ConfigService::Listener 
                 void(*func)(), 
                 const std::string& configFilePath
                 );
-        virtual ~ConfigServiceListenerImpl();
 
+        virtual ~ConfigServiceListenerImpl();
         virtual QStatus Restart();
         virtual QStatus FactoryReset();
-        virtual QStatus SetPassphrase(const char* daemonRealm, size_t passcodeSize, const char* passcode, ajn::SessionId sessionId);
+        virtual QStatus SetPassphrase(
+                const char* daemonRealm,
+                size_t passcodeSize,
+                const char* passcode,
+                ajn::SessionId sessionId
+                );
     private:
         ConfigDataStore* m_ConfigDataStore;
         CommonBusListener* m_BusListener;
