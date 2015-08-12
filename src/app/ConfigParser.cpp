@@ -383,13 +383,14 @@ bool ConfigParser::isConfigValid()
             // noop
         }
         else{
-            std::cout << "Invalid Field Found: " << it->first << std::endl;
+            LOG_RELEASE("Invalid Field Found: %s", it->first.c_str());
             return false;
         }
     }
 
-    if(foundRequiredCount < 2)
-        std::cout << "Missing required fields!" << std::endl;
+    if(foundRequiredCount < 2){
+        LOG_RELEASE("Missing required fields!");
+    }
 
     return true;
 }
