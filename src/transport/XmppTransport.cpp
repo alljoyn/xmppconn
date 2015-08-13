@@ -24,6 +24,11 @@ using namespace std;
 const int KEEPALIVE_IN_SECONDS = 60;
 const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
 
+// Helper function to deal with converting C char array to std::string safely
+inline string convertToString(const char* s)
+{
+    return (s ? string(s) : string(""));
+}
 
 XmppTransport::XmppTransport(
     TransportListener*    listener,
@@ -77,7 +82,7 @@ XmppTransport::RunOnce()
                 m_xmppconn, XmppPresenceHandler, NULL, "presence", NULL, this);
 
         xmpp_handler_add(
-                m_xmppconn, XmppRosterHandler, "jabber:iq:roster", "iq", NULL, this);
+                m_xmppconn, XmppRosterHandler, XMPP_NS_ROSTER, "iq", NULL, this);
 
         if ( 0 != xmpp_connect_client(
                 m_xmppconn, NULL, 0, XmppConnectionHandler, this) )
@@ -265,24 +270,28 @@ XmppTransport::XmppStanzaHandler(
 
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
-    const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
+    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    std::string fromAttrTmp("");
 
-    std::string fromAttrTmp = transport->m_roster.front();
-    std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-    std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-    fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
+    if ( !(transport->m_roster.empty()) )
+    {
+        fromAttrTmp = transport->m_roster.front();
+        std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
+        std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
+        fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
 
-    std::transform(fromAttrTmp.begin(), fromAttrTmp.end(), fromAttrTmp.begin(), ::tolower);
+        std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
+    }
 
     if ( transport->m_roster.empty() || fromAttrTmp != fromAttr )
     {
-        LOG_DEBUG("Ignoring message/chat from non-roster entity: %s", fromAttr);
+        LOG_DEBUG("Ignoring message/chat from non-roster entity: %s", fromAttr.c_str());
         return 1;
     }
 
     // Logging
     LOG_DEBUG("Received message/chat stanza");
-    LOG_DEBUG("From: %s", fromAttr);
+    LOG_DEBUG("From: %s", fromAttr.c_str());
     LOG_VERBOSE("Stanza: %s", message.c_str());
 
     FNLOG
@@ -367,17 +376,21 @@ XmppTransport::XmppPresenceHandler(
 
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
-    //const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-    string fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-    std::string fromAttrTmp = transport->m_roster.front();
-    std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-    LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
-    std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-    LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
-    fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
-    LOG_DEBUG("Roster contains: %s", fromAttrTmp.c_str());
+    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    std::string fromAttrTmp("");
 
-    std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
+    if ( !(transport->m_roster.empty()) )
+    {
+        fromAttrTmp = transport->m_roster.front();
+        std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
+        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
+        std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
+        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
+        fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
+        LOG_DEBUG("Roster contains: %s", fromAttrTmp.c_str());
+
+        std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
+    }
 
     if ( transport->m_roster.empty() || fromAttrTmp != fromAttr ) {
         LOG_DEBUG("Ignoring presence from non-roster entity:  %s", fromAttr.c_str());
@@ -403,18 +416,19 @@ XmppTransport::XmppPresenceHandler(
     //          <item role="participant" affiliation="none"/>
     //      </x>
     //  </presence>
-    const string participant_lookup("role=\"participant\""); // TODO: we should do something more robust than this
-    const string moderator_lookup("role=\"moderator\""); // TODO: we should do something more robust than this
-    if ( message.npos != message.find(participant_lookup) ||
-            message.npos != message.find(moderator_lookup) )
+
+
+    string presenceType = convertToString(xmpp_stanza_get_type(stanza));
+
+    if ( presenceType == "unavailable" )
     {
-        // The remote entity has come online
-        transport->RemoteSourcePresenceStateChanged( fromAttr, connected, none );
+        LOG_DEBUG("Remote entity has gone offline");
+        transport->RemoteSourcePresenceStateChanged( fromAttr, disconnected, none );
     }
     else
     {
-        // The remote entity has gone offline
-        transport->RemoteSourcePresenceStateChanged( fromAttr, disconnected, none );
+        LOG_DEBUG("Remote entity has come online");
+        transport->RemoteSourcePresenceStateChanged( fromAttr, connected, none );
     }
 
     return 1;
@@ -450,12 +464,10 @@ XmppTransport::XmppRosterHandler(
 
 
     // If received a reply with the updated roster, send presence message
-    string typeAttr = xmpp_stanza_get_attribute(stanza, "type");
+    string typeAttr = convertToString(xmpp_stanza_get_attribute(stanza, "type"));
     if (typeAttr == "result")
     {
         XmppTransport* transport = static_cast<XmppTransport*>(userdata);
-        xmpp_stanza_t *query, *item;
-        char *type, *name;
 
         // Set up our presence message
         xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(conn);
@@ -492,10 +504,10 @@ XmppTransport::XmppRosterHandler(
         }
         else    // Set the "to" field for this presence message to the roster entity
         {        // TODO: Handle multiple roster entries
-            if (!transport->m_roster.empty())
+            if ( !transport->m_roster.empty() )
             {
                 xmpp_stanza_set_attribute(presence, "to",
-                    transport->m_roster[0].c_str());
+                    transport->m_roster.front().c_str());
             }
         }
 
