@@ -21,6 +21,7 @@
 #include <strophe.h>
 #include <vector>
 
+
 class XmppTransport : public Transport
 {
     XmppTransport() : Transport(0), m_compress(false) {}
@@ -50,6 +51,10 @@ private:
     SendImpl(
         const std::string& message
     );
+
+    static
+    void
+    AddToRoster(XmppTransport* transport);
 
     static
     int

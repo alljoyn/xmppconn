@@ -406,8 +406,8 @@ int main(int argc, char** argv)
         getConfigurationFields();
         if ( getJID().empty() ||
              getPassword().empty() ||
-             getRoster().empty() ||
-             getChatRoom().empty() )
+             getRoster().empty()
+            )
         {
             LOG_RELEASE("Configuration doesn't contain XMPP parameters.");
             waitForConfigChange = true;

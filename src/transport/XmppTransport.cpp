@@ -24,6 +24,12 @@ using namespace std;
 const int KEEPALIVE_IN_SECONDS = 60;
 const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
 
+// Helper function to deal with converting C char array to std::string safely
+inline string convertToString(const char* s)
+{
+    return (s ? string(s) : string(""));
+}
+
 XmppTransport::XmppTransport(
     TransportListener*    listener,
     const string&         jabberid,
@@ -51,6 +57,7 @@ XmppTransport::~XmppTransport()
     xmpp_shutdown();
 }
 
+
 Transport::ConnectionError
 XmppTransport::RunOnce()
 {
@@ -73,8 +80,10 @@ XmppTransport::RunOnce()
         }
         xmpp_handler_add(
                 m_xmppconn, XmppPresenceHandler, NULL, "presence", NULL, this);
+
         xmpp_handler_add(
-                m_xmppconn, XmppRosterHandler, "jabber:iq:roster", "iq", NULL, this);
+                m_xmppconn, XmppRosterHandler, XMPP_NS_ROSTER, "iq", NULL, this);
+
         if ( 0 != xmpp_connect_client(
                 m_xmppconn, NULL, 0, XmppConnectionHandler, this) )
         {
@@ -83,6 +92,7 @@ XmppTransport::RunOnce()
             LOG_RELEASE("Failed to connect to XMPP server.");
             return err;
         }
+
         initialized = true;
     }
 
@@ -136,6 +146,7 @@ XmppTransport::SendImpl(
 
     xmpp_stanza_t* messageStanza = xmpp_stanza_new(m_xmppctx);
     xmpp_stanza_set_name(messageStanza, "message");
+
     if ( m_chatroom.empty() && !m_roster.empty() ) {
         // TODO: When roster is actually a roster and not a destination
         //  we will need to instead add a parameter to this function
@@ -177,6 +188,66 @@ XmppTransport::SendImpl(
     return none;
 }
 
+
+void XmppTransport::AddToRoster(XmppTransport* transport)
+{
+    xmpp_stanza_t *iq(NULL), *query(NULL), *rosterItem(NULL);
+    char* buf(NULL);
+    size_t buflen = 0;
+
+    // Add roster line from the config file to roster on the server
+    // Example of a roster update request (push):
+    // <iq id="roster_add" type="set">
+    //     <query xmlns="jabber:iq:roster">
+    //         <item jid="exampleR@server.com"/>
+    //     </query>
+    // </iq>
+    // TODO: Support multiple entries in the roster
+    iq = xmpp_stanza_new(transport->m_xmppctx);
+    xmpp_stanza_set_name(iq, "iq");
+    xmpp_stanza_set_type(iq, "set");
+    xmpp_stanza_set_id(iq, "roster_add");
+
+    query = xmpp_stanza_new(transport->m_xmppctx);
+    xmpp_stanza_set_name(query, "query");
+    xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
+
+    rosterItem = xmpp_stanza_new(transport->m_xmppctx);
+    xmpp_stanza_set_name(rosterItem, "item");
+    xmpp_stanza_set_attribute(rosterItem, "jid", transport->m_roster.front().c_str());
+
+    xmpp_stanza_add_child(query, rosterItem);
+    xmpp_stanza_add_child(iq, query);
+    xmpp_stanza_to_text(iq, &buf, &buflen);
+    LOG_VERBOSE("Sending roster push: %s", buf);
+    xmpp_send(transport->m_xmppconn, iq);
+
+    xmpp_stanza_release(rosterItem);
+    xmpp_stanza_release(query);
+    xmpp_stanza_release(iq);
+    xmpp_free(transport->m_xmppctx, buf);
+
+    // Get the updated roster
+    iq = xmpp_stanza_new(transport->m_xmppctx);
+    xmpp_stanza_set_name(iq, "iq");
+    xmpp_stanza_set_type(iq, "get");
+    xmpp_stanza_set_id(iq, "roster_get");
+
+    query = xmpp_stanza_new(transport->m_xmppctx);
+    xmpp_stanza_set_name(query, "query");
+    xmpp_stanza_set_ns(query, XMPP_NS_ROSTER);
+    xmpp_stanza_add_child(iq, query);
+
+    xmpp_stanza_to_text(iq, &buf, &buflen);
+    LOG_VERBOSE("Sending roster get request: %s", buf);
+
+    xmpp_send(transport->m_xmppconn, iq);
+    xmpp_stanza_release(query);
+    xmpp_stanza_release(iq);
+    xmpp_free(transport->m_xmppctx, buf);
+}
+
+
 int
 XmppTransport::XmppStanzaHandler(
     xmpp_conn_t* const   conn,
@@ -199,22 +270,28 @@ XmppTransport::XmppStanzaHandler(
 
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
-    const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
+    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    std::string fromAttrTmp("");
 
-    std::string fromAttrTmp = transport->m_roster.front();
-    std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-    std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-    fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
+    if ( !(transport->m_roster.empty()) )
+    {
+        fromAttrTmp = transport->m_roster.front();
+        std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
+        std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
+        fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
+
+        std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
+    }
 
     if ( transport->m_roster.empty() || fromAttrTmp != fromAttr )
     {
-        LOG_DEBUG("Ignoring message/chat from non-roster entity: %s", fromAttr);
+        LOG_DEBUG("Ignoring message/chat from non-roster entity: %s", fromAttr.c_str());
         return 1;
     }
 
     // Logging
     LOG_DEBUG("Received message/chat stanza");
-    LOG_DEBUG("From: %s", fromAttr);
+    LOG_DEBUG("From: %s", fromAttr.c_str());
     LOG_VERBOSE("Stanza: %s", message.c_str());
 
     FNLOG
@@ -262,6 +339,7 @@ XmppTransport::XmppStanzaHandler(
     return 1;
 }
 
+
     int
 XmppTransport::XmppPresenceHandler(
         xmpp_conn_t* const   conn,
@@ -269,81 +347,88 @@ XmppTransport::XmppPresenceHandler(
         void* const          userdata
         )
 {
+
     FNLOG
-        XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+    XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
-    if ( 0 == strcmp("presence", xmpp_stanza_get_name(stanza)) )
+    /*        // First determine if it's a probe and answer it if necessary
+              const char* type = xmpp_stanza_get_attribute(stanza, "type");
+              if ( type && string(type) == "probe" ) {
+              const char* from = xmpp_stanza_get_attribute(stanza, "from");
+              const char* to =
+              return 1;
+              }
+     */
+    // Get the stanza as text so we can parse it
+    // NOTE: Doing this first before checking to ignore so that
+    //  we output the stanza info to the log when debugging issues
+    //  with presence notifications.
+    char* buf = 0;
+    size_t buflen = 0;
+    int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
+    if ( XMPP_EOK != result ) {
+        LOG_RELEASE("Failed to get presence stanza as text! %d", result);
+        return 1;
+    }
+    LOG_VERBOSE("Stanza: %s", buf);
+    string message(buf);
+    xmpp_free(xmpp_conn_get_context(conn), buf);
+
+    // Ignore if it isn't in our roster
+    // TODO: Eventually this will be a full roster, right now we support only a single destination
+    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    std::string fromAttrTmp("");
+
+    if ( !(transport->m_roster.empty()) )
     {
-        /*        // First determine if it's a probe and answer it if necessary
-                  const char* type = xmpp_stanza_get_attribute(stanza, "type");
-                  if ( type && string(type) == "probe" ) {
-                  const char* from = xmpp_stanza_get_attribute(stanza, "from");
-                  const char* to = 
-                  return 1;
-                  }
-                  */
-        // Get the stanza as text so we can parse it
-        // NOTE: Doing this first before checking to ignore so that
-        //  we output the stanza info to the log when debugging issues
-        //  with presence notifications.
-        char* buf = 0;
-        size_t buflen = 0;
-        int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
-        if ( XMPP_EOK != result ) {
-            LOG_RELEASE("Failed to get presence stanza as text! %d", result);
-            return 1;
-        }
-        LOG_VERBOSE("Stanza: %s", buf);
-        string message(buf);
-        xmpp_free(xmpp_conn_get_context(conn), buf);
-
-        // Ignore if it isn't in our roster
-        // TODO: Eventually this will be a full roster, right now we support only a single destination
-        const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-        std::string fromAttrTmp = transport->m_roster.front();
+        fromAttrTmp = transport->m_roster.front();
         std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-        LOG_DEBUG("%s", fromAttrLower.c_str());
+        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
         std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-        LOG_DEBUG("%s", fromAttrLower.c_str());
+        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
         fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
-        LOG_DEBUG("%s", fromAttrTmp.c_str());
-        if ( transport->m_roster.empty() || fromAttrTmp != fromAttr ) {
-            LOG_DEBUG("Ignoring presence from non-roster entity: %s", fromAttr);
-            return 1;
-        }
+        LOG_DEBUG("Roster contains: %s", fromAttrTmp.c_str());
 
-        // Logging
-        LOG_DEBUG("Received Presence Stanza");
-        LOG_DEBUG("From: %s", fromAttr);
+        std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
+    }
 
-        // Check if it's online/offline presence notification
-        // Example of a presence stanza:
-        //  <presence xml:lang=""
-        //   to="test-connector@xmpp.chariot.global/test-connector"
-        //   from="test-connector@muc.xmpp.chariot.global/test">
-        //      <priority>1</priority>
-        //      <c hash="sha-1" xmlns="http://jabber.org/protocol/caps"
-        //       ver="71LAP/wlWGfun7j+Q4FCSSuAhQw=" node="http://pidgin.im/"/>
-        //      <x xmlns="vcard-temp:x:update">
-        //          <photo>677584b5b6a6f6a91cad4cfad0b13a4949d53faa</photo>
-        //      </x>
-        //      <x xmlns="http://jabber.org/protocol/muc#user">
-        //          <item role="participant" affiliation="none"/>
-        //      </x>
-        //  </presence>
-        const string participant_lookup("role=\"participant\""); // TODO: we should do something more robust than this
-        const string moderator_lookup("role=\"moderator\""); // TODO: we should do something more robust than this
-        if ( message.npos != message.find(participant_lookup) ||
-                message.npos != message.find(moderator_lookup) )
-        {
-            // The remote entity has come online
-            transport->RemoteSourcePresenceStateChanged( fromAttr, connected, none );
-        }
-        else
-        {
-            // The remote entity has gone offline
-            transport->RemoteSourcePresenceStateChanged( fromAttr, disconnected, none );
-        }
+    if ( transport->m_roster.empty() || fromAttrTmp != fromAttr ) {
+        LOG_DEBUG("Ignoring presence from non-roster entity:  %s", fromAttr.c_str());
+        return 1;
+    }
+
+    // Logging
+    LOG_DEBUG("Received Presence Stanza");
+    LOG_DEBUG("From: %s", fromAttr.c_str());
+
+    // Check if it's online/offline presence notification
+    // Example of a presence stanza:
+    //  <presence xml:lang=""
+    //   to="test-connector@xmpp.chariot.global/test-connector"
+    //   from="test-connector@muc.xmpp.chariot.global/test">
+    //      <priority>1</priority>
+    //      <c hash="sha-1" xmlns="http://jabber.org/protocol/caps"
+    //       ver="71LAP/wlWGfun7j+Q4FCSSuAhQw=" node="http://pidgin.im/"/>
+    //      <x xmlns="vcard-temp:x:update">
+    //          <photo>677584b5b6a6f6a91cad4cfad0b13a4949d53faa</photo>
+    //      </x>
+    //      <x xmlns="http://jabber.org/protocol/muc#user">
+    //          <item role="participant" affiliation="none"/>
+    //      </x>
+    //  </presence>
+
+
+    string presenceType = convertToString(xmpp_stanza_get_type(stanza));
+
+    if ( presenceType == "unavailable" )
+    {
+        LOG_DEBUG("Remote entity has gone offline");
+        transport->RemoteSourcePresenceStateChanged( fromAttr, disconnected, none );
+    }
+    else
+    {
+        LOG_DEBUG("Remote entity has come online");
+        transport->RemoteSourcePresenceStateChanged( fromAttr, connected, none );
     }
 
     return 1;
@@ -358,32 +443,90 @@ XmppTransport::XmppRosterHandler(
 {
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
-    // TODO: Implement. Right now this is just a placeholder
-
     FNLOG
-        if ( 0 == strcmp("iq", xmpp_stanza_get_name(stanza)) )
+    LOG_DEBUG("Received Roster Stanza");
+
+    char* buf = 0;
+    size_t buflen = 0;
+    int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
+    if ( XMPP_EOK != result ) {
+        LOG_RELEASE("Failed to get roster stanza as text! %d", result);
+        return 1;
+    }
+    LOG_VERBOSE("Stanza: %s", buf);
+    string message(buf);
+    xmpp_free(xmpp_conn_get_context(conn), buf);
+
+    const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
+    LOG_VERBOSE("From: %s", fromAttr);
+    const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
+    LOG_VERBOSE("To: %s", toAttr);
+
+
+    // If received a reply with the updated roster, send presence message
+    string typeAttr = convertToString(xmpp_stanza_get_attribute(stanza, "type"));
+    if (typeAttr == "result")
+    {
+        XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+
+        // Set up our presence message
+        xmpp_ctx_t* xmppCtx = xmpp_conn_get_context(conn);
+        xmpp_stanza_t* presence = xmpp_stanza_new(xmppCtx);
+        xmpp_stanza_set_name(presence, "presence");
+        xmpp_stanza_set_attribute(presence, "from",
+                transport->m_jabberid.c_str());
+
+        // If a chat room was specified then build that into the
+        //  presence message
+        if ( !transport->m_chatroom.empty() )
         {
-            LOG_DEBUG("Received Roster Stanza");
+            // Set the "to" field for this presence message to the chatroom
+            xmpp_stanza_set_attribute(presence, "to",
+                    transport->m_chatroom.c_str());
 
-            char* buf = 0;
-            size_t buflen = 0;
-            int result = xmpp_stanza_to_text( stanza, &buf, &buflen );
-            if ( XMPP_EOK != result ) {
-                LOG_RELEASE("Failed to get roster stanza as text! %d", result);
-                return 1;
-            }
-            //LOG_VERBOSE("Stanza: %s", buf);
-            string message(buf);
-            xmpp_free(xmpp_conn_get_context(conn), buf);
+            // Create a child object of the presence message called 'x' to
+            //  specify the XML namespace and hold the history object
+            xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
+            xmpp_stanza_set_name(x, "x");
+            xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
 
-            const char* fromAttr = xmpp_stanza_get_attribute(stanza, "from");
-            LOG_VERBOSE("From: %s", fromAttr);
-            const char* toAttr = xmpp_stanza_get_attribute(stanza, "to");
-            LOG_VERBOSE("To: %s", toAttr);
+            // Create a child object of 'x' called 'history' and set it to 0
+            //  so that we don't keep the chat history
+            xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(transport->m_xmppconn));
+            xmpp_stanza_set_name(history, "history");
+            xmpp_stanza_set_attribute(history, "maxchars", "0");
+
+            // Add the child XML nodes
+            xmpp_stanza_add_child(x, history);
+            xmpp_stanza_release(history);
+            xmpp_stanza_add_child(presence, x);
+            xmpp_stanza_release(x);
         }
+        else    // Set the "to" field for this presence message to the roster entity
+        {        // TODO: Handle multiple roster entries
+            if ( !transport->m_roster.empty() )
+            {
+                xmpp_stanza_set_attribute(presence, "to",
+                    transport->m_roster.front().c_str());
+            }
+        }
+
+        // Logging
+        LOG_DEBUG("Sending XMPP presence message");
+        char* buf = NULL;
+        size_t buflen = 0;
+        xmpp_stanza_to_text(presence, &buf, &buflen);
+        LOG_VERBOSE("Presence Message: %s", buf);
+        xmpp_free(xmppCtx, buf);
+
+        // Send our presence message
+        xmpp_send(conn, presence);
+        xmpp_stanza_release(presence);
+    }
 
     return 1;
 }
+
 
     void
 XmppTransport::XmppConnectionHandler(
@@ -394,8 +537,9 @@ XmppTransport::XmppConnectionHandler(
         void* const                userdata
         )
 {
+
     FNLOG
-        XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+    XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     ConnectionState prevConnState = transport->GetConnectionState();
 
     switch(event)
@@ -403,50 +547,11 @@ XmppTransport::XmppConnectionHandler(
         case XMPP_CONN_CONNECT:
             {
                 transport->GlobalConnectionStateChanged( connected, none );
-
-                // Set up our presence message
-                xmpp_stanza_t* presence = xmpp_stanza_new(xmpp_conn_get_context(conn));
-                xmpp_stanza_set_name(presence, "presence");
-                xmpp_stanza_set_attribute(presence, "from",
-                        transport->m_jabberid.c_str());
-
-                // If a chat room was specified then build that into the
-                //  presence message
-                if ( !transport->m_chatroom.empty() ) {
-                    // Set the "to" field for this presence message to the chatroom
-                    xmpp_stanza_set_attribute(presence, "to",
-                            transport->m_chatroom.c_str());
-
-                    // Create a child object of the presence message called 'x' to
-                    //  specify the XML namespace and hold the history object
-                    xmpp_stanza_t* x = xmpp_stanza_new(xmpp_conn_get_context(conn));
-                    xmpp_stanza_set_name(x, "x");
-                    xmpp_stanza_set_attribute(x, "xmlns", "http://jabber.org/protocol/muc");
-
-                    // Create a child object of 'x' called 'history' and set it to 0
-                    //  so that we don't keep the chat history
-                    xmpp_stanza_t* history = xmpp_stanza_new(xmpp_conn_get_context(conn));
-                    xmpp_stanza_set_name(history, "history");
-                    xmpp_stanza_set_attribute(history, "maxchars", "0");
-
-                    // Add the child XML nodes
-                    xmpp_stanza_add_child(x, history);
-                    xmpp_stanza_release(history);
-                    xmpp_stanza_add_child(presence, x);
-                    xmpp_stanza_release(x);
+                if (!transport->m_roster.empty())
+                {
+                    AddToRoster(transport);
                 }
 
-                // Logging
-                LOG_DEBUG("Sending XMPP presence message");
-                char* buf = NULL;
-                size_t buflen = 0;
-                xmpp_stanza_to_text(presence, &buf, &buflen);
-                LOG_VERBOSE("Presence Message: %s", buf);
-                xmpp_free(xmpp_conn_get_context(conn), buf);
-
-                // Send our presence message
-                xmpp_send(conn, presence);
-                xmpp_stanza_release(presence);
                 break;
             }
         case XMPP_CONN_DISCONNECT:
@@ -490,4 +595,5 @@ XmppTransport::XmppConnectionHandler(
                 break;
             }
     }
+
 }
