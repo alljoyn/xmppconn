@@ -18,6 +18,7 @@ The following dependencies must be obtained and installed:
 
 * libxml2
 * libstrophe
+* RapidJSON
 * AllJoyn Gateway Agent
 
 First set up the environment. Make sure to change the CPU value to the correct value for your system (e.g. x86\_64, arm, etc.). Also set the OS to the correct value if necessary.
@@ -49,6 +50,12 @@ It is necessary to install libstrophe. Issue the following commands to install i
     make
     sudo make install
 
+#### RapidJSON
+
+It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from here. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. If your RapidJSON source code folder is RAPIDJSON_ROOT, then RAPIDJSON_PATH needs to point to $RAPIDJSON_ROOT/include:
+
+    export RAPIDJSON_PATH=$RAPIDJSON_ROOT/include
+    
 #### AllJoyn Gateway Agent
 
 Pull the source code and build the AllJoyn Gateway Agent as follows. 
