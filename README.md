@@ -87,7 +87,7 @@ Pull the source code and build the AllJoyn Gateway Agent as follows.
 
 #### xmppconn
 
-NOTE: Before building, make sure that RAPIDJSON\_PATH and ALLJOYN\_DISTDIR environment variables, described above, are set appropriately.
+**NOTE:** Before building, make sure that RAPIDJSON\_PATH and ALLJOYN\_DISTDIR environment variables, described above, are set appropriately.
 
 Pull the source code from the repository into the xmppconn folder under $ROOTPATH, and run "make":
 
