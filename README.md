@@ -52,7 +52,7 @@ It is necessary to install libstrophe. Issue the following commands to install i
 
 #### RapidJSON
 
-It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from here. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. If your RapidJSON source code folder is RAPIDJSON_ROOT, then RAPIDJSON_PATH needs to point to $RAPIDJSON_ROOT/include:
+It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from here. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. If your RapidJSON source code folder is RAPIDJSON\_ROOT, then RAPIDJSON\_PATH needs to point to $RAPIDJSON\_ROOT/include:
 
     export RAPIDJSON_PATH=$RAPIDJSON_ROOT/include
     
@@ -87,6 +87,7 @@ Pull the source code and build the AllJoyn Gateway Agent as follows.
 
 #### xmppconn
 
+NOTE: Before building, make sure that RAPIDJSON\_PATH and ALLJOYN\_DISTDIR environment variables, described above, are set appropriately.
 Pull the source code from the repositor into the xmppconn folder under $ROOTPATH.
 
     cd $ROOTPATH
@@ -127,29 +128,34 @@ Next set up the configuration file:
 
 The configuration file has a number of arguments. Some must be modified in order to connect to the server properly:
 
-    SERVER - the XMPP server (e.g. xmpp.chariot.global)
-    CHATROOM - name of the chat room (if blank, multi user chatrooms are not used)
-    USER - username to log in to the server
-    PASSWORD - password for the specified user
-    RESOURCE - the Jabber resource (the part that comes after the slash after the base JID)
-    ROSTER - the Full JabberID of the device that this is paired with
-    VERBOSITY - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose
-    COMPRESS - whether or not to compress the body of each message. This is recommended, and must match what the paired device is doing.
+    ProductID - the identifier of your product. This can be retrieved by logging in to your account on https://dev.chariot.global
+    SerialNumber - the serial number of the device. This will always be device-specific
 
-After properly setting up the config file xmppconn can be started:
+These arguments can be optionally modified as needed:
 
-    sudo service xmppconn start
+    Verbosity - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose
+    Compress - whether or not to compress the body of each message. This is recommended, and must match what the paired device is doing.
 
+If you see the following variables in the config file, delete them to reset xmppconn:
 
-TODO: Install as an AllJoyn Gateway Connector application
+    AppID
+    AllJoynPasscode 
+    UserPassword
+    UserJID
+    RoomJID
+    Roster
 
-## Tests
+These variables will be set automatically by the XMPP server when you pair your device for the first time using xmppconn. NOTE: xmppconn must have write permission for the /etc/xmppconn/xmppconn.conf file, so make sure that you are either running as root (sudo), or change permissions for the config file.
 
-TODO: Describe and show how to run the tests with code examples.
+After properly setting up the config file, xmppconn can be started:
 
-## Contributors
+     sudo service xmppconn start
+     
+Check that xmppconn is running:
 
-TODO: Let people know how they can dive into the project.
+    sudo service xmppconn status
+    
+Your device can now identify and pair with the XMPP connector. Once pairing is done, all fields in the /etc/xmppconn/xmppconn.conf file should be set.
 
 ## License
 
