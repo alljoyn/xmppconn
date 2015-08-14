@@ -52,7 +52,7 @@ It is necessary to install libstrophe. Issue the following commands to install i
 
 #### RapidJSON
 
-It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from here. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. If your RapidJSON source code folder is RAPIDJSON\_ROOT, then RAPIDJSON\_PATH needs to point to $RAPIDJSON\_ROOT/include:
+It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from https://github.com/miloyip/rapidjson.git. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. For example, if your RapidJSON source code folder is RAPIDJSON\_ROOT, then RAPIDJSON\_PATH needs to point to $RAPIDJSON\_ROOT/include:
 
     export RAPIDJSON_PATH=$RAPIDJSON_ROOT/include
     
@@ -104,6 +104,8 @@ Once that is completed it is possible to install this application in two ways:
 
 1. As a normal AllJoyn application
 2. As an AllJoyn Gateway Connector application
+
+### Running as a normal AllJoyn application
 
 When running as a normal AllJoyn application without the Gateaway Agent it is unnecessary for the gateway agent to be running. In this case just make sure the alljoyn-daemon is running. If the instructions were followed according to the above Wiki article the daemon should already exist. It can be started as follows:
 
@@ -157,6 +159,10 @@ Check that xmppconn is running:
     sudo service xmppconn status
     
 Your device can now identify and pair with the XMPP connector. Once pairing is done, all fields in the /etc/xmppconn/xmppconn.conf file should be set.
+
+### Running as an AllJoyn Gateway Connector application
+
+*Coming Soon!*
 
 ## License
 
