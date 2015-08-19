@@ -131,8 +131,12 @@ XmppTransport::RunOnce()
 void
 XmppTransport::StopImpl()
 {
-    xmpp_disconnect(m_xmppconn);
-    xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
+    if ( m_xmppconn )
+    {
+        xmpp_disconnect(m_xmppconn);
+        xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
+        m_xmppconn = NULL;
+    }
 }
 
 Transport::ConnectionError

@@ -186,7 +186,6 @@ static void SigIntHandler(int sig)
         s_Conn->Stop();
     }
     s_Continue = false;
-    exit(1);
 }
 
 string getJID()
@@ -477,6 +476,11 @@ int main(int argc, char** argv)
         }
 
     }while(s_Continue);
+
+    if ( s_Conn )
+    {
+        s_Conn->Stop();
+    }
 
     cleanup();
 }
