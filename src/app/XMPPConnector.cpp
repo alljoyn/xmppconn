@@ -492,7 +492,6 @@ XMPPConnector::Start()
         return ER_INIT_FAILED;
     }
 
-    static int i = 0;
 
     // Listen for messages. Blocks until transport.Stop() is called.
     Transport::ConnectionError runerr = m_transport->Run();
