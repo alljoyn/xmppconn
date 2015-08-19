@@ -290,6 +290,7 @@ int main(int argc, char** argv)
 
     // Set up bus attachment
     QStatus status = s_Bus->Start();
+
     if (ER_OK != status) {
         LOG_RELEASE("Error starting bus: %s", QCC_StatusText(status));
         cleanup();
@@ -310,6 +311,7 @@ int main(int argc, char** argv)
                                           onRestart);
     configDataStore->Initialize();
 
+    printf("configDataStore init'd\n");
     aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
     ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
     ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
@@ -415,7 +417,11 @@ int main(int argc, char** argv)
 
         if ( !waitForConfigChange )
         {
-            s_Conn = new XMPPConnector(s_Bus, "xmppconn", getJID(),
+            s_Conn = new XMPPConnector(
+                    s_Bus,
+                    ifaceName,
+                    "xmppconn",
+                    getJID(),
                     getPassword(), 
                     getRoster(),
                     getChatRoom(),

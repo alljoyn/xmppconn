@@ -59,6 +59,7 @@ class XMPPConnector : public ajn::gw::GatewayConnector, TransportListener
 public:
     XMPPConnector(
         ajn::BusAttachment*             bus,
+        const std::string&              busInterfaceName,
         const std::string&              appName,
         const std::string&              xmppJid,
         const std::string&              xmppPassword,
@@ -361,6 +362,7 @@ private:
     std::map<std::string, std::string> m_wellKnownNameMap;
 
     BusAttachment m_propertyBus;
+    string m_busInterfaceName;
     SessionTracker m_sessionTracker;
 
     static const std::string ALLJOYN_CODE_ADVERTISEMENT;

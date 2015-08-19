@@ -396,6 +396,7 @@ const string XMPPConnector::ALLJOYN_CODE_GET_ALL_REPLY  = "__GET_ALL_REPLY";
 
 XMPPConnector::XMPPConnector(
     BusAttachment*        bus,
+    const string&         busInterfaceName,
     const string&         appName,
     const string&         xmppJid,
     const string&         xmppPassword,
@@ -408,7 +409,8 @@ XMPPConnector::XMPPConnector(
 #endif // !NO_AJ_GATEWAY
     m_initialized(false),
     m_remoteAttachments(),
-    m_propertyBus("propertyBus")
+    m_propertyBus("propertyBus"),
+    m_busInterfaceName(busInterfaceName)
 {
     m_transport = new XmppTransport( this,
         xmppJid, xmppPassword, xmppRoster, xmppChatroom, compress);
@@ -490,6 +492,8 @@ XMPPConnector::Start()
         return ER_INIT_FAILED;
     }
 
+    static int i = 0;
+
     // Listen for messages. Blocks until transport.Stop() is called.
     Transport::ConnectionError runerr = m_transport->Run();
     // TODO: Handle errors
@@ -511,17 +515,25 @@ XMPPConnector::OwnsWellKnownName(
     bool result = false;
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
-    for ( map<string, list<RemoteBusAttachment*> >::const_iterator connections_it(m_remoteAttachments.begin());
-        m_remoteAttachments.end() != connections_it; ++connections_it )
+
+    if ( m_busInterfaceName != name )
     {
-        for(list<RemoteBusAttachment*>::const_iterator it = connections_it->second.begin(); it != connections_it->second.end(); ++it)
+        for ( map<string, list<RemoteBusAttachment*> >::const_iterator connections_it(m_remoteAttachments.begin());
+            m_remoteAttachments.end() != connections_it; ++connections_it )
         {
-            if(name == (*it)->WellKnownName())
+            for(list<RemoteBusAttachment*>::const_iterator it = connections_it->second.begin(); it != connections_it->second.end(); ++it)
             {
-                result = true;
-                break;
+                if(name == (*it)->WellKnownName())
+                {
+                    result = true;
+                    break;
+                }
             }
         }
+    }
+    else
+    {
+        result = true;
     }
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
     return result;
@@ -1116,6 +1128,7 @@ XMPPConnector::SendJoinRequest(
             ++ifaceIter)
         {
             string ifaceNameStr = (*ifaceIter)->GetName();
+
             if(ifaceNameStr != "org.freedesktop.DBus.Peer"           &&
                ifaceNameStr != "org.freedesktop.DBus.Introspectable" &&
                ifaceNameStr != "org.freedesktop.DBus.Properties"     &&
