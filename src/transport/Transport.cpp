@@ -98,6 +98,7 @@ Transport::GlobalConnectionStateChanged(
 		return;
 	}
 
+	SetConnectionState( new_state );
 	m_listener->GlobalConnectionStateChanged( new_state, error );
 }
 
