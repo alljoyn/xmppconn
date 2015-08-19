@@ -406,6 +406,7 @@ XMPPConnector::XMPPConnector(
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
+    m_manifestFilePath("/opt/alljoyn/apps/xmppconn/Manifest.xml"),
 #endif // !NO_AJ_GATEWAY
     m_initialized(false),
     m_remoteAttachments(),
