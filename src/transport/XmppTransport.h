@@ -37,6 +37,8 @@ public:
         );
     ~XmppTransport();
 
+    xmpp_log_t m_log;
+
 private:
     virtual
     ConnectionError
@@ -90,6 +92,16 @@ private:
         void* const                userdata
         );
 
+    static
+    void
+    XmppConnectionHandler2(
+         xmpp_conn_t* const         conn,
+         const xmpp_conn_event_t    event,
+         const int                  err,
+         xmpp_stream_error_t* const streamerror,
+         void* const                userdata
+         );
+
 private:
     const std::string              m_jabberid;
     const std::string              m_password;
@@ -98,6 +110,7 @@ private:
     const bool                     m_compress;
     xmpp_ctx_t*                    m_xmppctx;
     xmpp_conn_t*                   m_xmppconn;
+    bool                           m_initialized;
 };
 
 #endif // XMPPTRANSPORT_H_

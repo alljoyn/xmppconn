@@ -43,7 +43,7 @@ Transport::~Transport()
 	delete mtx;
 	m_mtx = 0;
 }
-
+#include <cstdio>
 Transport::ConnectionError
 Transport::Run()
 {
@@ -51,8 +51,10 @@ Transport::Run()
 	Transport::ConnectionState conn_state = uninitialized;
 	while ( conn_state != disconnected && error == none )
 	{
+	    //printf("Calling RunOnce()\n");
 		error = RunOnce();
 		conn_state = Transport::GetConnectionState();
+
 	}
 
 	return error;
@@ -86,7 +88,7 @@ Transport::MessageReceived(
 
 	m_listener->MessageReceived( source, message );
 }
-
+#include <cstdio>
 void
 Transport::GlobalConnectionStateChanged(
     const Transport::ConnectionState& new_state,
@@ -98,6 +100,7 @@ Transport::GlobalConnectionStateChanged(
 		return;
 	}
 
+	printf("Transport::GlobalConnectionStateChanged, setting conn state to %d\n", new_state);
 	SetConnectionState( new_state );
 	m_listener->GlobalConnectionStateChanged( new_state, error );
 }

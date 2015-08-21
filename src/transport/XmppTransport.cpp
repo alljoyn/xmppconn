@@ -43,10 +43,13 @@ XmppTransport::XmppTransport(
     m_password(password),
     m_roster(roster),
     m_chatroom(chatroom),
-    m_compress(compress)
+    m_compress(compress),
+    m_initialized(false)
 {
     xmpp_initialize();
-    m_xmppctx = xmpp_ctx_new(NULL, NULL);
+    //xmpp_log_t* m_log;
+    //m_xmppctx = xmpp_ctx_new(NULL, NULL);
+    m_xmppctx = xmpp_ctx_new(NULL, xmpp_get_default_logger(XMPP_LEVEL_DEBUG));
     m_xmppconn = xmpp_conn_new(m_xmppctx);
 }
 
@@ -57,15 +60,26 @@ XmppTransport::~XmppTransport()
     xmpp_shutdown();
 }
 
+#if 0
+void log_handler(void * const userdata,
+                 const xmpp_log_level_t level,
+                 const char * const area,
+                 const char * const msg)
+{
+    printf("Log msg: %s\n", msg);
+}
+#endif
 
+#include <ctime>
 Transport::ConnectionError
 XmppTransport::RunOnce()
 {
     ConnectionError err = none;
+    //m_log.handler = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);
 
-    static bool initialized = false;
-    if ( !initialized )
+    if ( !m_initialized )
     {
+        printf("init\n");
         xmpp_conn_set_jid(m_xmppconn, m_jabberid.c_str());
         xmpp_conn_set_pass(m_xmppconn, m_password.c_str());
         // If we're using a chat room then listen to messages, otherwise
@@ -84,6 +98,7 @@ XmppTransport::RunOnce()
         xmpp_handler_add(
                 m_xmppconn, XmppRosterHandler, XMPP_NS_ROSTER, "iq", NULL, this);
 
+        printf("Connecting to server\n");
         if ( 0 != xmpp_connect_client(
                 m_xmppconn, NULL, 0, XmppConnectionHandler, this) )
         {
@@ -93,11 +108,15 @@ XmppTransport::RunOnce()
             return err;
         }
 
-        initialized = true;
+        m_initialized = true;
     }
 
-    if ( connected == GetConnectionState() )
+    if ( m_initialized && (disconnected == GetConnectionState()) )
     {
+        return not_connected;
+    }
+
+    //{
         // Process keepalive if necessary
         static const int32_t next_keepalive = KEEPALIVE_IN_SECONDS * 1000;
         static int32_t keepalive_counter = 0;
@@ -118,12 +137,29 @@ XmppTransport::RunOnce()
         //  It doesn't matter because we really just need to make sure we send
         //  something to the server every once in a while so it doesn't drop us.
         xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
+
+        //printf("After xmpp_run_once called, conn state = %d\n", GetConnectionState());
         keepalive_counter++;
-    }
-    else
-    {
-        err = not_connected;
-    }
+
+        if ( keepalive_counter % 10000 == 0 )
+        {
+            xmpp_disconnect(m_xmppconn);
+            //printf("RunOnce %d\n", i);
+            time_t     now = time(0);
+            struct tm  tstruct;
+            char       buf[80];
+            tstruct = *localtime(&now);
+            // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
+            // for more information about date/time format
+            strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+            printf("Time stamp: %s\n", buf);
+            fflush(stdout);
+        }
+    //}
+    //else
+    //{
+    //    err = not_connected;
+    //}
 
     return err;
 }
@@ -552,17 +588,23 @@ XmppTransport::XmppConnectionHandler(
     FNLOG
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     ConnectionState prevConnState = transport->GetConnectionState();
-
+    printf("XmppConnectionHandler, state = %d, event = %d\n", prevConnState, event);
     switch(event)
     {
         case XMPP_CONN_CONNECT:
             {
+                printf("XMPP_CONN_CONNECT\n");
                 transport->GlobalConnectionStateChanged( connected, none );
                 if (!transport->m_roster.empty())
                 {
                     AddToRoster(transport);
                 }
 
+#if 0   //TODO: Remove this code
+
+                    printf("Disconnecting\n");
+                    xmpp_disconnect(conn);
+#endif
                 break;
             }
         case XMPP_CONN_DISCONNECT:
@@ -591,6 +633,21 @@ XmppTransport::XmppConnectionHandler(
                     // Go ahead and quit the application by stopping the XMPP event loop
                     transport->GlobalConnectionStateChanged( disconnected, err );
                 }
+#if 0
+                static int attempt = 1;
+                printf("Attempting to re-connect, %d\n", attempt);
+                if (attempt++ >= 3)
+                    break;
+                if ( 0 != xmpp_connect_client(
+                        conn, NULL, 0, transport->XmppConnectionHandler, transport) )
+                {
+
+                    // TODO: Translate the error from libstrophe to ours
+                    //err = unknown;
+                    LOG_RELEASE("Failed to connect to XMPP server.");
+                    return;
+                }
+#endif
                 break;
             }
         case XMPP_CONN_FAIL:
@@ -608,3 +665,76 @@ XmppTransport::XmppConnectionHandler(
     }
 
 }
+
+    void
+XmppTransport::XmppConnectionHandler2(
+         xmpp_conn_t* const         conn,
+         const xmpp_conn_event_t    event,
+         const int                  err,
+         xmpp_stream_error_t* const streamerror,
+         void* const                userdata
+         )
+ {
+
+     FNLOG
+     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+     ConnectionState prevConnState = transport->GetConnectionState();
+     printf("XmppConnectionHandler2, state = %d\n", prevConnState);
+     switch(event)
+     {
+         case XMPP_CONN_CONNECT:
+             {
+                 printf("XMPP_CONN_CONNECT2\n");
+                 transport->GlobalConnectionStateChanged( connected, none );
+                 if (!transport->m_roster.empty())
+                 {
+                     AddToRoster(transport);
+                 }
+
+                 break;
+             }
+         case XMPP_CONN_DISCONNECT:
+             {
+                 LOG_RELEASE("Disconnected from XMPP server2.");
+                 if ( disconnecting == transport->GetConnectionState() )
+                 {
+                     LOG_RELEASE("Exiting.");
+
+                     // Stop the XMPP event loop
+                     transport->GlobalConnectionStateChanged( disconnected, none );
+                 }
+                 else if ( uninitialized != transport->GetConnectionState() )
+                 {
+                     // TODO: Try to restart the connection. For now we will quit the
+                     //  application because of this, but eventually we will try to
+                     //  restart the connection
+                     transport->GlobalConnectionStateChanged( disconnected, none );
+                 }
+                 else
+                 {
+                     // TODO: Set the correct error
+                     ConnectionError err = auth_failure;
+                     LOG_RELEASE("Login failed.");
+
+                     // Go ahead and quit the application by stopping the XMPP event loop
+                     transport->GlobalConnectionStateChanged( disconnected, err );
+                 }
+                 break;
+             }
+         case XMPP_CONN_FAIL:
+         default:
+             {
+                 // TODO: Set the correct error
+                 ConnectionError err = unknown;
+                 LOG_RELEASE("XMPP error occurred2. Exiting.");
+
+                 // Stop the XMPP event loop
+                 transport->GlobalConnectionStateChanged( error, err );
+
+                 break;
+             }
+     }
+
+ }
+
+

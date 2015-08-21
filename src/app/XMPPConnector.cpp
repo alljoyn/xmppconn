@@ -458,7 +458,9 @@ XMPPConnector::Init()
 
     if(!m_initialized)
     {
+#ifndef NO_AJ_GATEWAY
         err = GatewayConnector::init();
+#endif
         if(err == ER_OK)
         {
             m_initialized = true;
@@ -495,6 +497,7 @@ XMPPConnector::Start()
 
 
     // Listen for messages. Blocks until transport.Stop() is called.
+    printf("Calling transport->Run\n");
     Transport::ConnectionError runerr = m_transport->Run();
     // TODO: Handle errors
 
@@ -1593,7 +1596,9 @@ XMPPConnector::ReceiveAnnounce(
             else
             {
                 interfaceNames.push_back(line.c_str());
+#ifndef NO_AJ_GATEWAY
                 writeInterfaceToManifest(line);
+#endif
             }
         }
     }
@@ -2405,12 +2410,13 @@ XMPPConnector::GlobalConnectionStateChanged(
     case Transport::connected:
     {
         // Update connection status and get remote profiles
+#ifndef NO_AJ_GATEWAY
         QStatus err = updateConnectionStatus(GW_CS_CONNECTED);
         if(err == ER_OK)
         {
             mergedAclUpdated();
         }
-
+#endif
         break;
     }
     case Transport::disconnecting:
@@ -2418,7 +2424,9 @@ XMPPConnector::GlobalConnectionStateChanged(
     case Transport::error:
     default:
     {
+#ifndef NO_AJ_GATEWAY
         updateConnectionStatus(GW_CS_NOT_CONNECTED);
+#endif
 
         break;
     }
@@ -2512,6 +2520,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
 
 }
 
+#ifndef NO_AJ_GATEWAY
 void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementProp, const char* elementValue){
     if (currentKey == NULL || currentKey->type != XML_ELEMENT_NODE || currentKey->children == NULL) {
         return;
@@ -2537,8 +2546,9 @@ void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementP
     }
 
 }
+#endif
 
-
+#ifndef NO_AJ_GATEWAY
 void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
 {
     std::ifstream ifs(m_manifestFilePath.c_str());
@@ -2613,3 +2623,4 @@ void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
     xmlFreeDoc(doc);
     xmlCleanupParser();
 }
+#endif

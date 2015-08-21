@@ -47,7 +47,7 @@ class RemoteBusListener;
 class RemoteBusObject;
 
 #ifdef NO_AJ_GATEWAY
-class XMPPConnector
+class XMPPConnector : public TransportListener
 #else
 class XMPPConnector : public ajn::gw::GatewayConnector, TransportListener
 #endif // NO_AJ_GATEWAY
