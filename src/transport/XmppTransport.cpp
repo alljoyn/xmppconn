@@ -254,6 +254,7 @@ XmppTransport::XmppStanzaHandler(
     xmpp_stanza_t* const stanza,
     void* const          userdata )
 {
+    FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
     // Get the stanza as text so we can parse it
@@ -275,11 +276,9 @@ XmppTransport::XmppStanzaHandler(
 
     if ( !(transport->m_roster.empty()) )
     {
+        // Make sure our comparison is case-insensitive
         fromAttrTmp = transport->m_roster.front();
-        std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-        std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-        fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
-
+        std::transform(fromAttrTmp.begin(), fromAttrTmp.end(), fromAttrTmp.begin(), ::tolower);
         std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
     }
 
@@ -294,53 +293,52 @@ XmppTransport::XmppStanzaHandler(
     LOG_DEBUG("From: %s", fromAttr.c_str());
     LOG_VERBOSE("Stanza: %s", message.c_str());
 
-    FNLOG
-        if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) ||
-                0 == strcmp("chat", xmpp_stanza_get_name(stanza)) )
-        {
-            xmpp_stanza_t* body = 0;
-            if(0 != (body = xmpp_stanza_get_child_by_name(stanza, "body")) &&
-                    XMPP_EOK == xmpp_stanza_to_text(body, &buf, &buflen))
-            {   
-                string message_body(buf);
-                xmpp_free(xmpp_conn_get_context(conn), buf);
+    if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) ||
+            0 == strcmp("chat", xmpp_stanza_get_name(stanza)) )
+    {
+        xmpp_stanza_t* body = 0;
+        if(0 != (body = xmpp_stanza_get_child_by_name(stanza, "body")) &&
+                XMPP_EOK == xmpp_stanza_to_text(body, &buf, &buflen))
+        {   
+            string message_body(buf);
+            xmpp_free(xmpp_conn_get_context(conn), buf);
 
-                // Strip the tags from the message
-                if(0 != message_body.find("<body>") &&
-                        message_body.length() !=
-                        message_body.find("</body>")+strlen("</body>"))
-                {
-                    // Received an empty message
-                    LOG_RELEASE("Received an empty message.")
-                        return 1;
-                }
-                message_body = message_body.substr(strlen("<body>"),
-                        message_body.length()-strlen("<body></body>"));
+            // Strip the tags from the message
+            if(0 != message_body.find("<body>") &&
+                    message_body.length() !=
+                    message_body.find("</body>")+strlen("</body>"))
+            {
+                // Received an empty message
+                LOG_RELEASE("Received an empty message.");
+                return 1;
+            }
+            message_body = message_body.substr(strlen("<body>"),
+                    message_body.length()-strlen("<body></body>"));
 
-                // Decompress the message
-                if ( transport->m_compress )
-                {
-                    message_body = util::str::Decompress(message_body);
-                }
-                else
-                {
-                    util::str::UnescapeXml(message_body);
-                }
-
-                // Allow the sink to handle the message
-                transport->MessageReceived( fromAttr, message_body );
+            // Decompress the message
+            if ( transport->m_compress )
+            {
+                message_body = util::str::Decompress(message_body);
             }
             else
             {
-                LOG_RELEASE("Could not parse body from XMPP message.");
+                util::str::UnescapeXml(message_body);
             }
+
+            // Allow the sink to handle the message
+            transport->MessageReceived( fromAttr, message_body );
         }
+        else
+        {
+            LOG_RELEASE("Could not parse body from XMPP message.");
+        }
+    }
 
     return 1;
 }
 
 
-    int
+int
 XmppTransport::XmppPresenceHandler(
         xmpp_conn_t* const   conn,
         xmpp_stanza_t* const stanza,
@@ -381,14 +379,11 @@ XmppTransport::XmppPresenceHandler(
 
     if ( !(transport->m_roster.empty()) )
     {
+        // Make sure our comparison is case-insensitive
         fromAttrTmp = transport->m_roster.front();
-        std::string fromAttrLower = fromAttrTmp.substr(0, fromAttrTmp.find("@"));
-        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
-        std::transform(fromAttrLower.begin(), fromAttrLower.end(), fromAttrLower.begin(), ::tolower);
-        LOG_DEBUG("Roster contains: %s", fromAttrLower.c_str());
-        fromAttrTmp.replace(0, fromAttrTmp.find("@"), fromAttrLower);
         LOG_DEBUG("Roster contains: %s", fromAttrTmp.c_str());
-
+        std::transform(fromAttrTmp.begin(), fromAttrTmp.end(), fromAttrTmp.begin(), ::tolower);
+        LOG_DEBUG("Roster contains: %s", fromAttrTmp.c_str());
         std::transform(fromAttr.begin(), fromAttr.end(), fromAttr.begin(), ::tolower);
     }
 
