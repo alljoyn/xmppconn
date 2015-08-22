@@ -117,7 +117,6 @@ static void simpleCallback()
 }
 
 static void onRestart(){
-    s_Continue = true;
     if(s_Conn)
     {
         s_Conn->Stop();
@@ -182,11 +181,11 @@ void cleanup()
 static void SigIntHandler(int sig)
 {
     LOG_RELEASE("Handling SIGINT");
+    s_Continue = false;
     if(s_Conn)
     {
         s_Conn->Stop();
     }
-    s_Continue = false;
 }
 
 string getJID()
@@ -474,7 +473,6 @@ int main(int argc, char** argv)
             sleep(1);
 
             waitForConfigChange = false;
-            s_Continue = true;
         }
     }while(s_Continue);
 
