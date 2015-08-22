@@ -497,7 +497,6 @@ XMPPConnector::Start()
 
 
     // Listen for messages. Blocks until transport.Stop() is called.
-    printf("Calling transport->Run\n");
     Transport::ConnectionError runerr = m_transport->Run();
     // TODO: Handle errors
 

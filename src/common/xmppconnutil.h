@@ -29,8 +29,6 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 
-#define NO_AJ_GATEWAY
-
 using namespace ajn;
 using namespace qcc;
 

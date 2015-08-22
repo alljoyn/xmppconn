@@ -127,16 +127,17 @@ static void onRestart(){
 class SimpleBusObject : public BusObject {
     public:
         SimpleBusObject(BusAttachment& bus, const char* path)
-            : BusObject(path) {
-                QStatus status;
-                const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
-                assert(iface != NULL);
+            : BusObject(path)
+        {
+            QStatus status;
+            const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
+            assert(iface != NULL);
 
-                status = AddInterface(*iface, ANNOUNCED);
-                if (status != ER_OK) {
-                    printf("Failed to add %s interface to the BusObject\n", ifaceName.c_str());
-                }
+            status = AddInterface(*iface, ANNOUNCED);
+            if (status != ER_OK) {
+                LOG_RELEASE("Failed to add %s interface to the BusObject", ifaceName.c_str());
             }
+        }
 };
 
 
@@ -146,43 +147,36 @@ void cleanup()
         delete s_Conn;
         s_Conn = 0;
     }
-   printf("Cleanup s_Conn\n");
 
-   if(aboutObj){
-       printf("Deleting aboutObj = %x\n", aboutObj);
-       delete aboutObj;
-       aboutObj = 0;
-   }
-   printf("Cleanup aboutObj done\n");
+    if(aboutObj){
+        delete aboutObj;
+        aboutObj = 0;
+    }
 
     if(s_Bus) {
         delete s_Bus;
         s_Bus = 0;
     }
-    printf("Cleanup s_Bus\n");
 
     if(configDataStore){
         delete configDataStore;
         configDataStore = 0;
     }
-    printf("Cleanup configDataStore\n");
 
     if(busListener){
-        printf("Deleting busListener = %x\n", busListener);
         delete busListener;
         busListener = 0;
     }
-    printf("Cleanup busListener\n");
+
     if(configServiceListener){
         delete configServiceListener;
         configServiceListener = 0;
     }
-    printf("Cleanup configServiceListener\n");
+
     if(configService){
         delete configService;
         configService = 0;
     }
-    printf("Cleanup configService\n");
 }
 
 static void SigIntHandler(int sig)
@@ -323,7 +317,6 @@ int main(int argc, char** argv)
         LOG_RELEASE("Failed to get About Service instance!");
         return ER_BUS_NOT_ALLOWED;
     }
-    printf("aboutObj created, ptr = %x\n", aboutObj);
 
     busListener = new CommonBusListener(s_Bus, simpleCallback);
 
@@ -446,11 +439,10 @@ int main(int argc, char** argv)
                 s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
                 s_Conn->Start();
             }
-            printf("After s_Conn->Start()\n");
+
             if(s_Conn){
                 delete s_Conn;
                 s_Conn = 0;
-                printf("s_Conn deleted\n");
             }
         }
 
@@ -484,23 +476,12 @@ int main(int argc, char** argv)
             waitForConfigChange = false;
             s_Continue = true;
         }
-
-        printf("s_Continue = %d\n", s_Continue);
-
     }while(s_Continue);
 
     if ( s_Conn )
     {
         s_Conn->Stop();
     }
-
-    printf("Before cleanup\n");
-
-    //printf("Deleting aboutObj, ptr = %x\n", aboutObj);
-    //delete aboutObj;
-    //aboutObj = 0;
-    //printf("Deleted\n");
-    //exit(-1);
 
     cleanup();
 }

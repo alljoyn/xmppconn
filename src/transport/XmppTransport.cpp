@@ -70,16 +70,13 @@ void log_handler(void * const userdata,
 }
 #endif
 
-#include <ctime>
 Transport::ConnectionError
 XmppTransport::RunOnce()
 {
     ConnectionError err = none;
-    //m_log.handler = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);
 
     if ( !m_initialized )
     {
-        printf("init\n");
         xmpp_conn_set_jid(m_xmppconn, m_jabberid.c_str());
         xmpp_conn_set_pass(m_xmppconn, m_password.c_str());
         // If we're using a chat room then listen to messages, otherwise
@@ -98,7 +95,6 @@ XmppTransport::RunOnce()
         xmpp_handler_add(
                 m_xmppconn, XmppRosterHandler, XMPP_NS_ROSTER, "iq", NULL, this);
 
-        printf("Connecting to server\n");
         if ( 0 != xmpp_connect_client(
                 m_xmppconn, NULL, 0, XmppConnectionHandler, this) )
         {
@@ -111,12 +107,8 @@ XmppTransport::RunOnce()
         m_initialized = true;
     }
 
-    if ( m_initialized && (disconnected == GetConnectionState()) )
+    if ( connected == GetConnectionState() )
     {
-        return not_connected;
-    }
-
-    //{
         // Process keepalive if necessary
         static const int32_t next_keepalive = KEEPALIVE_IN_SECONDS * 1000;
         static int32_t keepalive_counter = 0;
@@ -138,13 +130,12 @@ XmppTransport::RunOnce()
         //  something to the server every once in a while so it doesn't drop us.
         xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
 
-        //printf("After xmpp_run_once called, conn state = %d\n", GetConnectionState());
         keepalive_counter++;
 
+#if 0
         if ( keepalive_counter % 10000 == 0 )
         {
             xmpp_disconnect(m_xmppconn);
-            //printf("RunOnce %d\n", i);
             time_t     now = time(0);
             struct tm  tstruct;
             char       buf[80];
@@ -155,11 +146,12 @@ XmppTransport::RunOnce()
             printf("Time stamp: %s\n", buf);
             fflush(stdout);
         }
-    //}
-    //else
-    //{
-    //    err = not_connected;
-    //}
+#endif
+    }
+    else
+    {
+        err = not_connected;
+    }
 
     return err;
 }
@@ -588,12 +580,10 @@ XmppTransport::XmppConnectionHandler(
     FNLOG
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     ConnectionState prevConnState = transport->GetConnectionState();
-    printf("XmppConnectionHandler, state = %d, event = %d\n", prevConnState, event);
     switch(event)
     {
         case XMPP_CONN_CONNECT:
             {
-                printf("XMPP_CONN_CONNECT\n");
                 transport->GlobalConnectionStateChanged( connected, none );
                 if (!transport->m_roster.empty())
                 {
@@ -633,21 +623,6 @@ XmppTransport::XmppConnectionHandler(
                     // Go ahead and quit the application by stopping the XMPP event loop
                     transport->GlobalConnectionStateChanged( disconnected, err );
                 }
-#if 0
-                static int attempt = 1;
-                printf("Attempting to re-connect, %d\n", attempt);
-                if (attempt++ >= 3)
-                    break;
-                if ( 0 != xmpp_connect_client(
-                        conn, NULL, 0, transport->XmppConnectionHandler, transport) )
-                {
-
-                    // TODO: Translate the error from libstrophe to ours
-                    //err = unknown;
-                    LOG_RELEASE("Failed to connect to XMPP server.");
-                    return;
-                }
-#endif
                 break;
             }
         case XMPP_CONN_FAIL:
@@ -663,78 +638,5 @@ XmppTransport::XmppConnectionHandler(
                 break;
             }
     }
-
 }
-
-    void
-XmppTransport::XmppConnectionHandler2(
-         xmpp_conn_t* const         conn,
-         const xmpp_conn_event_t    event,
-         const int                  err,
-         xmpp_stream_error_t* const streamerror,
-         void* const                userdata
-         )
- {
-
-     FNLOG
-     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
-     ConnectionState prevConnState = transport->GetConnectionState();
-     printf("XmppConnectionHandler2, state = %d\n", prevConnState);
-     switch(event)
-     {
-         case XMPP_CONN_CONNECT:
-             {
-                 printf("XMPP_CONN_CONNECT2\n");
-                 transport->GlobalConnectionStateChanged( connected, none );
-                 if (!transport->m_roster.empty())
-                 {
-                     AddToRoster(transport);
-                 }
-
-                 break;
-             }
-         case XMPP_CONN_DISCONNECT:
-             {
-                 LOG_RELEASE("Disconnected from XMPP server2.");
-                 if ( disconnecting == transport->GetConnectionState() )
-                 {
-                     LOG_RELEASE("Exiting.");
-
-                     // Stop the XMPP event loop
-                     transport->GlobalConnectionStateChanged( disconnected, none );
-                 }
-                 else if ( uninitialized != transport->GetConnectionState() )
-                 {
-                     // TODO: Try to restart the connection. For now we will quit the
-                     //  application because of this, but eventually we will try to
-                     //  restart the connection
-                     transport->GlobalConnectionStateChanged( disconnected, none );
-                 }
-                 else
-                 {
-                     // TODO: Set the correct error
-                     ConnectionError err = auth_failure;
-                     LOG_RELEASE("Login failed.");
-
-                     // Go ahead and quit the application by stopping the XMPP event loop
-                     transport->GlobalConnectionStateChanged( disconnected, err );
-                 }
-                 break;
-             }
-         case XMPP_CONN_FAIL:
-         default:
-             {
-                 // TODO: Set the correct error
-                 ConnectionError err = unknown;
-                 LOG_RELEASE("XMPP error occurred2. Exiting.");
-
-                 // Stop the XMPP event loop
-                 transport->GlobalConnectionStateChanged( error, err );
-
-                 break;
-             }
-     }
-
- }
-
 

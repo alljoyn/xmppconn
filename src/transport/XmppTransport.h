@@ -37,8 +37,6 @@ public:
         );
     ~XmppTransport();
 
-    xmpp_log_t m_log;
-
 private:
     virtual
     ConnectionError
@@ -91,16 +89,6 @@ private:
         xmpp_stream_error_t* const streamerror,
         void* const                userdata
         );
-
-    static
-    void
-    XmppConnectionHandler2(
-         xmpp_conn_t* const         conn,
-         const xmpp_conn_event_t    event,
-         const int                  err,
-         xmpp_stream_error_t* const streamerror,
-         void* const                userdata
-         );
 
 private:
     const std::string              m_jabberid;
