@@ -75,6 +75,7 @@ static vector<string> s_Roster;
 
 const string CONF_DIR  = "/etc/xmppconn";
 const string CONF_FILE = CONF_DIR + "/xmppconn.conf";
+const string FACTORY_FILE = CONF_DIR + "/xmppconn_factory.conf";
 static string s_User = "test";
 static string s_Password = "test";
 static string s_ChatRoom;
@@ -273,14 +274,28 @@ int main(int argc, char** argv)
 {
     signal(SIGINT, SigIntHandler);
 
-    // Read in the configuration file
+    // Ensure that we can open our config file
     ifstream conf_file(CONF_FILE.c_str());
-    if ( !conf_file.is_open() ){
-        LOG_RELEASE("Could not open %s!", CONF_FILE.c_str());
-        exit(1);
+    if ( !conf_file.is_open() )
+    {
+        // If it's not there try to copy the factory reset file over it
+        ifstream factory(FACTORY_FILE.c_str(), std::ios::binary);
+        if ( !factory.is_open() )
+        {
+            LOG_RELEASE("Could not open %s!", FACTORY_FILE.c_str());
+            return 1;
+        }
+        std::ofstream newconffile(CONF_FILE.c_str(), std::ios::binary);
+        if ( !newconffile.is_open() )
+        {
+            LOG_RELEASE("Could not open %s!", CONF_FILE.c_str());
+            return 1;
+        }
+
+        // Now copy the factory file to the main conf file
+        newconffile << factory.rdbuf();
     }
     conf_file.close();
-
 
     s_Bus = new BusAttachment("XMPPConnector", true);
 
@@ -302,8 +317,8 @@ int main(int argc, char** argv)
         return status;
     }
 
-    configDataStore = new ConfigDataStore("/etc/xmppconn/xmppconn_factory.conf",
-                                          "/etc/xmppconn/xmppconn.conf",
+    configDataStore = new ConfigDataStore(FACTORY_FILE.c_str(),
+                                          CONF_FILE.c_str(),
                                           s_AppId.c_str(),
                                           (s_ProductID + s_SerialNumber).c_str(),
                                           onRestart);
