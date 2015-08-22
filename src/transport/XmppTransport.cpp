@@ -141,6 +141,10 @@ XmppTransport::RunOnce()
         }
 #endif
     }
+    else if ( disconnected != GetConnectionState() )
+    {
+        xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
+    }
     else
     {
         err = not_connected;
