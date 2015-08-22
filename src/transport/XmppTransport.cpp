@@ -47,9 +47,12 @@ XmppTransport::XmppTransport(
     m_initialized(false)
 {
     xmpp_initialize();
-    //xmpp_log_t* m_log;
-    //m_xmppctx = xmpp_ctx_new(NULL, NULL);
-    m_xmppctx = xmpp_ctx_new(NULL, xmpp_get_default_logger(XMPP_LEVEL_DEBUG));
+    xmpp_log_t* log = NULL;
+    if ( util::_verboselogging )
+    {
+        log = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);
+    }
+    m_xmppctx = xmpp_ctx_new(NULL, log);
     m_xmppconn = xmpp_conn_new(m_xmppctx);
 }
 
@@ -59,16 +62,6 @@ XmppTransport::~XmppTransport()
     xmpp_ctx_free(m_xmppctx);
     xmpp_shutdown();
 }
-
-#if 0
-void log_handler(void * const userdata,
-                 const xmpp_log_level_t level,
-                 const char * const area,
-                 const char * const msg)
-{
-    printf("Log msg: %s\n", msg);
-}
-#endif
 
 Transport::ConnectionError
 XmppTransport::RunOnce()
