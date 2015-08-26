@@ -297,126 +297,125 @@ int main(int argc, char** argv)
     }
     conf_file.close();
 
-    s_Bus = new BusAttachment("XMPPConnector", true);
-
-    // We need to do this to get our product ID and serial number
-    getConfigurationFields();
-
-    // Set up bus attachment
-    QStatus status = s_Bus->Start();
-    if (ER_OK != status) {
-        LOG_RELEASE("Error starting bus: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-    
-    status = s_Bus->Connect();
-    if (ER_OK != status) {
-        LOG_RELEASE("Error connecting bus: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    configDataStore = new ConfigDataStore(FACTORY_FILE.c_str(),
-                                          CONF_FILE.c_str(),
-                                          s_AppId.c_str(),
-                                          (s_ProductID + s_SerialNumber).c_str(),
-                                          onRestart);
-    configDataStore->Initialize();
-
-    aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
-    ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
-    ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
-    if (!aboutService){
-        LOG_RELEASE("Failed to get About Service instance!");
-        return ER_BUS_NOT_ALLOWED;
-    }
-
-    busListener = new CommonBusListener(s_Bus, simpleCallback);
-
-    SessionPort sp = 900;
-    TransportMask transportMask = TRANSPORT_ANY;
-    SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, transportMask);
-
-    busListener->setSessionPort(sp);
-
-    s_Bus->RegisterBusListener(*busListener);
-    status = s_Bus->BindSessionPort(sp, opts, *busListener);
-    if (status != ER_OK) {
-        LOG_RELEASE("Failed to bind session port %d! Reason: %s", sp, QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    // Build the interface name so we can advertise it
-    string ifaceName = "global.chariot.C" + s_AppId;
-    ifaceName.erase(std::remove(ifaceName.begin(), ifaceName.end(), '-'), ifaceName.end());
-    LOG_DEBUG("Interface Name: %s", ifaceName.c_str());
-
-    // Advertise the connector
-    aboutService->SetPort(sp);
-    status = s_Bus->RequestName(ifaceName.c_str(), DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE);
-    if ( ER_OK != status ){
-        LOG_RELEASE("Failed to request advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    status = s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
-    if ( ER_OK != status ){
-        LOG_RELEASE("Failed to advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    configServiceListener = new ConfigServiceListenerImpl(*configDataStore, 
-                                                         *s_Bus, busListener,
-                                                         onRestart,
-                                                         CONF_FILE
-                                                         );
-
-    configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
-
-    status = s_Bus->CreateInterfacesFromXml(interface.c_str());
-    if ( ER_OK != status ){
-        LOG_RELEASE("Failed to interfaces from xml! Reason: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
-    SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
-    status = s_Bus->RegisterBusObject(busObject);
-    if ( ER_OK != status ){
-        LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    status = configService->Register();
-    if(status != ER_OK) {
-        LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    status = s_Bus->RegisterBusObject(*configService);
-    if(status != ER_OK) {
-        LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-    status = aboutService->Announce();
-    if(status != ER_OK) {
-        LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
-        cleanup();
-        return status;
-    }
-
-
     do{
         bool waitForConfigChange(false);
+
+        s_Bus = new BusAttachment("XMPPConnector", true);
+    
+        // We need to do this to get our product ID and serial number
+        getConfigurationFields();
+
+        // Set up bus attachment
+        QStatus status = s_Bus->Start();
+        if (ER_OK != status) {
+            LOG_RELEASE("Error starting bus: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+        
+        status = s_Bus->Connect();
+        if (ER_OK != status) {
+            LOG_RELEASE("Error connecting bus: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        configDataStore = new ConfigDataStore(FACTORY_FILE.c_str(),
+                                              CONF_FILE.c_str(),
+                                              s_AppId.c_str(),
+                                              (s_ProductID + s_SerialNumber).c_str(),
+                                              onRestart);
+        configDataStore->Initialize();
+    
+        aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
+        ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
+        ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
+        if (!aboutService){
+            LOG_RELEASE("Failed to get About Service instance!");
+            return ER_BUS_NOT_ALLOWED;
+        }
+    
+        busListener = new CommonBusListener(s_Bus, simpleCallback);
+    
+        SessionPort sp = 900;
+        TransportMask transportMask = TRANSPORT_ANY;
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false, SessionOpts::PROXIMITY_ANY, transportMask);
+    
+        busListener->setSessionPort(sp);
+    
+        s_Bus->RegisterBusListener(*busListener);
+        status = s_Bus->BindSessionPort(sp, opts, *busListener);
+        if (status != ER_OK) {
+            LOG_RELEASE("Failed to bind session port %d! Reason: %s", sp, QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        // Build the interface name so we can advertise it
+        string ifaceName = "global.chariot.C" + s_AppId;
+        ifaceName.erase(std::remove(ifaceName.begin(), ifaceName.end(), '-'), ifaceName.end());
+        LOG_DEBUG("Interface Name: %s", ifaceName.c_str());
+    
+        // Advertise the connector
+        aboutService->SetPort(sp);
+        status = s_Bus->RequestName(ifaceName.c_str(), DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE);
+        if ( ER_OK != status ){
+            LOG_RELEASE("Failed to request advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        status = s_Bus->AdvertiseName(ifaceName.c_str(), TRANSPORT_ANY);
+        if ( ER_OK != status ){
+            LOG_RELEASE("Failed to advertised name %s! Reason: %s", ifaceName.c_str(), QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        configServiceListener = new ConfigServiceListenerImpl(*configDataStore, 
+                                                             *s_Bus, busListener,
+                                                             onRestart,
+                                                             CONF_FILE
+                                                             );
+    
+        configService = new ajn::services::ConfigService(*s_Bus, *configDataStore, *configServiceListener);
+    
+        status = s_Bus->CreateInterfacesFromXml(interface.c_str());
+        if ( ER_OK != status ){
+            LOG_RELEASE("Failed to interfaces from xml! Reason: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
+        SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
+        status = s_Bus->RegisterBusObject(busObject);
+        if ( ER_OK != status ){
+            LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        status = configService->Register();
+        if(status != ER_OK) {
+            LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        status = s_Bus->RegisterBusObject(*configService);
+        if(status != ER_OK) {
+            LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
+    
+        status = aboutService->Announce();
+        if(status != ER_OK) {
+            LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
+            cleanup();
+            return status;
+        }
 
         getConfigurationFields();
         if ( getJID().empty() ||
@@ -489,13 +488,15 @@ int main(int argc, char** argv)
 
             waitForConfigChange = false;
         }
+
+        if ( s_Conn )
+        {
+            s_Conn->Stop();
+        }
+
+        cleanup();
+
     }while(s_Continue);
 
-    if ( s_Conn )
-    {
-        s_Conn->Stop();
-    }
-
-    cleanup();
 }
 
