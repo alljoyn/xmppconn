@@ -47,7 +47,7 @@ class RemoteBusListener;
 class RemoteBusObject;
 
 #ifdef NO_AJ_GATEWAY
-class XMPPConnector
+class XMPPConnector : public TransportListener
 #else
 class XMPPConnector : public ajn::gw::GatewayConnector, TransportListener
 #endif // NO_AJ_GATEWAY
@@ -140,7 +140,7 @@ protected:
 private:
 #ifndef NO_AJ_GATEWAY
    vector<std::string> discoveredInterfaces;
-   const std::string m_manifestFilePath = "/opt/alljoyn/apps/xmppconn/Manifest.xml";
+   const std::string m_manifestFilePath;
 #endif
     bool m_initialized;
 

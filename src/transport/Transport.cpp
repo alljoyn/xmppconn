@@ -16,6 +16,7 @@
 
 #include "Transport.h"
 #include <pthread.h>
+#include "common/xmppconnutil.h"
 
 using namespace std;
 
@@ -47,15 +48,15 @@ Transport::~Transport()
 Transport::ConnectionError
 Transport::Run()
 {
-	Transport::ConnectionError error = none;
-	Transport::ConnectionState conn_state = uninitialized;
-	while ( conn_state != disconnected && error == none )
-	{
-		error = RunOnce();
-		conn_state = Transport::GetConnectionState();
-	}
+    Transport::ConnectionError error = none;
+    Transport::ConnectionState conn_state = uninitialized;
+    while ( conn_state != disconnected && error == none )
+    {
+        error = RunOnce();
+        conn_state = Transport::GetConnectionState();
+    }
 
-	return error;
+    return error;
 }
 
 void
@@ -98,6 +99,8 @@ Transport::GlobalConnectionStateChanged(
 		return;
 	}
 
+	LOG_VERBOSE("Transport::GlobalConnectionStateChanged, setting conn state to %d", new_state);
+	SetConnectionState( new_state );
 	m_listener->GlobalConnectionStateChanged( new_state, error );
 }
 

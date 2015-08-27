@@ -98,6 +98,7 @@ private:
     const bool                     m_compress;
     xmpp_ctx_t*                    m_xmppctx;
     xmpp_conn_t*                   m_xmppconn;
+    bool                           m_initialized;
 };
 
 #endif // XMPPTRANSPORT_H_

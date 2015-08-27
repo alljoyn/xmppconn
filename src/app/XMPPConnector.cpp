@@ -406,6 +406,7 @@ XMPPConnector::XMPPConnector(
     ) :
 #ifndef NO_AJ_GATEWAY
     GatewayConnector(bus, appName.c_str()),
+    m_manifestFilePath("/opt/alljoyn/apps/xmppconn/Manifest.xml"),
 #endif // !NO_AJ_GATEWAY
     m_initialized(false),
     m_remoteAttachments(),
@@ -444,6 +445,19 @@ XMPPConnector::~XMPPConnector()
     while ( m_buses.size() > 0 )
     {
         string from(m_buses.begin()->first);
+
+        // Unregister the announce handler
+        BusAttachment* attachment = GetBusAttachment(from);
+        AllJoynListener* listener = GetBusListener(from);
+        if ( attachment && listener )
+        {
+            // Stop listening for advertisements and announcements
+            AnnouncementRegistrar::UnRegisterAnnounceHandler(
+                *attachment, *listener, NULL, 0);
+            attachment->CancelFindAdvertisedName("");
+        }
+
+        // Delete the bus attachment
         DeleteBusAttachment(from);
     }
 
@@ -457,7 +471,9 @@ XMPPConnector::Init()
 
     if(!m_initialized)
     {
+#ifndef NO_AJ_GATEWAY
         err = GatewayConnector::init();
+#endif
         if(err == ER_OK)
         {
             m_initialized = true;
@@ -1592,7 +1608,9 @@ XMPPConnector::ReceiveAnnounce(
             else
             {
                 interfaceNames.push_back(line.c_str());
+#ifndef NO_AJ_GATEWAY
                 writeInterfaceToManifest(line);
+#endif
             }
         }
     }
@@ -2404,12 +2422,13 @@ XMPPConnector::GlobalConnectionStateChanged(
     case Transport::connected:
     {
         // Update connection status and get remote profiles
+#ifndef NO_AJ_GATEWAY
         QStatus err = updateConnectionStatus(GW_CS_CONNECTED);
         if(err == ER_OK)
         {
             mergedAclUpdated();
         }
-
+#endif
         break;
     }
     case Transport::disconnecting:
@@ -2417,7 +2436,9 @@ XMPPConnector::GlobalConnectionStateChanged(
     case Transport::error:
     default:
     {
+#ifndef NO_AJ_GATEWAY
         updateConnectionStatus(GW_CS_NOT_CONNECTED);
+#endif
 
         break;
     }
@@ -2511,6 +2532,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
 
 }
 
+#ifndef NO_AJ_GATEWAY
 void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementProp, const char* elementValue){
     if (currentKey == NULL || currentKey->type != XML_ELEMENT_NODE || currentKey->children == NULL) {
         return;
@@ -2536,8 +2558,9 @@ void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementP
     }
 
 }
+#endif
 
-
+#ifndef NO_AJ_GATEWAY
 void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
 {
     std::ifstream ifs(m_manifestFilePath.c_str());
@@ -2612,3 +2635,4 @@ void XMPPConnector::writeInterfaceToManifest(const std::string& interfaceName  )
     xmlFreeDoc(doc);
     xmlCleanupParser();
 }
+#endif

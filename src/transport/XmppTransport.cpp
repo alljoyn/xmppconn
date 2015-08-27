@@ -43,10 +43,16 @@ XmppTransport::XmppTransport(
     m_password(password),
     m_roster(roster),
     m_chatroom(chatroom),
-    m_compress(compress)
+    m_compress(compress),
+    m_initialized(false)
 {
     xmpp_initialize();
-    m_xmppctx = xmpp_ctx_new(NULL, NULL);
+    xmpp_log_t* log = NULL;
+    if ( util::_verboselogging )
+    {
+        log = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);
+    }
+    m_xmppctx = xmpp_ctx_new(NULL, log);
     m_xmppconn = xmpp_conn_new(m_xmppctx);
 }
 
@@ -57,14 +63,12 @@ XmppTransport::~XmppTransport()
     xmpp_shutdown();
 }
 
-
 Transport::ConnectionError
 XmppTransport::RunOnce()
 {
     ConnectionError err = none;
 
-    static bool initialized = false;
-    if ( !initialized )
+    if ( !m_initialized )
     {
         xmpp_conn_set_jid(m_xmppconn, m_jabberid.c_str());
         xmpp_conn_set_pass(m_xmppconn, m_password.c_str());
@@ -93,30 +97,58 @@ XmppTransport::RunOnce()
             return err;
         }
 
-        initialized = true;
+        m_initialized = true;
     }
 
-    // Process keepalive if necessary
-    static const int32_t next_keepalive = KEEPALIVE_IN_SECONDS * 1000;
-    static int32_t keepalive_counter = 0;
-    if ( keepalive_counter >= next_keepalive )
+    if ( connected == GetConnectionState() )
     {
-        // We need to send a keepalive packet (a single space within a stanza)
-        xmpp_stanza_t* stanza = xmpp_stanza_new(m_xmppctx);
-        xmpp_stanza_set_text(stanza, " ");
-        xmpp_send(m_xmppconn, stanza);
-        xmpp_stanza_release(stanza);
+        // Process keepalive if necessary
+        static const int32_t next_keepalive = KEEPALIVE_IN_SECONDS * 1000;
+        static int32_t keepalive_counter = 0;
+        if ( keepalive_counter >= next_keepalive )
+        {
+            // We need to send a keepalive packet (a single space within a stanza)
+            xmpp_stanza_t* stanza = xmpp_stanza_new(m_xmppctx);
+            xmpp_stanza_set_text(stanza, " ");
+            xmpp_send(m_xmppconn, stanza);
+            xmpp_stanza_release(stanza);
 
-        // Reset our keepalive counter
-        keepalive_counter = 0;
+            // Reset our keepalive counter
+            keepalive_counter = 0;
+        }
+        // NOTE: We allow the XMPP client code to track this time. This means
+        //  our keepalive isn't going to be exact. This function call could
+        //  actually take a long time because event handlers are being called.
+        //  It doesn't matter because we really just need to make sure we send
+        //  something to the server every once in a while so it doesn't drop us.
+        xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
+
+        keepalive_counter++;
+
+#if 0
+        if ( keepalive_counter % 10000 == 0 )
+        {
+            xmpp_disconnect(m_xmppconn);
+            time_t     now = time(0);
+            struct tm  tstruct;
+            char       buf[80];
+            tstruct = *localtime(&now);
+            // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
+            // for more information about date/time format
+            strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
+            printf("Time stamp: %s\n", buf);
+            fflush(stdout);
+        }
+#endif
     }
-    // NOTE: We allow the XMPP client code to track this time. This means
-    //  our keepalive isn't going to be exact. This function call could
-    //  actually take a long time because event handlers are being called.
-    //  It doesn't matter because we really just need to make sure we send
-    //  something to the server every once in a while so it doesn't drop us.
-    xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
-    keepalive_counter++;
+    else if ( disconnected != GetConnectionState() )
+    {
+        xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
+    }
+    else
+    {
+        err = not_connected;
+    }
 
     return err;
 }
@@ -124,8 +156,12 @@ XmppTransport::RunOnce()
 void
 XmppTransport::StopImpl()
 {
-    xmpp_disconnect(m_xmppconn);
-    xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
+    if ( m_xmppconn )
+    {
+        xmpp_disconnect(m_xmppconn);
+        xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
+        m_xmppconn = NULL;
+    }
 }
 
 Transport::ConnectionError
@@ -536,7 +572,6 @@ XmppTransport::XmppConnectionHandler(
     FNLOG
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     ConnectionState prevConnState = transport->GetConnectionState();
-
     switch(event)
     {
         case XMPP_CONN_CONNECT:
@@ -546,7 +581,6 @@ XmppTransport::XmppConnectionHandler(
                 {
                     AddToRoster(transport);
                 }
-
                 break;
             }
         case XMPP_CONN_DISCONNECT:
@@ -590,5 +624,5 @@ XmppTransport::XmppConnectionHandler(
                 break;
             }
     }
-
 }
+
