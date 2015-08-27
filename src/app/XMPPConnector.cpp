@@ -445,6 +445,19 @@ XMPPConnector::~XMPPConnector()
     while ( m_buses.size() > 0 )
     {
         string from(m_buses.begin()->first);
+
+        // Unregister the announce handler
+        BusAttachment* attachment = GetBusAttachment(from);
+        AllJoynListener* listener = GetBusListener(from);
+        if ( attachment && listener )
+        {
+            // Stop listening for advertisements and announcements
+            AnnouncementRegistrar::UnRegisterAnnounceHandler(
+                *attachment, *listener, NULL, 0);
+            attachment->CancelFindAdvertisedName("");
+        }
+
+        // Delete the bus attachment
         DeleteBusAttachment(from);
     }
 
