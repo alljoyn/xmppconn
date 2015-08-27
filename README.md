@@ -130,6 +130,7 @@ In the terminal navigate to the /etc/xmppconn folder and then open the xmppconn\
 
     sudo gedit /etc/xmppconn/xmppconn_factory.conf
 
+You will need to get the ProductID from the developer portal (it will be assigned when you create a new product).
 Paste the ProductID into the ProductID field in the xmppcon\_factory.conf file that you just opened.
 
 You also need a SerialNumber for your product. You can type any alphanumeric string in that field for now. But be aware that it must be a unique serial number. When you try to register more than one device with the same serial number the server will return an error. This will happen during the pairing sequence that we discuss later.
@@ -163,7 +164,7 @@ Save and close the file. Now copy that file to /etc/xmppconn/xmppconn.conf as fo
     
 You are now ready to connect the xmppconn service with the mobile app.
 
-Start the XMPP connector by typing _*sudo xmppconn*_ to see if the file is valid. If the file isn't valid, the terminal will tell you that the xmppconn.conf file is not valid. If it is running without error you can stop it by pressing Ctrl+c.
+Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. If the file isn't valid, the terminal will tell you that the xmppconn.conf file is not valid. If it is running without error you can stop it by pressing Ctrl+C.
     
 
 ### Running as an AllJoyn Gateway Connector application
