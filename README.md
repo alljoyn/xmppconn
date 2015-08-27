@@ -126,39 +126,45 @@ If it is desired that xmppconn be installed do the following:
 
 Next set up the configuration file:
 
-    sudo mkdir /etc/xmppconn
-    sudo cp conf/xmppconn.conf /etc/xmppconn/xmppconn.conf
+In the terminal navigate to the /etc/xmppconn folder and then open the xmppconn\_factory.conf file as superuser to edit it.
 
-The configuration file has a number of arguments. Some must be modified in order to connect to the server properly:
+    sudo gedit /etc/xmppconn/xmppconn_factory.conf
 
-    ProductID - the identifier of your product. This can be retrieved by logging in to your account on https://dev.chariot.global
-    SerialNumber - the serial number of the device. This will always be device-specific
+Paste the ProductID into the ProductID field in the xmppcon\_factory.conf file that you just opened.
+
+You also need a SerialNumber for your product. You can type any alphanumeric string in that field for now. But be aware that it must be a unique serial number. When you try to register more than one device with the same serial number the server will return an error. This will happen during the pairing sequence that we discuss later.
 
 These arguments can be optionally modified as needed:
 
     Verbosity - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose
     Compress - whether or not to compress the body of each message. This is recommended, and must match what the paired device is doing.
 
-If you see the following variables in the config file, delete them to reset xmppconn:
+The file looks like the following:
 
-    AppID
-    AllJoynPasscode 
-    UserPassword
-    UserJID
-    RoomJID
-    Roster
+    {
+     "ProductID": "Your Product ID",
+     "SerialNumber": "Your Serial Number",
+     "DeviceName" : "My Device Name",
+     "AppName" : "AllJoyn XMPP Connector",
+     "Manufacturer" : "My Manufacturer Name",
+     "ModelNumber" : "My Model Number",
+     "Description" : "Description of my device",
+     "DateOfManufacture" : "1970-01-01",
+     "SoftwareVersion" : "0.0.1",
+     "HardwareVersion" : "0.0.1",
+     "SupportUrl" : "http://www.example.org",
+     "Verbosity":"2",
+     "Compress":"1"
+    }
 
-These variables will be set automatically by the XMPP server when you pair your device for the first time using xmppconn. NOTE: xmppconn must have write permission for the /etc/xmppconn/xmppconn.conf file, so make sure that you are either running as root (sudo), or change permissions for the config file.
-
-After properly setting up the config file, xmppconn can be started:
-
-     sudo service xmppconn start
+Save and close the file. Now copy that file to /etc/xmppconn/xmppconn.conf as follows:
      
-Check that xmppconn is running:
-
-    sudo service xmppconn status
+    sudo cp /etc/xmppconn/xmppconn_factory.conf /etc/xmppconn/xmppconn.conf
     
-Your device can now identify and pair with the XMPP connector. Once pairing is done, all fields in the /etc/xmppconn/xmppconn.conf file should be set.
+You are now ready to connect the xmppconn service with the mobile app.
+
+Start the XMPP connector by typing _*sudo xmppconn*_ to see if the file is valid. If the file isn't valid, the terminal will tell you that the xmppconn.conf file is not valid. If it is running without error you can stop it by pressing Ctrl+c.
+    
 
 ### Running as an AllJoyn Gateway Connector application
 
