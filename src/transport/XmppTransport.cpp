@@ -581,12 +581,6 @@ XmppTransport::XmppConnectionHandler(
                 {
                     AddToRoster(transport);
                 }
-
-#if 0   //TODO: Remove this code
-
-                    printf("Disconnecting\n");
-                    xmpp_disconnect(conn);
-#endif
                 break;
             }
         case XMPP_CONN_DISCONNECT:
