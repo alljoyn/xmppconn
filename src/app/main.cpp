@@ -62,6 +62,9 @@ using std::map;
 
 static bool s_Compress = true;
 static bool s_Continue = true;
+static unsigned long s_AllJoynAnnouncementWait = 5;
+static int s_ConfigFileDesc = 0;
+static int s_ConfigFileWatchDesc = 0;
 
 static BusAttachment* s_Bus = 0;
 static XMPPConnector* s_Conn = 0;
@@ -182,6 +185,7 @@ void cleanup()
 static void SigIntHandler(int sig)
 {
     LOG_RELEASE("Handling SIGINT");
+    inotify_rm_watch(s_ConfigFileDesc, s_ConfigFileWatchDesc);
     s_Continue = false;
     if(s_Conn)
     {
@@ -464,18 +468,18 @@ int main(int argc, char** argv)
             }
         }
 
-        if ( waitForConfigChange )
+        else
         {
-            int fd = inotify_init();
-            if ( -1 == fd )
+            s_ConfigFileDesc = inotify_init();
+            if ( -1 == s_ConfigFileDesc )
             {
                 LOG_RELEASE("Could not initialize inotify! Exiting...");
                 cleanup();
                 return errno;
             }
 
-            int wd = inotify_add_watch(fd, CONF_FILE.c_str(), IN_MODIFY);
-            if ( -1 == wd )
+            s_ConfigFileWatchDesc = inotify_add_watch(s_ConfigFileDesc, CONF_FILE.c_str(), IN_MODIFY);
+            if ( -1 == s_ConfigFileWatchDesc )
             {
                 LOG_RELEASE("Could not add watch on conf file! Exiting...");
                 cleanup();
@@ -484,13 +488,15 @@ int main(int argc, char** argv)
 
             LOG_RELEASE("Waiting for configuration changes before trying to connect to the XMPP server...");
             inotify_event evt = {};
-            read(fd, &evt, sizeof(evt));
-            inotify_rm_watch(fd, wd);
-            close(fd);
+            read(s_ConfigFileDesc, &evt, sizeof(evt));
+            inotify_rm_watch(s_ConfigFileDesc, s_ConfigFileWatchDesc);
+            close(s_ConfigFileDesc);
             // TODO: This is necessary to allow the other thread to complete writing to the file before we 
             //  continue. We should do this in a more robust manner.
-            sleep(1);
-
+            if (s_Continue)
+            {
+                sleep(s_AllJoynAnnouncementWait);
+            }
             waitForConfigChange = false;
         }
 
