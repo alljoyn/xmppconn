@@ -458,7 +458,10 @@ int main(int argc, char** argv)
             {
                 s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
                 s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
-                s_Conn->Start();
+                if (s_Conn->Start() != ER_OK)
+                {
+                    s_Continue = false;
+                }
                 resetbus = true;
             }
 

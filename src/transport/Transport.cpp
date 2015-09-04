@@ -30,6 +30,7 @@ pthread_mutex_t* transport_get_mutex( void* mtx )
 
 Transport::Transport( TransportListener* listener ) :
 	m_connection_state( uninitialized ),
+	m_connection_error( none ),
 	m_listener( listener ),
 	m_mtx( 0 )
 {
@@ -101,6 +102,7 @@ Transport::GlobalConnectionStateChanged(
 
 	LOG_VERBOSE("Transport::GlobalConnectionStateChanged, setting conn state to %d", new_state);
 	SetConnectionState( new_state );
+	SetConnectionError( error );
 	m_listener->GlobalConnectionStateChanged( new_state, error );
 }
 
@@ -140,4 +142,27 @@ Transport::SetConnectionState(
 	UNLOCK;
 
 	return prev_state;
+}
+
+Transport::ConnectionError
+Transport::GetConnectionError() const
+{
+    LOCK;
+    Transport::ConnectionError error = m_connection_error;
+    UNLOCK;
+
+    return error;
+}
+
+Transport::ConnectionError
+Transport::SetConnectionError(
+    const Transport::ConnectionError& error
+    )
+{
+    LOCK;
+    Transport::ConnectionError prev_error = m_connection_error;
+    m_connection_error = error;
+    UNLOCK;
+
+    return prev_error;
 }
