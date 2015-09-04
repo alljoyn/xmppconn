@@ -212,7 +212,7 @@ XmppTransport::SendImpl(
     size_t buflen = 0;
     xmpp_stanza_to_text(messageStanza, &buf, &buflen);
     LOG_DEBUG("Sending XMPP message");
-    //LOG_VERBOSE("Message: %s", buf);
+    LOG_VERBOSE("Message: %s", buf);
     xmpp_free(m_xmppctx, buf);
 
     xmpp_send(m_xmppconn, messageStanza);
@@ -324,7 +324,7 @@ XmppTransport::XmppStanzaHandler(
     // Logging
     LOG_DEBUG("Received message/chat stanza");
     LOG_DEBUG("From: %s", fromAttr.c_str());
-    //LOG_VERBOSE("Stanza: %s", message.c_str());
+    LOG_VERBOSE("Stanza: %s", message.c_str());
 
     if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) ||
             0 == strcmp("chat", xmpp_stanza_get_name(stanza)) )
@@ -544,7 +544,7 @@ XmppTransport::XmppRosterHandler(
         char* buf = NULL;
         size_t buflen = 0;
         xmpp_stanza_to_text(presence, &buf, &buflen);
-        //LOG_VERBOSE("Presence Message: %s", buf);
+        LOG_VERBOSE("Presence Message: %s", buf);
         xmpp_free(xmppCtx, buf);
 
         // Send our presence message
