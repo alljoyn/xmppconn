@@ -62,6 +62,9 @@ public:
     ConnectionState
     GetConnectionState() const;
 
+    ConnectionError
+    GetConnectionError() const;
+
 protected:
     virtual
     ConnectionError
@@ -102,7 +105,13 @@ private:
         const ConnectionState& new_state
         );
 
+    ConnectionError
+    SetConnectionError(
+        const ConnectionError& error
+        );
+
     ConnectionState     m_connection_state;
+    ConnectionError     m_connection_error;
     TransportListener*  m_listener;
     mutable void*       m_mtx; // void* to hide pthread header
 };

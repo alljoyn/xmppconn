@@ -145,11 +145,8 @@ XmppTransport::RunOnce()
     {
         xmpp_run_once(m_xmppctx, XMPP_TIMEOUT_IN_MILLISECONDS);
     }
-    else
-    {
-        err = not_connected;
-    }
 
+    err = GetConnectionError();
     return err;
 }
 
@@ -404,7 +401,7 @@ XmppTransport::XmppPresenceHandler(
         LOG_RELEASE("Failed to get presence stanza as text! %d", result);
         return 1;
     }
-    LOG_VERBOSE("Stanza: %s", buf);
+    //LOG_VERBOSE("Stanza: %s", buf);
     string message(buf);
     xmpp_free(xmpp_conn_get_context(conn), buf);
 
@@ -484,7 +481,7 @@ XmppTransport::XmppRosterHandler(
         LOG_RELEASE("Failed to get roster stanza as text! %d", result);
         return 1;
     }
-    LOG_VERBOSE("Stanza: %s", buf);
+    //LOG_VERBOSE("Stanza: %s", buf);
     string message(buf);
     xmpp_free(xmpp_conn_get_context(conn), buf);
 
