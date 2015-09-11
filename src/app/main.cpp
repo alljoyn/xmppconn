@@ -302,8 +302,10 @@ int main(int argc, char** argv)
     conf_file.close();
 
     bool resetbus = true;
+    bool waitForConfigChange = false;
+
     do{
-        bool waitForConfigChange(false);
+
     
         // We need to do this to get our product ID and serial number
         getConfigurationFields();
@@ -458,9 +460,12 @@ int main(int argc, char** argv)
             {
                 s_Conn->AddSessionPortMatch("org.alljoyn.ControlPanel.ControlPanel", 1000);
                 s_Conn->AddSessionPortMatch("org.alljoyn.bus.samples.chat", 27);
+                // TODO: We will likely need to handle different types of errors,
+                // instead of the generic "!ER_OK"
+                // For now, only the authentication failure is returned
                 if (s_Conn->Start() != ER_OK)
                 {
-                    s_Continue = false;
+                    waitForConfigChange = true;
                 }
                 resetbus = true;
             }
