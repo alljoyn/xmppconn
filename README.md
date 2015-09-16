@@ -169,7 +169,7 @@ Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. 
 
 ### Running as an AllJoyn Gateway Connector application
 
-*Coming Soon!*
+The XMPP connector can also be managed from and Android device using the AllJoyn Gateway Connector app. Please consult this Knowledge Base article for instructions: [Building xmppconn on Linux](https://community1.chariot.global/knowledge-base/building-xmppconn-on-linux/), under the section "Running as an AllJoyn Gateway Connector application". 
 
 ## License
 
