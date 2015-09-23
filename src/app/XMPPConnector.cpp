@@ -513,8 +513,11 @@ XMPPConnector::Start()
 
     // Listen for messages. Blocks until transport.Stop() is called.
     Transport::ConnectionError runerr = m_transport->Run();
-    // TODO: Handle errors
-
+    // TODO: Handle other errors
+    if (runerr == Transport::auth_failure)
+    {
+        err = ER_AUTH_FAIL;
+    }
     return err;
 }
 
@@ -1436,7 +1439,12 @@ XMPPConnector::SendMessage(
 {
     FNLOG
     LOG_DEBUG("Sending %smessage over transport.", (messageType.empty() ? "" : (messageType+" ").c_str()));
-    m_transport->Send(body);
+    Transport::ConnectionError status = m_transport->Send(body);
+    if (Transport::none != status)
+    {
+        LOG_DEBUG("Failed to send message, connection error %d", status);
+        //TODO: How to handle this error
+    }
 }
 
 vector<XMPPConnector::RemoteObjectDescription>
