@@ -215,6 +215,7 @@ XmppTransport::SendImpl(
     LOG_VERBOSE("Message: %s", buf);
 
     xmpp_send(m_xmppconn, messageStanza);
+    LOG_VERBOSE("XMPP message sent")
     xmpp_stanza_release(messageStanza);
     xmpp_free(m_xmppctx, buf);
 
