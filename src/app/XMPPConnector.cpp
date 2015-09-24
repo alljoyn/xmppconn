@@ -1442,8 +1442,9 @@ XMPPConnector::SendMessage(
     Transport::ConnectionError status = m_transport->Send(body);
     if (Transport::none != status)
     {
-        LOG_DEBUG("Failed to send message, connection error %d", status);
-        //TODO: How to handle this error
+        LOG_RELEASE("Failed to send message, connection error %d", status);
+        //TODO: XmppTransport::SendImpl() currently always returns ConnectionError::none
+        //Need to investigate if there is a way to change that
     }
 }
 
