@@ -41,10 +41,10 @@ using std::endl;
 using std::istringstream;
 using std::ostringstream;
 
-const string CHARIOT_GLOBAL = "global.chariot";
-const string CHARIOT_XMPP = "Chariot.Xmpp";
-const string CHARIOT_XMPP_INTERFACE_NAME = "org.alljoyn.Config." + CHARIOT_XMPP;
-const string CHARIOT_XMPP_CONFIG_PATH = "/Config/Chariot/XMPP";
+const string ALLJOYN_GLOBAL_SUFFIX = "global.chariot";
+const string ALLJOYN_XMPP_SUFFIX = "Chariot.Xmpp";
+const string ALLJOYN_XMPP_CONFIG_INTERFACE_NAME = "org.alljoyn.Config." + ALLJOYN_GLOBAL_SUFFIX;
+const string ALLJOYN_XMPP_CONFIG_PATH = "/Config/Chariot/XMPP";
 
 namespace util {
 

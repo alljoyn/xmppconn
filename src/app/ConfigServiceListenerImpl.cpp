@@ -69,7 +69,7 @@ QStatus ConfigServiceListenerImpl::FactoryReset()
     m_ConfigDataStore->FactoryReset();
     m_Bus->ClearKeyStore();
 
-    SimpleBusObject busObject(*m_Bus, CHARIOT_XMPP_CONFIG_PATH.c_str());
+    SimpleBusObject busObject(*m_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
     status = m_Bus->RegisterBusObject(busObject);
     if ( ER_OK != status ){
         LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));

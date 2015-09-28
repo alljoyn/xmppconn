@@ -9,7 +9,10 @@ SimpleBusObject::SimpleBusObject(BusAttachment& bus, const char* path)
 {
     QStatus status;
     const InterfaceDescription* iface = bus.GetInterface(CHARIOT_XMPP_INTERFACE_NAME.c_str());
-    assert(iface != NULL);
+    if (!iface)
+    {
+        throw BusAttachmentInterfaceException();
+    }
 
     status = AddInterface(*iface, ANNOUNCED);
     if (status != ER_OK) {

@@ -1,5 +1,20 @@
 #include "alljoyn/BusObject.h"
 #include "alljoyn/BusAttachment.h"
+#include <stdexcept>
+
+class BusAttachmentInterfaceException : public std::runtime_error
+{
+    public:
+        BusAttachmentInterfaceException()
+        : runtime_error( "Invalid interface for the BusAttachment object" )
+    {}
+
+  virtual const char* what() const throw()
+  {
+    return runtime_error::what();
+
+  }
+};
 
 class SimpleBusObject : public ajn::BusObject
 {

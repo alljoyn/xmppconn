@@ -87,10 +87,10 @@ static string s_ProductID;
 static string s_SerialNumber;
 static string s_AllJoynPasscode;
 static string s_AppId;
-//static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
+
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
                                     " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
-                                    "<interface name='" + qcc::String(CHARIOT_XMPP_INTERFACE_NAME.c_str()) + "'>"
+                                    "<interface name='" + qcc::String(ALLJOYN_XMPP_CONFIG_INTERFACE_NAME.c_str()) + "'>"
                                     "<property name='Version' type='q' access='read'/>"
                                     "<method name='FactoryReset'>"
                                     "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
@@ -381,7 +381,7 @@ int main(int argc, char** argv)
             }
         
             const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
-            SimpleBusObject busObject(*s_Bus, CHARIOT_XMPP_CONFIG_PATH.c_str());
+            SimpleBusObject busObject(*s_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
             status = s_Bus->RegisterBusObject(busObject);
             if ( ER_OK != status ){
                 LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
@@ -425,7 +425,7 @@ int main(int argc, char** argv)
         {
             s_Conn = new XMPPConnector(
                     s_Bus,
-                    CHARIOT_XMPP_INTERFACE_NAME,
+                    ALLJOYN_XMPP_CONFIG_INTERFACE_NAME,
                     "xmppconn",
                     getJID(),
                     getPassword(), 
