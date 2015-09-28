@@ -45,9 +45,6 @@ using std::endl;
 using std::istringstream;
 using std::ostringstream;
 
-static const string s_ChariotGlobal = "global.chariot";
-static const string s_ChariotXmpp = "Chariot.Xmpp";
-
 class AllJoynListener :
     public BusListener,
     public SessionPortListener,
@@ -1002,7 +999,7 @@ XMPPConnector::SendAdvertisement(
 {
     FNLOG
     // Skip sending the global Chariot advertisements
-    size_t found = name.find(s_ChariotGlobal);
+    size_t found = name.find(CHARIOT_GLOBAL);
     if (found != string::npos)
     {
         return;
@@ -1092,7 +1089,7 @@ XMPPConnector::SendAnnounce(
             ++val_iter)
         {
             // Skip sending the XMPP Chariot announcements
-            size_t found = val_iter->find(s_ChariotXmpp.c_str());
+            size_t found = val_iter->find(CHARIOT_XMPP.c_str());
             if (found != string::npos)
             {
                 return;

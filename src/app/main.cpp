@@ -21,6 +21,7 @@
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
 #include "common/CommonBusListener.h"
+#include "SimpleBusObject.h"
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
@@ -86,10 +87,10 @@ static string s_ProductID;
 static string s_SerialNumber;
 static string s_AllJoynPasscode;
 static string s_AppId;
-static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
+//static string ifaceName = "org.alljoyn.Config.Chariot.Xmpp";
 static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
                                     " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
-                                    "<interface name='" + qcc::String(ifaceName.c_str()) + "'>"
+                                    "<interface name='" + qcc::String(CHARIOT_XMPP_INTERFACE_NAME.c_str()) + "'>"
                                     "<property name='Version' type='q' access='read'/>"
                                     "<method name='FactoryReset'>"
                                     "<annotation name='org.freedesktop.DBus.Method.NoReply' value='true'/>"
@@ -126,23 +127,6 @@ static void onRestart(){
         s_Conn->Stop();
     }
 }
-
-class SimpleBusObject : public BusObject {
-    public:
-        SimpleBusObject(BusAttachment& bus, const char* path)
-            : BusObject(path)
-        {
-            QStatus status;
-            const InterfaceDescription* iface = bus.GetInterface(ifaceName.c_str());
-            assert(iface != NULL);
-
-            status = AddInterface(*iface, ANNOUNCED);
-            if (status != ER_OK) {
-                LOG_RELEASE("Failed to add %s interface to the BusObject", ifaceName.c_str());
-            }
-        }
-};
-
 
 void cleanup()
 {
@@ -335,7 +319,7 @@ int main(int argc, char** argv)
                                                   (s_ProductID + s_SerialNumber).c_str(),
                                                   onRestart);
             configDataStore->Initialize();
-        
+
             aboutObj = new ajn::AboutObj(*s_Bus, BusObject::ANNOUNCED);
             ajn::services::AboutObjApi::Init(s_Bus, (configDataStore), aboutObj);
             ajn::services::AboutObjApi* aboutService = ajn::services::AboutObjApi::getInstance();
@@ -397,7 +381,7 @@ int main(int argc, char** argv)
             }
         
             const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
-            SimpleBusObject busObject(*s_Bus, "/Config/Chariot/XMPP");
+            SimpleBusObject busObject(*s_Bus, CHARIOT_XMPP_CONFIG_PATH.c_str());
             status = s_Bus->RegisterBusObject(busObject);
             if ( ER_OK != status ){
                 LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
@@ -441,7 +425,7 @@ int main(int argc, char** argv)
         {
             s_Conn = new XMPPConnector(
                     s_Bus,
-                    ifaceName,
+                    CHARIOT_XMPP_INTERFACE_NAME,
                     "xmppconn",
                     getJID(),
                     getPassword(), 

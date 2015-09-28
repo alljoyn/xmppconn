@@ -41,6 +41,11 @@ using std::endl;
 using std::istringstream;
 using std::ostringstream;
 
+const string CHARIOT_GLOBAL = "global.chariot";
+const string CHARIOT_XMPP = "Chariot.Xmpp";
+const string CHARIOT_XMPP_INTERFACE_NAME = "org.alljoyn.Config." + CHARIOT_XMPP;
+const string CHARIOT_XMPP_CONFIG_PATH = "/Config/Chariot/XMPP";
+
 namespace util {
 
 extern volatile bool _dbglogging;
