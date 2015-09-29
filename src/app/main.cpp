@@ -380,9 +380,18 @@ int main(int argc, char** argv)
                 return status;
             }
         
-            const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());  
-            SimpleBusObject busObject(*s_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
-            status = s_Bus->RegisterBusObject(busObject);
+            const InterfaceDescription* iface = s_Bus->GetInterface(ifaceName.c_str());
+            try
+            {
+                SimpleBusObject busObject(*s_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
+                status = s_Bus->RegisterBusObject(busObject);
+            }
+            catch(BusAttachmentInterfaceException& e)
+            {
+                LOG_RELEASE("Failed to create bus: %s", e.what());
+                cleanup();
+                return ER_FAIL;
+            }
             if ( ER_OK != status ){
                 LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
                 cleanup();
