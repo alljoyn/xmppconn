@@ -88,7 +88,7 @@ static string s_SerialNumber;
 static string s_AllJoynPasscode;
 static string s_AppId;
 
-static const qcc::String interface = "<node name='/Config/Chariot/XMPP' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+static const qcc::String interface = "<node name='" + qcc::String(ALLJOYN_XMPP_CONFIG_PATH.c_str()) + "'" "xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
                                     " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
                                     "<interface name='" + qcc::String(ALLJOYN_XMPP_CONFIG_INTERFACE_NAME.c_str()) + "'>"
                                     "<property name='Version' type='q' access='read'/>"
@@ -385,38 +385,38 @@ int main(int argc, char** argv)
             {
                 SimpleBusObject busObject(*s_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
                 status = s_Bus->RegisterBusObject(busObject);
+
+                if ( ER_OK != status ){
+                    LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
+                    cleanup();
+                    return status;
+                }
+                status = configService->Register();
+                if(status != ER_OK) {
+                    LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
+                    cleanup();
+                    return status;
+                }
+
+                status = s_Bus->RegisterBusObject(*configService);
+                if(status != ER_OK) {
+                    LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
+                    cleanup();
+                    return status;
+                }
+
+                status = aboutService->Announce();
+                if(status != ER_OK) {
+                    LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
+                    cleanup();
+                    return status;
+                }
             }
             catch(BusAttachmentInterfaceException& e)
             {
                 LOG_RELEASE("Failed to create bus: %s", e.what());
                 cleanup();
                 return ER_FAIL;
-            }
-            if ( ER_OK != status ){
-                LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
-                cleanup();
-                return status;
-            }
-        
-            status = configService->Register();
-            if(status != ER_OK) {
-                LOG_RELEASE("Could not register the ConfigService. Reason: %s", QCC_StatusText(status));
-                cleanup();
-                return status;
-            }
-        
-            status = s_Bus->RegisterBusObject(*configService);
-            if(status != ER_OK) {
-                LOG_RELEASE("Could not register the ConfigService BusObject. Reason: %s", QCC_StatusText(status));
-                cleanup();
-                return status;
-            }
-        
-            status = aboutService->Announce();
-            if(status != ER_OK) {
-                LOG_RELEASE("Could not announce the About Service! Reason: %s", QCC_StatusText(status));
-                cleanup();
-                return status;
             }
         }
 

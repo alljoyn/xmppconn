@@ -999,7 +999,7 @@ XMPPConnector::SendAdvertisement(
 {
     FNLOG
     // Skip sending the global Chariot advertisements
-    size_t found = name.find(ALLJOYN_GLOBAL_SUFFIX);
+    size_t found = name.find(ALLJOYN_URL_SUFFIX);
     if (found != string::npos)
     {
         return;
