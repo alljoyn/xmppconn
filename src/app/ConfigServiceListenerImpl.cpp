@@ -18,8 +18,8 @@
 #include "app/SrpKeyXListener.h"
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
-
-#include <AboutObjApi.h>
+#include "AboutObjApi.h"
+#include "SimpleBusObject.h"
 #include <iostream>
 
 using namespace ajn;
@@ -69,9 +69,25 @@ QStatus ConfigServiceListenerImpl::FactoryReset()
     m_ConfigDataStore->FactoryReset();
     m_Bus->ClearKeyStore();
 
-    AboutObjApi* aboutObjApi = AboutObjApi::getInstance();
-    if (aboutObjApi){
-        status = aboutObjApi->Announce();
+    try
+    {
+        SimpleBusObject busObject(*m_Bus, ALLJOYN_XMPP_CONFIG_PATH.c_str());
+        status = m_Bus->RegisterBusObject(busObject);
+
+        if ( ER_OK != status ){
+            LOG_RELEASE("Failed to register bus object! Reason: %s", QCC_StatusText(status));
+            return status;
+        }
+
+        AboutObjApi* aboutObjApi = AboutObjApi::getInstance();
+        if (aboutObjApi){
+            status = aboutObjApi->Announce();
+        }
+    }
+    catch(BusAttachmentInterfaceException& e)
+    {
+        LOG_RELEASE("Failed to create bus: %s", e.what());
+        return ER_FAIL;
     }
 
     return status;
