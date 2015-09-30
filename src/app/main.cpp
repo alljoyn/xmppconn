@@ -88,7 +88,7 @@ static string s_SerialNumber;
 static string s_AllJoynPasscode;
 static string s_AppId;
 
-static const qcc::String interface = "<node name='" + qcc::String(ALLJOYN_XMPP_CONFIG_PATH.c_str()) + "'" "xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
+static const qcc::String interface = "<node name='" + qcc::String(ALLJOYN_XMPP_CONFIG_PATH.c_str()) + "' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'"
                                     " xsi:noNamespaceSchemaLocation='http://www.allseenalliance.org/schemas/introspect.xsd'>"
                                     "<interface name='" + qcc::String(ALLJOYN_XMPP_CONFIG_INTERFACE_NAME.c_str()) + "'>"
                                     "<property name='Version' type='q' access='read'/>"
