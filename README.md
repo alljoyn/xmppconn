@@ -169,7 +169,61 @@ Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. 
 
 ### Running as an AllJoyn Gateway Connector application
 
-The XMPP connector can also be managed from and Android device using the AllJoyn Gateway Connector app. Please consult this Knowledge Base article for instructions: [Building xmppconn on Linux](https://community1.chariot.global/knowledge-base/building-xmppconn-on-linux/), under the section "Running as an AllJoyn Gateway Connector application". 
+The previous section described how to run xmppconn as a service via the Linux command line. You can also run in as an Gateway Connector phone app. The functionality should be the same in both cases.
+
+NOTE: You must have successfully built and installed the Gateway Agent first, as explained in a previous section.
+
+TODO: Download the .deb package from downloads.chariot.global
+
+ 
+
+After downloading the file, install it via dpkg by executing from the download location:
+
+    sudo dpkg -i alljoyn-xmppconn-gwagent_0.3.3_amd64.deb
+
+(version number might be different)
+
+You should see messages about "unpacking" and "setting up", and no errors, if installation was successful. You can verify that the files have been installed in the correct location by entering
+
+    ls /opt/alljoyn/apps/xmppconn
+    
+If the xmppconn directory is not there, there was a problem installing the Debian package.
+
+If installation succeeded, you can start the Gateway Agent:
+
+    sudo service alljoyn-gwagent start
+    
+Verify that it is running:
+
+    sudo service alljoyn-gwagent status
+    
+The instructions for downloading and running the Gateway Connector app are on the AllSeen Alliance website at https://wiki.allseenalliance.org/gateway/getting\_started#installing\_the\_gateway\_controller\_sample\_android\_app. After installing the app, open it and click on AllJoyn Gateway Configuration Manager. You should see "Affinegy XMPP Connector" (a button that says Affin...) in the Gateway Connector Applications list. At this point, the state of the app should show "Stopped". This is because we haven't created any Access Control Lists (ACL's) yet.
+
+Click on the "Affin..." button to open the XMPP Connector app. Using the context menu on your Android device, click on "Create ACL". This will open up a window where you choose a name for your ACL, and choose which services will be allowed to pass through xmppconn. For now, select the "Expose all services" checkbox, since we want to ensure that the xmpconn app works just as the command-line xmppconn. Click on "Create".
+
+Go back to the previous window (the XMPP Connector app). You will see that it still shows up as "Stopped". First, you need to make sure that the newly created ACL is in the "Active" state. Then, from the Linux command line, restart the Gateway Agent:
+
+    sudo service alljoyn-gwagent restart
+    
+Verify that it is running:
+
+    sudo service alljoyn-gwagent status
+    
+NOTE: It is possible that the Gateway Agent is not running at this point (you might see the message "The process appears to be dead but pidfile still exists"). If this happens, you will need to restart the AllJoyn service, and then restart the Gateway Agent:
+
+    sudo service alljoyn restart
+    sudo service alljoyn-gwagent restart
+    
+The Gateway Agent should now be running.
+
+In the Gateway Connector app, you should now see the XMPP connector status as "Running". On your Linux system, you should also be able to see it from the process list:
+
+    $ ps -ef | grep xmppconn
+    xmppconn 26639 26502 16 17:03 ? 00:00:12 [xmppconn]
+    alljoyn 29748 9804 0 17:04 pts/0 00:00:00 grep --color=auto xmppconn
+    
+You should now be able to use the xmppconn app to make devices communicate across networks, just as with the command-line version. For example, you can use CHARIOT Join to see controller-connector communication on separate networks.
+
 
 ## License
 
