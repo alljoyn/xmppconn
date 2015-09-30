@@ -169,27 +169,26 @@ Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. 
 
 ### Running as an AllJoyn Gateway Connector application
 
-The previous section described how to run xmppconn as a service via the Linux command line. You can also run in as an Gateway Connector phone app. The functionality should be the same in both cases.
+The previous section described how to run xmppconn as a service via the Linux command line. You can also run it as a Gateway Connector phone app. The functionality should be the same in both cases.
 
-NOTE: You must have successfully built and installed the Gateway Agent first, as explained in a previous section.
+NOTE: You must have successfully built and installed xmppconn and the Gateway Agent first, as explained in the previous sections.
 
-TODO: Download the .deb package from downloads.chariot.global
+You need to create a directory structure for the xmppconn app:
 
- 
+    sudo mkdir -p /opt/alljoyn/apps/xmppconn/acls
+    sudo mkdir -p /opt/alljoyn/apps/xmppconn/bin
+    sudo mkdir -p /opt/alljoyn/apps/xmppconn/lib
+    sudo mkdir -p /opt/alljoyn/apps/xmppconn/store
 
-After downloading the file, install it via dpkg by executing from the download location:
+Copy the xmppconn executable, which should have been created previously, to the "bin" directory:
 
-    sudo dpkg -i alljoyn-xmppconn-gwagent_0.3.3_amd64.deb
-
-(version number might be different)
-
-You should see messages about "unpacking" and "setting up", and no errors, if installation was successful. You can verify that the files have been installed in the correct location by entering
-
-    ls /opt/alljoyn/apps/xmppconn
+    sudo cp $ROOTPATH/xmppconn/build/xmppconn /opt/alljoyn/apps/xmppconn/bin
     
-If the xmppconn directory is not there, there was a problem installing the Debian package.
+Copy the Manifest file to the top-level xmppconn app directory:
 
-If installation succeeded, you can start the Gateway Agent:
+    sudo cp $ROOTPATH/xmppconn/Manifest.xml /opt/alljoyn/apps/xmppconn
+    
+Start the Gateway Agent:
 
     sudo service alljoyn-gwagent start
     
