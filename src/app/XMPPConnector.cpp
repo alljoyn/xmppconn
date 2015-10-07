@@ -911,10 +911,13 @@ void XMPPConnector::DeleteBusAttachment(
         return;
     }
     BusAttachment* attachment = connection_pair->second;
-    attachment->UnregisterBusListener(*listener);
-    DeleteBusListener(from);
-    attachment->Stop();
-    delete attachment;
+    if (attachment)
+    {
+        attachment->UnregisterBusListener(*listener);
+        DeleteBusListener(from);
+        attachment->Stop();
+        delete attachment;
+    }
     m_buses.erase(from);
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 }
@@ -946,16 +949,12 @@ void XMPPConnector::DeleteBusListener(
     const std::string& from
     )
 {
-    //pthread_mutex_lock(&m_remoteAttachmentsMutex);
     map<string, AllJoynListener*>::iterator connection_pair(m_listeners.find(from));
-    if ( m_listeners.end() == connection_pair )
+    if ( m_listeners.end() != connection_pair )
     {
-        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
-        return;
+        delete connection_pair->second;
+        m_listeners.erase(from);
     }
-    delete connection_pair->second;
-    m_listeners.erase(from);
-    //pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 }
 
 void
@@ -2534,10 +2533,9 @@ void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::stri
         // Stop listening for advertisements and announcements
         AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
         attachment->CancelFindAdvertisedName("");
-        attachment->Stop();
     }
 
-    // Delete the bus attachment
+    // Stop and delete the bus attachment
     DeleteBusAttachment(source);
 }
 
