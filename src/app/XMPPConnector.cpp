@@ -277,11 +277,13 @@ public:
          * take down their copies of these apps.
          */
 
+        LOG_DEBUG("Name owner for bus %s changed from %s to %s",
+                    busName,
+                    (previousOwner ? previousOwner : "<NOBODY>"),
+                    (newOwner ? newOwner : "<NOBODY>")
+                  );
         if(!busName) { return; }
 
-        //cout << "Detected name owner change: " << busName << "\n  " <<
-        //        (previousOwner?previousOwner:"<NOBODY>") << " -> " <<
-        //        (newOwner?newOwner:"<NOBODY>") << endl;
         m_connector->NameOwnerChanged(busName, newOwner);
     }
 
@@ -444,20 +446,7 @@ XMPPConnector::~XMPPConnector()
     while ( m_buses.size() > 0 )
     {
         string from(m_buses.begin()->first);
-
-        // Unregister the announce handler
-        BusAttachment* attachment = GetBusAttachment(from);
-        AllJoynListener* listener = GetBusListener(from);
-        if ( attachment && listener )
-        {
-            // Stop listening for advertisements and announcements
-            AnnouncementRegistrar::UnRegisterAnnounceHandler(
-                *attachment, *listener, NULL, 0);
-            attachment->CancelFindAdvertisedName("");
-        }
-
-        // Delete the bus attachment
-        DeleteBusAttachment(from);
+        UnregisterFromAdvertisementsAndAnnouncements(from);
     }
 
     delete m_transport;
@@ -923,7 +912,6 @@ void XMPPConnector::DeleteBusAttachment(
     }
     BusAttachment* attachment = connection_pair->second;
     attachment->UnregisterBusListener(*listener);
-    // TODO: Unregister for advertisements and announcements
     DeleteBusListener(from);
     attachment->Stop();
     delete attachment;
@@ -2530,27 +2518,27 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         m_remoteAttachments.clear();
         pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
-        // Get the local bus attachment and bus listener
-        BusAttachment* attachment = GetBusAttachment(source);
-        AllJoynListener* listener = GetBusListener(source);
+        UnregisterFromAdvertisementsAndAnnouncements(source);
+    }
+    }
 
-        if ( !attachment || !listener )
-        {
-            // NOTE: This is okay, as we legitimately get presence notifications of unavailable
-            return;
-        }
+}
 
+void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::string& source)
+{
+    BusAttachment* attachment = GetBusAttachment(source);
+    AllJoynListener* listener = GetBusListener(source);
+
+    if ( attachment && listener )
+    {
         // Stop listening for advertisements and announcements
-        AnnouncementRegistrar::UnRegisterAnnounceHandler(
-            *attachment, *listener, NULL, 0);
+        AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
         attachment->CancelFindAdvertisedName("");
-
-        // Delete the local bus attachment and listener
-        DeleteBusAttachment(source);
-        break;
-    }
+        attachment->Stop();
     }
 
+    // Delete the bus attachment
+    DeleteBusAttachment(source);
 }
 
 #ifndef NO_AJ_GATEWAY
