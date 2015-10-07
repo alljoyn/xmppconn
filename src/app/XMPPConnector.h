@@ -347,6 +347,9 @@ private:
                 const Transport::ConnectionError& error
                 );
 
+    void
+        UnregisterFromAdvertisementsAndAnnouncements(const std::string& source);
+
 #ifndef NO_AJ_GATEWAY
     void
         addInterfaceXMLTag(xmlNode* currentKey,
