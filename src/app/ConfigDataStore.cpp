@@ -62,7 +62,7 @@ ConfigDataStore::ConfigDataStore(
     SetNewFieldDetails("RoomJID",      EMPTY_MASK, "s");
 }
 
-void ConfigDataStore::Initialize()
+void ConfigDataStore::Initialize(bool reset)
 {
     ConfigParser configParser(m_configFileName.c_str());
     if(configParser.isConfigValid() == true){
@@ -133,10 +133,27 @@ void ConfigDataStore::Initialize()
             SetField(it->first.c_str(), value);
         }
 
-        SetAppId(m_appId.c_str());
+        QStatus status;
+        if (reset)
+        {
+            string appId = util::generateAppId();
+            status = SetAppId(appId.c_str());
+            configParser.SetField("AppId", appId.c_str());
+        }
+        else
+        {
+            status = SetAppId(m_appId.c_str());
+        }
+
+        if (ER_OK != status)
+        {
+            LOG_RELEASE("Failed to set AppId for AboutData: %s", QCC_StatusText(status));
+        }
+
         SetDeviceId(m_deviceId.c_str());
         m_IsInitialized = true;
     }
+
     else
     {
         LOG_RELEASE("Configuration file is not valid!")
@@ -156,7 +173,7 @@ void ConfigDataStore::FactoryReset()
     configFileWrite.write(str.c_str(), str.length());
     configFileWrite.close();
 
-    Initialize();
+    Initialize(true);
     m_restartCallback();
     LOG_VERBOSE("FactoryReset has completed");
 }
