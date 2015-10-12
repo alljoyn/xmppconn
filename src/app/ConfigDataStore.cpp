@@ -133,17 +133,13 @@ void ConfigDataStore::Initialize(bool reset)
             SetField(it->first.c_str(), value);
         }
 
-        QStatus status;
         if (reset)
         {
-            string appId = util::generateAppId();
-            status = SetAppId(appId.c_str());
-            configParser.SetField("AppId", appId.c_str());
+            m_appId = util::generateAppId();
+            configParser.SetField("AppId", m_appId.c_str());
         }
-        else
-        {
-            status = SetAppId(m_appId.c_str());
-        }
+
+        QStatus status = SetAppId(m_appId.c_str());
 
         if (ER_OK != status)
         {
