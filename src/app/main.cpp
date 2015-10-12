@@ -30,7 +30,6 @@
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
 #include <qcc/StringUtil.h>
-#include <uuid/uuid.h>
 
 #include <iostream>
 #include <fstream>
@@ -197,28 +196,6 @@ string getChatRoom()
     return s_ChatRoom;
 }
 
-string getAppId( ConfigParser& configParser )
-{
-    uuid_t uuid;
-    string uuidString;
-
-    // Try to find the AppId from ConfigParser and create+add it if it isn't there
-    if(configParser.GetField("AppId").empty()){
-        uuid_generate_random(uuid);
-
-        char uuid_str[37];
-        uuid_unparse_lower(uuid, uuid_str);
-        uuidString = uuid_str;
-        
-        configParser.SetField("AppId", uuid_str);
-    }
-    else{
-        uuidString = configParser.GetField("AppId");
-    }
-
-    return uuidString;
-}
-
 void getConfigurationFields(){
     ConfigParser configParser(CONF_FILE.c_str());
     if(!configParser.isConfigValid()){
@@ -249,7 +226,12 @@ void getConfigurationFields(){
     s_ProductID       = configParser.GetField("ProductID");
     s_AllJoynPasscode = configParser.GetField("AllJoynPasscode");
 
-    s_AppId = getAppId(configParser);
+    s_AppId = configParser.GetField("AppId");
+    if (s_AppId.empty())
+    {
+        s_AppId = util::generateAppId();
+        configParser.SetField("AppId", s_AppId.c_str());
+    }
 
     string tmp = configParser.GetField("Compress");
     if(tmp != "")

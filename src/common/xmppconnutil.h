@@ -218,6 +218,9 @@ namespace bus {
         );
 
 } // namespace bus
+
+    string generateAppId();
+
 } // namespace util
 
 #endif // __XMPPCONN_UTIL_H__

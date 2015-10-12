@@ -37,7 +37,7 @@ class ConfigDataStore : public AboutDataStoreInterface {
         );
     virtual ~ConfigDataStore();
 
-    void Initialize();
+    void Initialize(bool reset = false);
     void FactoryReset();
     virtual QStatus ReadAll(const char* languageTag, DataPermission::Filter filter, ajn::MsgArg& all);
     virtual QStatus Update(const char* name, const char* languageTag, const ajn::MsgArg* value);

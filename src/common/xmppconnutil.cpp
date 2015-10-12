@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <uuid/uuid.h>
 
 namespace util {
 volatile bool _dbglogging = false;
@@ -1071,4 +1072,19 @@ namespace bus {
     }
 
 } // namespace bus
+
+
+string generateAppId()
+{
+    uuid_t uuid;
+    string uuidString;
+
+    uuid_generate_random(uuid);
+    char uuid_str[37];
+    uuid_unparse_lower(uuid, uuid_str);
+    uuidString = uuid_str;
+
+    return uuidString;
+}
+
 } // namespace util
