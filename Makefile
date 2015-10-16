@@ -7,6 +7,9 @@ else
 endif
 
 CFLAGS    := -std=c++98 -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX -g3 -g
+ifeq ($(NO_AJ_GATEWAY), 1)
+	override CFLAGS += -DNO_AJ_GATEWAY
+endif
 #CFLAGS    := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
 #CXXFLAGS  := -Wall -pipe -std=c++98 -fno-rtti -fno-exceptions -Wno-long-long -Wno-deprecated -DDEBUG -g3 -g -DQCC_OS_LINUX -DQCC_OS_GROUP_POSIX
 

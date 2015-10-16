@@ -32,7 +32,9 @@
 
 
 using namespace ajn;
+#ifndef NO_AJ_GATEWAY
 using namespace ajn::gw;
+#endif // !NO_AJ_GATEWAY
 using namespace ajn::services;
 using namespace qcc;
 
