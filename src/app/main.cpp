@@ -44,7 +44,9 @@
 #include <sys/inotify.h>
 
 using namespace ajn;
+#ifndef NO_AJ_GATEWAY
 using namespace ajn::gw;
+#endif // !NO_AJ_GATEWAY
 
 using std::stringstream;
 using std::ifstream;
@@ -76,9 +78,16 @@ static ajn::services::ConfigService* configService = NULL;
 
 static vector<string> s_Roster;
 
+#ifndef NO_AJ_GATEWAY
+const string CONF_DIR  = "/opt/alljoyn/apps/xmppconn/etc";
+#else
 const string CONF_DIR  = "/etc/xmppconn";
+#endif // !NO_AJ_GATEWAY
+
 const string CONF_FILE = CONF_DIR + "/xmppconn.conf";
 const string FACTORY_FILE = CONF_DIR + "/xmppconn_factory.conf";
+
+
 static string s_User = "test";
 static string s_Password = "test";
 static string s_ChatRoom;
