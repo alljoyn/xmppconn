@@ -1536,14 +1536,14 @@ XMPPConnector::ReceiveAdvertisement(
     {
     	if (ER_ALLJOYN_ADVERTISENAME_REPLY_ALREADY_ADVERTISING == err)
     	{
-    		LOG_DEBUG("Advertised name already exists");
+            LOG_DEBUG("Advertised name already exists");
     	}
     	else
     	{
-			LOG_RELEASE("Failed to advertise %s: %s", wkn.c_str(),
-					QCC_StatusText(err));
-			DeleteRemoteAttachment(from, bus);
-			return;
+            LOG_RELEASE("Failed to advertise %s: %s", wkn.c_str(),
+                    QCC_StatusText(err));
+            DeleteRemoteAttachment(from, bus);
+            return;
     	}
     }
 }
