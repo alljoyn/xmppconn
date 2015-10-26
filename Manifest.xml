@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
    <!--
 
-        Copyright (c) 2014, AllSeen Alliance. All rights reserved.
+        Copyright (c) 2015, AllSeen Alliance. All rights reserved.
 
            Permission to use, copy, modify, and/or distribute this software for any
            purpose with or without fee is hereby granted, provided that the above
@@ -18,10 +18,10 @@
   -->
 <manifest xmlns="http://www.alljoyn.org/gateway/manifest">
     <connectorId>xmppconn</connectorId>
-    <friendlyName>Affinegy XMPP Connector</friendlyName>
-	<packageName>xmppconn.0.1-1_ipq806x.ipk</packageName>
+    <friendlyName>AllJoyn XMPP Connector</friendlyName>
+	<packageName>xmppconn</packageName>
 	<version>0.0.1</version>
-	<minAjSdkVersion>3.4.0</minAjSdkVersion>
+	<minAjSdkVersion>14.12</minAjSdkVersion>
 	<exposedServices>
 		<object name="AllObjectPaths">
 			<path>/</path>
