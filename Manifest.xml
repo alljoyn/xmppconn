@@ -30,7 +30,7 @@
                             <interface name="AboutInterface">org.alljoyn.About</interface>
                             <interface name="ConfigInterface">org.alljoyn.Config</interface>
                             <interface name="Notification">org.alljoyn.Notification</interface>
-                            <interface name="XMPPConfigInterface">org.alljoyn.Config.Chariot.Xmpp</interface>
+                            <interface name="XMPPConfigInterface">org.alljoyn.Config.XmppConnector</interface>
                             <interface name="DeviceIcon">org.alljoyn.Icon</interface>
                         </interfaces>
                     </object>
@@ -43,7 +43,7 @@
                             <interface name="AboutInterface">org.alljoyn.About</interface>
                             <interface name="ConfigInterface">org.alljoyn.Config</interface>
                             <interface name="Notification">org.alljoyn.Notification</interface>
-                            <interface name="XMPPConfigInterface">org.alljoyn.Config.Chariot.Xmpp</interface>
+                            <interface name="XMPPConfigInterface">org.alljoyn.Config.XmppConnector</interface>
                             <interface name="DeviceIcon">org.alljoyn.Icon</interface>
                         </interfaces>
                     </object>
