@@ -52,6 +52,7 @@
                     <executable>xmppconn</executable>
                     <env_variables>			
                         <variable name="LD_LIBRARY_PATH">/opt/alljoyn/apps/xmppconn/lib</variable>
+                        <variable name="HOME">/home/xmppconn</variable>
                     </env_variables>
                     <arguments>
                     </arguments>
