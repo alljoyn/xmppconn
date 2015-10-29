@@ -24,11 +24,6 @@ using namespace std;
 const int KEEPALIVE_IN_SECONDS = 60;
 const int XMPP_TIMEOUT_IN_MILLISECONDS = 1;
 
-// Helper function to deal with converting C char array to std::string safely
-inline string convertToString(const char* s)
-{
-    return (s ? string(s) : string(""));
-}
 
 XmppTransport::XmppTransport(
     TransportListener*    listener,
@@ -305,7 +300,7 @@ XmppTransport::XmppStanzaHandler(
 
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
-    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    string fromAttr = util::convertToString(xmpp_stanza_get_attribute(stanza, "from"));
     std::string fromAttrTmp("");
 
     if ( !(transport->m_roster.empty()) )
@@ -408,7 +403,7 @@ XmppTransport::XmppPresenceHandler(
 
     // Ignore if it isn't in our roster
     // TODO: Eventually this will be a full roster, right now we support only a single destination
-    string fromAttr = convertToString(xmpp_stanza_get_attribute(stanza, "from"));
+    string fromAttr = util::convertToString(xmpp_stanza_get_attribute(stanza, "from"));
     std::string fromAttrTmp("");
 
     if ( !(transport->m_roster.empty()) )
@@ -447,7 +442,7 @@ XmppTransport::XmppPresenceHandler(
     //  </presence>
 
 
-    string presenceType = convertToString(xmpp_stanza_get_type(stanza));
+    string presenceType = util::convertToString(xmpp_stanza_get_type(stanza));
 
     if ( presenceType == "unavailable" )
     {
@@ -493,7 +488,7 @@ XmppTransport::XmppRosterHandler(
 
 
     // If received a reply with the updated roster, send presence message
-    string typeAttr = convertToString(xmpp_stanza_get_attribute(stanza, "type"));
+    string typeAttr = util::convertToString(xmpp_stanza_get_attribute(stanza, "type"));
     if (typeAttr == "result")
     {
         XmppTransport* transport = static_cast<XmppTransport*>(userdata);
