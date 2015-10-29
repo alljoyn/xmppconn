@@ -442,7 +442,6 @@ XMPPConnector::~XMPPConnector()
     }
     m_remoteAttachments.clear();
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
-    pthread_mutex_destroy(&m_remoteAttachmentsMutex);
 
     // Unregister and delete all the local bus attachments and listeners
     while ( m_buses.size() > 0 )
@@ -451,6 +450,7 @@ XMPPConnector::~XMPPConnector()
         UnregisterFromAdvertisementsAndAnnouncements(from);
     }
 
+    pthread_mutex_destroy(&m_remoteAttachmentsMutex);
     delete m_transport;
 }
 
@@ -917,7 +917,9 @@ void XMPPConnector::DeleteBusAttachment(
     {
         attachment->UnregisterBusListener(*listener);
         DeleteBusListener(from);
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
         attachment->Stop();
+        pthread_mutex_lock(&m_remoteAttachmentsMutex);
         delete attachment;
     }
     m_buses.erase(from);
@@ -2539,9 +2541,11 @@ void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::stri
 
     if ( attachment && listener )
     {
+        pthread_mutex_lock(&m_remoteAttachmentsMutex);
         // Stop listening for advertisements and announcements
         AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
         attachment->CancelFindAdvertisedName("");
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
     }
 
     // Stop and delete the bus attachment
