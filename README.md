@@ -171,23 +171,20 @@ Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. 
 
 The previous section described how to run xmppconn as a service via the Linux command line. You can also run it as a Gateway Connector phone app. The functionality should be the same in both cases.
 
-NOTE: You must have successfully built and installed xmppconn and the Gateway Agent first, as explained in the previous sections.
+NOTE: You cannot have both the standalone xmppconn and the Gateway Connector app version installed on the same system. Installing one will uninstall the other.
 
-You need to create a directory structure for the xmppconn app:
-
-    sudo mkdir -p /opt/alljoyn/apps/xmppconn/acls
-    sudo mkdir -p /opt/alljoyn/apps/xmppconn/bin
-    sudo mkdir -p /opt/alljoyn/apps/xmppconn/lib
-    sudo mkdir -p /opt/alljoyn/apps/xmppconn/store
-
-Copy the xmppconn executable, which should have been created previously, to the "bin" directory:
-
-    sudo cp $ROOTPATH/xmppconn/build/xmppconn /opt/alljoyn/apps/xmppconn/bin
+First, install the alljoyn-xmppconn-gwagent package.
     
-Copy the Manifest file to the top-level xmppconn app directory:
+    sudo apt-get install alljoyn-xmppconn-gwagent
 
-    sudo cp $ROOTPATH/xmppconn/Manifest.xml /opt/alljoyn/apps/xmppconn
-    
+If the installation succeeded, you should see a new directory created in /opt/alljoyn/apps/xmppconn.
+
+Just like for the standalone xmppconn, you will need to set up the configuration file. The procedure has been described in the previous section, only the file location is different. You will need to modify the following file:
+
+    sudo gedit /opt/alljoyn/apps/xmppconn/etc/xmppconn_factory.conf
+
+After saving and closing the file, the setup is done and you can now try to run xmppconn via the Gateway Controller app.
+
 Start the Gateway Agent:
 
     sudo service alljoyn-gwagent start
