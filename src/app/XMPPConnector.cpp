@@ -273,7 +273,6 @@ public:
     {
         FNLOG
         /**
-         * TODO: REQUIRED
          * If owner changed to nobody, an Announcing app may have gone offline.
          * Send the busName to the XMPP server so that any remote connectors can
          * take down their copies of these apps.

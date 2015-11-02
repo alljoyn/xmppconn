@@ -336,7 +336,7 @@ private:
     void ReceiveSetReply(const std::string& from, const std::string& message);
     void ReceiveGetAllRequest(const std::string& from, const std::string& message);
     void ReceiveGetAllReply(const std::string& from, const std::string& message);
-    void ReceiveNameOwnerChanged(const string& from, const string& message);
+    void ReceiveNameOwnerChanged(const std::string& from, const std::string& message);
     void
         MessageReceived(
                 const std::string& source,
