@@ -89,12 +89,12 @@ Pull the source code and build the AllJoyn Gateway Agent as follows.
 
 **NOTE:** Before building, make sure that RAPIDJSON\_PATH and ALLJOYN\_DISTDIR environment variables, described above, are set appropriately.
 
-Pull the source code from the repository into the xmppconn folder under $ROOTPATH, and run "make":
+Pull the source code from the repository into the xmppconn folder under $ROOTPATH, and run "make", specifying that we are NOT building a Gateway Connector app (explained in the next section):
 
     cd $ROOTPATH
     git clone https://bitbucket.org/affinegy/xmppconn.git
     cd xmppconn
-    make
+    make NO\_AJ\_GATEWAY=1
 
 ## Installation
 
@@ -181,7 +181,17 @@ You need to create a directory structure for the xmppconn app:
     sudo mkdir -p /opt/alljoyn/apps/xmppconn/store
     sudo mkdir -p /opt/alljoyn/apps/xmppconn/etc
 
-Copy the xmppconn executable, which should have been created previously, to the "bin" directory:
+Under Gateway Connector, the xmppconn process will be run as "xmppconn" user. It needs to be able to write to the "etc" subdirectory. Since we created the directory structure above as root (sudo), change the owner and the group of that directory:
+
+     sudo chown -R xmppconn /opt/alljoyn/apps/xmppconn
+     sudo chgrp -R xmppconn /opt/alljoyn/apps/xmppconn
+
+Note that in the previous section, we ran the command "make NO\_AJ\_GATEWAY=1" in the $ROOTPATH/xmppconn directory. The NO\_AJ\_GATEWAY flag means that we are building the "standalone" version of XMPP Connector. This time, we will build it without that flag:
+
+    cd $ROOTPATH/xmppconn
+    make
+
+Copy the resulting executable, to the "bin" subdirectory of xmppconn app:
 
     sudo cp $ROOTPATH/xmppconn/build/xmppconn /opt/alljoyn/apps/xmppconn/bin
 
@@ -189,7 +199,7 @@ Copy the Manifest file to the top-level xmppconn app directory:
 
     sudo cp $ROOTPATH/xmppconn/Manifest.xml /opt/alljoyn/apps/xmppconn
 
-The Manifest file has to be modified to allow the xmppconn process to be run as "xmppconn" user. Add the following line after<env_variables> line:
+The Manifest file has to be modified to allow the xmppconn process to be run as "xmppconn" user. Add the following line after the <env_variables> line:
 
     <variable name="HOME">/home/xmppconn</variable>
 
