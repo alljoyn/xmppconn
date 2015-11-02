@@ -94,7 +94,7 @@ Pull the source code from the repository into the xmppconn folder under $ROOTPAT
     cd $ROOTPATH
     git clone https://bitbucket.org/affinegy/xmppconn.git
     cd xmppconn
-    make NO\_AJ\_GATEWAY=1
+    make NO_AJ_GATEWAY=1
 
 ## Installation
 
