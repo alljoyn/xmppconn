@@ -203,20 +203,6 @@ Note that the "store" and "acls" subdirectories will remain empty for now. You a
 
 Start the Gateway Agent:
 
-     sudo service alljoyn-gwagent start
-
-Verify that it is running:
-
-    sudo service alljoyn-gwagent status
-
-Just like for the standalone xmppconn, you will need to set up the configuration file. The procedure has been described in the previous section, only the file location is different. You will need to modify the following file:
-
-    sudo gedit /opt/alljoyn/apps/xmppconn/etc/xmppconn_factory.conf
-
-After saving and closing the file, the setup is done and you can now try to run xmppconn via the Gateway Controller app.
-
-Start the Gateway Agent:
-
     sudo service alljoyn-gwagent start
     
 Verify that it is running:
