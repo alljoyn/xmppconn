@@ -221,6 +221,13 @@ namespace bus {
 
     string generateAppId();
 
+    // Helper function to deal with converting C char array to std::string safely
+    inline string convertToString(const char* s)
+    {
+        return (s ? string(s) : string(""));
+    }
+
+
 } // namespace util
 
 #endif // __XMPPCONN_UTIL_H__

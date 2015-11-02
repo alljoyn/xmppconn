@@ -273,7 +273,6 @@ public:
     {
         FNLOG
         /**
-         * TODO: REQUIRED
          * If owner changed to nobody, an Announcing app may have gone offline.
          * Send the busName to the XMPP server so that any remote connectors can
          * take down their copies of these apps.
@@ -287,6 +286,7 @@ public:
         if(!busName) { return; }
 
         m_connector->NameOwnerChanged(busName, newOwner);
+        m_connector->SendNameOwnerChanged(util::convertToString(busName), util::convertToString(previousOwner), util::convertToString(newOwner));
     }
 
     void
@@ -379,22 +379,23 @@ private:
     BusAttachment* m_bus;
 };
 
-const string XMPPConnector::ALLJOYN_CODE_ADVERTISEMENT  = "__ADVERTISEMENT";
-const string XMPPConnector::ALLJOYN_CODE_ADVERT_LOST    = "__ADVERT_LOST";
-const string XMPPConnector::ALLJOYN_CODE_ANNOUNCE       = "__ANNOUNCE";
-const string XMPPConnector::ALLJOYN_CODE_METHOD_CALL    = "__METHOD_CALL";
-const string XMPPConnector::ALLJOYN_CODE_METHOD_REPLY   = "__METHOD_REPLY";
-const string XMPPConnector::ALLJOYN_CODE_SIGNAL         = "__SIGNAL";
-const string XMPPConnector::ALLJOYN_CODE_JOIN_REQUEST   = "__JOIN_REQUEST";
-const string XMPPConnector::ALLJOYN_CODE_JOIN_RESPONSE  = "__JOIN_RESPONSE";
-const string XMPPConnector::ALLJOYN_CODE_SESSION_JOINED = "__SESSION_JOINED";
-const string XMPPConnector::ALLJOYN_CODE_SESSION_LOST   = "__SESSION_LOST";
-const string XMPPConnector::ALLJOYN_CODE_GET_PROPERTY   = "__GET_PROPERTY";
-const string XMPPConnector::ALLJOYN_CODE_GET_PROP_REPLY = "__GET_PROP_REPLY";
-const string XMPPConnector::ALLJOYN_CODE_SET_PROPERTY   = "__SET_PROPERTY";
-const string XMPPConnector::ALLJOYN_CODE_SET_PROP_REPLY = "__SET_PROP_REPLY";
-const string XMPPConnector::ALLJOYN_CODE_GET_ALL        = "__GET_ALL";
-const string XMPPConnector::ALLJOYN_CODE_GET_ALL_REPLY  = "__GET_ALL_REPLY";
+const string XMPPConnector::ALLJOYN_CODE_ADVERTISEMENT      = "__ADVERTISEMENT";
+const string XMPPConnector::ALLJOYN_CODE_ADVERT_LOST        = "__ADVERT_LOST";
+const string XMPPConnector::ALLJOYN_CODE_ANNOUNCE           = "__ANNOUNCE";
+const string XMPPConnector::ALLJOYN_CODE_METHOD_CALL        = "__METHOD_CALL";
+const string XMPPConnector::ALLJOYN_CODE_METHOD_REPLY       = "__METHOD_REPLY";
+const string XMPPConnector::ALLJOYN_CODE_SIGNAL             = "__SIGNAL";
+const string XMPPConnector::ALLJOYN_CODE_JOIN_REQUEST       = "__JOIN_REQUEST";
+const string XMPPConnector::ALLJOYN_CODE_JOIN_RESPONSE      = "__JOIN_RESPONSE";
+const string XMPPConnector::ALLJOYN_CODE_SESSION_JOINED     = "__SESSION_JOINED";
+const string XMPPConnector::ALLJOYN_CODE_SESSION_LOST       = "__SESSION_LOST";
+const string XMPPConnector::ALLJOYN_CODE_GET_PROPERTY       = "__GET_PROPERTY";
+const string XMPPConnector::ALLJOYN_CODE_GET_PROP_REPLY     = "__GET_PROP_REPLY";
+const string XMPPConnector::ALLJOYN_CODE_SET_PROPERTY       = "__SET_PROPERTY";
+const string XMPPConnector::ALLJOYN_CODE_SET_PROP_REPLY     = "__SET_PROP_REPLY";
+const string XMPPConnector::ALLJOYN_CODE_GET_ALL            = "__GET_ALL";
+const string XMPPConnector::ALLJOYN_CODE_GET_ALL_REPLY      = "__GET_ALL_REPLY";
+const string XMPPConnector::ALLJOYN_CODE_NAME_OWNER_CHANGED = "__NAME_OWNER_CHANGED";
 
 
 XMPPConnector::XMPPConnector(
@@ -1420,6 +1421,24 @@ XMPPConnector::SendGetAllReply(
 }
 
 void
+XMPPConnector::SendNameOwnerChanged(
+    const string& busName,
+    const string& previousOwner,
+    const string& newOwner
+    )
+{
+    FNLOG
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_NAME_OWNER_CHANGED << "\n";
+    msgStream << busName << "\n";
+    msgStream << previousOwner << "\n";
+    msgStream << newOwner << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_NAME_OWNER_CHANGED);
+}
+
+void
 XMPPConnector::SendMessage(
     const string& body,
     const string& messageType
@@ -2342,6 +2361,46 @@ XMPPConnector::ReceiveGetAllReply(
     bus->SignalReplyReceived(objPath, messageArgsString);
 }
 
+
+void
+XMPPConnector::ReceiveNameOwnerChanged(
+    const string& from,
+    const string& message
+    )
+{
+    FNLOG
+    // Parse the required information
+    istringstream msgStream(message);
+    string line, busName, previousOwner, newOwner;
+
+    // First line is the type (name owner changed)
+    if(0 == getline(msgStream, line)){ return; }
+    if(line != ALLJOYN_CODE_NAME_OWNER_CHANGED){ return; }
+
+    getline(msgStream, busName);
+    getline(msgStream, previousOwner);
+    getline(msgStream, newOwner);
+
+    if (newOwner.empty())
+    {
+        std::map<std::string, std::list<RemoteBusAttachment*> >::iterator remoteBusAttachmentsPair = m_remoteAttachments.find(from);
+        if (remoteBusAttachmentsPair != m_remoteAttachments.end())
+        {
+            for (list<RemoteBusAttachment*>::iterator busAttachment = remoteBusAttachmentsPair->second.begin();
+                                                      busAttachment != remoteBusAttachmentsPair->second.end();
+                                                      ++busAttachment)
+            {
+                if ((*busAttachment)->RemoteName() == previousOwner)
+                {
+                    DeleteRemoteAttachment(from, *busAttachment);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
 void
 XMPPConnector::MessageReceived(
     const string& source,
@@ -2371,7 +2430,7 @@ XMPPConnector::MessageReceived(
     else if(typeCode == ALLJOYN_CODE_METHOD_CALL)
     {
         ReceiveMethodCall(source, message);
-        LOG_DEBUG("Receieved Method Call");
+        LOG_DEBUG("Received Method Call");
     }
     else if(typeCode == ALLJOYN_CODE_METHOD_REPLY)
     {
@@ -2401,7 +2460,7 @@ XMPPConnector::MessageReceived(
     else if(typeCode == ALLJOYN_CODE_SESSION_LOST)
     {
         ReceiveSessionLost(source, message);
-        LOG_DEBUG("Recieved Session Lost");
+        LOG_DEBUG("Received Session Lost");
     }
     else if(typeCode == ALLJOYN_CODE_GET_PROPERTY)
     {
@@ -2422,6 +2481,11 @@ XMPPConnector::MessageReceived(
     {
         ReceiveGetAllReply(source, message);
         LOG_DEBUG("Received Get All Reply");
+    }
+    else if(typeCode == ALLJOYN_CODE_NAME_OWNER_CHANGED)
+    {
+        ReceiveNameOwnerChanged(source, message);
+        LOG_DEBUG("Received Name Owner Changed");
     }
     else
     {
@@ -2498,6 +2562,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         // Listen for announcements
         err = AnnouncementRegistrar::RegisterAnnounceHandler(
                 *attachment, *listener, NULL, 0);
+
         if(err != ER_OK)
         {
             LOG_RELEASE("Could not register Announcement handler for %s: %s",

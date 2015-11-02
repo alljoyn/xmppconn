@@ -308,6 +308,13 @@ private:
                 const ajn::MsgArg& replyArgs
                 );
 
+    void
+        SendNameOwnerChanged(
+                const string& busName,
+                const string& previousOwner,
+                const string& newOwner
+                );
+
     std::vector<XMPPConnector::RemoteObjectDescription>
         ParseBusObjectInfo(
                 std::istringstream& msgStream
@@ -329,7 +336,7 @@ private:
     void ReceiveSetReply(const std::string& from, const std::string& message);
     void ReceiveGetAllRequest(const std::string& from, const std::string& message);
     void ReceiveGetAllReply(const std::string& from, const std::string& message);
-
+    void ReceiveNameOwnerChanged(const std::string& from, const std::string& message);
     void
         MessageReceived(
                 const std::string& source,
@@ -384,6 +391,7 @@ private:
     static const std::string ALLJOYN_CODE_SET_PROP_REPLY;
     static const std::string ALLJOYN_CODE_GET_ALL;
     static const std::string ALLJOYN_CODE_GET_ALL_REPLY;
+    static const std::string ALLJOYN_CODE_NAME_OWNER_CHANGED;
 };
 
 
