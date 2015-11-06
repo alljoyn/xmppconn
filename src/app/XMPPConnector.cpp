@@ -448,7 +448,7 @@ XMPPConnector::~XMPPConnector()
     while ( m_buses.size() > 0 )
     {
         string from(m_buses.begin()->first);
-        UnregisterFromAdvertisementsAndAnnouncements(from);
+        DeleteBusAttachment(from);
     }
 
     pthread_mutex_destroy(&m_remoteAttachmentsMutex);
@@ -885,7 +885,6 @@ BusAttachment* XMPPConnector::GetBusAttachment(
     FNLOG;
     BusAttachment* attachment = 0;
 
-    pthread_mutex_lock(&m_remoteAttachmentsMutex);
     map<string, BusAttachment*>::iterator connection_pair(m_buses.find(from));
     if ( m_buses.end() == connection_pair )
     {
@@ -895,37 +894,51 @@ BusAttachment* XMPPConnector::GetBusAttachment(
     {
         attachment = connection_pair->second;
     }
-    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
     return attachment;
 }
+
 
 void XMPPConnector::DeleteBusAttachment(
     const std::string& from
     )
 {
-    FNLOG;
+    FNLOG
     AllJoynListener* listener = GetBusListener(from);
+
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
+
     map<string, BusAttachment*>::iterator connection_pair(m_buses.find(from));
     if ( m_buses.end() == connection_pair )
     {
         pthread_mutex_unlock(&m_remoteAttachmentsMutex);
         return;
     }
+
     BusAttachment* attachment = connection_pair->second;
     if (attachment)
     {
+        QStatus status = attachment->Stop();
+        if (ER_OK != status)
+        {
+            LOG_RELEASE("Failed to stop bus attachment: %s", QCC_StatusText(status));
+        }
+
+        attachment->Join();
+
+        UnregisterFromAdvertisementsAndAnnouncements(from);
+
         attachment->UnregisterBusListener(*listener);
         DeleteBusListener(from);
-        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
-        attachment->Stop();
-        pthread_mutex_lock(&m_remoteAttachmentsMutex);
+
         delete attachment;
+        attachment = NULL;
     }
     m_buses.erase(from);
+
     pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 }
+
 
 AllJoynListener* XMPPConnector::GetBusListener(
     const std::string& from
@@ -934,7 +947,6 @@ AllJoynListener* XMPPConnector::GetBusListener(
     FNLOG;
     AllJoynListener* listener = 0;
 
-    pthread_mutex_lock(&m_remoteAttachmentsMutex);
     map<string, AllJoynListener*>::iterator connection_pair(m_listeners.find(from));
     if ( m_listeners.end() == connection_pair )
     {
@@ -945,22 +957,24 @@ AllJoynListener* XMPPConnector::GetBusListener(
     {
         listener = connection_pair->second;
     }
-    pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
     return listener;
 }
+
 
 void XMPPConnector::DeleteBusListener(
     const std::string& from
     )
 {
-    map<string, AllJoynListener*>::iterator connection_pair(m_listeners.find(from));
-    if ( m_listeners.end() != connection_pair )
+    FNLOG
+    AllJoynListener* listener = GetBusListener(from);
+    if (listener)
     {
-        delete connection_pair->second;
+        delete listener;
         m_listeners.erase(from);
     }
 }
+
 
 void
 XMPPConnector::NameOwnerChanged(
@@ -2593,29 +2607,30 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         m_remoteAttachments.clear();
         pthread_mutex_unlock(&m_remoteAttachmentsMutex);
 
-        UnregisterFromAdvertisementsAndAnnouncements(source);
+        DeleteBusAttachment(source);
     }
     }
 
 }
+
 
 void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::string& source)
 {
+    FNLOG
     BusAttachment* attachment = GetBusAttachment(source);
     AllJoynListener* listener = GetBusListener(source);
 
-    if ( attachment && listener )
+    if (attachment && listener)
     {
-        pthread_mutex_lock(&m_remoteAttachmentsMutex);
         // Stop listening for advertisements and announcements
-        AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
-        attachment->CancelFindAdvertisedName("");
-        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
+        QStatus status = AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
+        if (ER_OK != status)
+        {
+            LOG_RELEASE("Failed to unregister announce handlers: %s", QCC_StatusText(status));
+        }
     }
-
-    // Stop and delete the bus attachment
-    DeleteBusAttachment(source);
 }
+
 
 #ifndef NO_AJ_GATEWAY
 void XMPPConnector::addInterfaceXMLTag(xmlNode* currentKey, const char* elementProp, const char* elementValue){
