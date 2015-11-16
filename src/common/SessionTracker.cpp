@@ -28,6 +28,7 @@ SessionTracker::~SessionTracker()
 
 void SessionTracker::JoinSent( const string& name, const SessionId& session_id )
 {
+    FNLOG
     Lock();
     m_pending[name] = session_id;
     Unlock();
@@ -35,6 +36,7 @@ void SessionTracker::JoinSent( const string& name, const SessionId& session_id )
 
 void SessionTracker::JoinConfirmed( const string& name )
 {
+    FNLOG
     Lock();
     if ( m_pending.end() != m_pending.find(name) )
     {
@@ -50,6 +52,7 @@ void SessionTracker::JoinConfirmed( const string& name )
 
 void SessionTracker::SessionLost( const string& name )
 {
+    FNLOG
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) )
     {
@@ -64,6 +67,7 @@ void SessionTracker::SessionLost( const string& name )
 
 bool SessionTracker::IsSessionPending( const string& name ) const
 {
+    FNLOG
     bool found = false;
     Lock();
     if ( m_pending.end() != m_pending.find(name) )
@@ -76,6 +80,7 @@ bool SessionTracker::IsSessionPending( const string& name ) const
 
 bool SessionTracker::IsSessionJoined( const string& name ) const
 {
+    FNLOG
     bool found = false;
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) )
@@ -88,6 +93,7 @@ bool SessionTracker::IsSessionJoined( const string& name ) const
 
 bool SessionTracker::IsSessionPendingOrJoined( const string& name ) const
 {
+    FNLOG
     bool found = false;
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) ||
@@ -101,16 +107,29 @@ bool SessionTracker::IsSessionPendingOrJoined( const string& name ) const
 
 SessionId SessionTracker::GetSession( const string& name ) const
 {
+    FNLOG
     SessionId session_id = 0;
     Lock();
-    if ( m_sessions.end() != m_sessions.find(name) )
-    {
-        session_id = m_sessions.at(name);
-    }
-    else if ( m_pending.end() != m_pending.find(name) )
+
+    // There are two maps matching names to session IDs:
+    // one is a map of pending sessions, the other one of current sessions.
+    // It is currently possible to have both a pending session and a current
+    // session of the same name (for example, if the session loss was never
+    // received).
+    // Currently, GetSession() will return the PENDING session if both are
+    // available.
+    // TODO: If there is a pending session and a current session for the same
+    // joiner, might want to return some special status code to the caller to
+    // indicate a possible problem.
+    if ( m_pending.end() != m_pending.find(name) )
     {
         session_id = m_pending.at(name);
     }
+    else if ( m_sessions.end() != m_sessions.find(name) )
+    {
+        session_id = m_sessions.at(name);
+    }
+
     Unlock();
     return session_id;
 }

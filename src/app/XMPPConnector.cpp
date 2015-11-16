@@ -1753,8 +1753,10 @@ XMPPConnector::ReceiveJoinRequest(
     RemoteBusAttachment* bus = GetRemoteAttachment(
             from, joiner, &objects);
 
+    LOG_DEBUG("Trying to create a session between %s and %s on port %s\n",
+            joiner.c_str(), joinee.c_str(), portStr.c_str());
     SessionId id = 0;
-    SessionId lastId = bus->GetSessionIdByPeer(joinee);
+
     if(!bus)
     {
         LOG_RELEASE("Failed to create bus attachment to proxy session!");
@@ -1766,45 +1768,52 @@ XMPPConnector::ReceiveJoinRequest(
 
         QStatus err = bus->JoinSession(joinee, port, id);
 
-        // Check for error scenarios nd retry join when:
+        // Check for error scenarios and retry join when:
         // - remote device left an active session without telling us, or
         // - previous join request never completed (didn't receive SessionJoined)
         if ( err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED && id == 0 )
         {
+            // Get active session (if available it means we had a previous JoinRequest and SessionJoined)
             SessionId tempid = bus->GetSessionIdByPeer(joinee);
-            tempid = lastId;
+
+            // If no active session, check for pending session (i.e. if we had previous JoinRequest but no SessionJoined)
             if ( tempid == 0 )
             {
                 SessionId pending = m_sessionTracker.GetSession(joiner);
-                if ( pending != 0 )
+                if ( pending == 0 )
                 {
-                    tempid = pending;
-                    m_sessionTracker.SessionLost(joiner);
+                    // Leave and rejoin the session
+                    LOG_RELEASE("Recovering from a failed or a stale session with %s.", joinee.c_str());
+                    err = bus->LeaveSession(tempid);
+                    if (err != ER_OK)
+                    {
+                        LOG_RELEASE("Failed to leave session %u", tempid);
+                    }
+                    err = bus->JoinSession(joinee, port, id);
                 }
-            }
-            if ( tempid != 0 )
-            {
-                // Leave and rejoin the session
-                LOG_RELEASE("Recovering from a failed or a stale session with %s.", joinee.c_str());
-                err = bus->LeaveSession(tempid);
-                err = bus->JoinSession(joinee, port, id);
+                else
+                {
+                    LOG_RELEASE("We are in the middle of joining a session, awaiting a SessionJoined, and a second JoinRequest was received. We will respond with the same reply as the first time.");
+                    id = pending;
+                }
             }
         }
 
         if(err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
         {
-            id = bus->GetSessionIdByPeer(joinee);
-            LOG_RELEASE("Session already joined between %s (local) and %s (remote). Port: %d Id: %d",
+            LOG_RELEASE("Session already joined between %s (local) and %s (remote). Port: %d Id: %u",
                     joiner.c_str(), joinee.c_str(), port, id);
         }
+
         else if(err != ER_OK)
         {
             LOG_RELEASE("Join session request rejected: %s",
                     QCC_StatusText(err));
         }
-        else
+
+        else    // no error
         {
-            LOG_DEBUG("Session joined between %s (local) and %s (remote). Port: %d Id: %d",
+            LOG_DEBUG("Session joined between %s (local) and %s (remote). Port: %d Id: %u",
                     joiner.c_str(), joinee.c_str(), port, id);
 
             m_sessionTracker.JoinSent(joiner, id);
