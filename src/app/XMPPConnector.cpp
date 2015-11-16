@@ -1774,20 +1774,20 @@ XMPPConnector::ReceiveJoinRequest(
         if ( err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED && id == 0 )
         {
             // Get active session (if available it means we had a previous JoinRequest and SessionJoined)
-            SessionId tempid = bus->GetSessionIdByPeer(joinee);
+            id = bus->GetSessionIdByPeer(joinee);
 
             // If no active session, check for pending session (i.e. if we had previous JoinRequest but no SessionJoined)
-            if ( tempid == 0 )
+            if ( id == 0 )
             {
                 SessionId pending = m_sessionTracker.GetSession(joiner);
                 if ( pending == 0 )
                 {
                     // Leave and rejoin the session
                     LOG_RELEASE("Recovering from a failed or a stale session with %s.", joinee.c_str());
-                    err = bus->LeaveSession(tempid);
+                    err = bus->LeaveSession(id);
                     if (err != ER_OK)
                     {
-                        LOG_RELEASE("Failed to leave session %u", tempid);
+                        LOG_RELEASE("Failed to leave session %u: %s", id, QCC_StatusText(err));
                     }
                     err = bus->JoinSession(joinee, port, id);
                 }
