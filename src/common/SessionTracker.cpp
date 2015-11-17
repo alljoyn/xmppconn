@@ -58,10 +58,9 @@ void SessionTracker::SessionLost( const string& name )
     {
         m_sessions.erase(name);
     }
-    if ( m_pending.end() != m_pending.find(name) )
-    {
-        m_pending.erase(name);
-    }
+    // NOTE: We don't remove from pending sessions list here because
+    //  we may be inside of a pending session when we need to call
+    //  this function and need to keep it in that list.
     Unlock();
 }
 

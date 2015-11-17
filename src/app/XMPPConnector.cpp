@@ -1569,17 +1569,17 @@ XMPPConnector::ReceiveAdvertisement(
     QStatus err = bus->AdvertiseName(wkn.c_str(), TRANSPORT_ANY);
     if(err != ER_OK)
     {
-    	if (ER_ALLJOYN_ADVERTISENAME_REPLY_ALREADY_ADVERTISING == err)
-    	{
+        if (ER_ALLJOYN_ADVERTISENAME_REPLY_ALREADY_ADVERTISING == err)
+        {
             LOG_DEBUG("Advertised name already exists");
-    	}
-    	else
-    	{
+        }
+        else
+        {
             LOG_RELEASE("Failed to advertise %s: %s", wkn.c_str(),
                     QCC_StatusText(err));
             DeleteRemoteAttachment(from, bus);
             return;
-    	}
+        }
     }
 }
 
@@ -1770,17 +1770,39 @@ XMPPConnector::ReceiveJoinRequest(
 
         // Check for error scenarios and retry join when:
         // - remote device left an active session without telling us, or
-        // - previous join request never completed (didn't receive SessionJoined)
+        // - received a second join request while waiting on a SessionJoined
         if ( err == ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED && id == 0 )
         {
             // Get active session (if available it means we had a previous JoinRequest and SessionJoined)
             id = bus->GetSessionIdByPeer(joinee);
 
-            // If no active session, check for pending session (i.e. if we had previous JoinRequest but no SessionJoined)
-            if ( id == 0 )
+            // Determine if we're waiting to receive a SessionJoined
+            SessionId pending = m_sessionTracker.GetSession(joiner);
+            if ( pending != 0 )
             {
-                SessionId pending = m_sessionTracker.GetSession(joiner);
-                if ( pending == 0 )
+                // We're awaiting a SessionJoined
+                if ( id == 0 )
+                {
+                    LOG_RELEASE("We are in the middle of joining a session, awaiting a SessionJoined, and a second JoinRequest was received. We will respond with the same reply as the first time.");
+                    id = pending;
+                    m_sessionTracker.SessionLost(joiner); // This doesn't remove it from the pending sessions list
+                }
+                else if ( id != pending )
+                {
+                    LOG_RELEASE("We have a disagreement between the bus and the session tracker. Changing our session tracker id for %s from %u to %u.",
+                        joiner.c_str(), pending, id);
+                    // Update the session tracker
+                    m_sessionTracker.SessionLost(joiner);
+                    m_sessionTracker.JoinSent(joiner, id);
+                    // Send the Join response because we just received an additional JoinSession when we didn't expect it
+                    SendJoinResponse(joinee, id);
+                    return;
+                } // else id == pending, we should be able to continue
+            }
+            else
+            {
+                // We're not waiting for a SessionJoined
+                if ( id != 0 )
                 {
                     // Leave and rejoin the session
                     LOG_RELEASE("Recovering from a failed or a stale session with %s.", joinee.c_str());
@@ -1793,8 +1815,10 @@ XMPPConnector::ReceiveJoinRequest(
                 }
                 else
                 {
-                    LOG_RELEASE("We are in the middle of joining a session, awaiting a SessionJoined, and a second JoinRequest was received. We will respond with the same reply as the first time.");
-                    id = pending;
+                    // Remove it from the pending sessions list
+                    m_sessionTracker.JoinConfirmed(joiner);
+                    // Remove it from the active sessions list
+                    m_sessionTracker.SessionLost(joiner);
                 }
             }
         }
@@ -1804,13 +1828,11 @@ XMPPConnector::ReceiveJoinRequest(
             LOG_RELEASE("Session already joined between %s (local) and %s (remote). Port: %d Id: %u",
                     joiner.c_str(), joinee.c_str(), port, id);
         }
-
         else if(err != ER_OK)
         {
             LOG_RELEASE("Join session request rejected: %s",
                     QCC_StatusText(err));
         }
-
         else    // no error
         {
             LOG_DEBUG("Session joined between %s (local) and %s (remote). Port: %d Id: %u",
