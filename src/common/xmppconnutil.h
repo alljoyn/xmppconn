@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 
 using namespace ajn;
 using namespace qcc;
@@ -51,9 +52,37 @@ namespace util {
 extern volatile bool _dbglogging;
 extern volatile bool _verboselogging;
 
-#define LOG_RELEASE(fmt, ...) fprintf(stderr, "0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
-#define LOG_DEBUG(fmt, ...) if(util::_dbglogging|util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
-#define LOG_VERBOSE(fmt,...) if(util::_verboselogging)printf("0x%08x - "fmt"\n",(unsigned int)syscall(SYS_gettid),##__VA_ARGS__);
+#define GET_TIME \
+        struct timeval time_now; \
+        gettimeofday(&time_now, NULL); \
+        struct tm * t = localtime(&time_now.tv_sec);
+
+#define LOG_RELEASE(fmt, ...) \
+{ \
+    GET_TIME \
+    fprintf(stderr, "%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+            t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
+            (unsigned int)syscall(SYS_gettid), \
+            ##__VA_ARGS__); \
+}
+
+#define LOG_DEBUG(fmt, ...) if(util::_dbglogging|util::_verboselogging) \
+{ \
+    GET_TIME \
+    printf("%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+            t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
+            (unsigned int)syscall(SYS_gettid), \
+            ##__VA_ARGS__); \
+}
+
+#define LOG_VERBOSE(fmt,...) if(util::_verboselogging) \
+{ \
+    GET_TIME \
+    printf("%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+                t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
+                (unsigned int)syscall(SYS_gettid), \
+                ##__VA_ARGS__); \
+}
 
   class FnLog {
     public:
