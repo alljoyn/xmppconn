@@ -1794,9 +1794,9 @@ XMPPConnector::ReceiveJoinRequest(
                     // Update the session tracker
                     m_sessionTracker.SessionLost(joiner);
                     m_sessionTracker.JoinSent(joiner, id);
-                    // Send the Join response because we just received an additional JoinSession when we didn't expect it
-                    SendJoinResponse(joinee, id);
-                    return;
+                    // Join response will be sent (at the end of this function)
+                    // because we just received an additional JoinSession when we didn't expect it
+
                 } // else id == pending, we should be able to continue
             }
             else
