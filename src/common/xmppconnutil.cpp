@@ -490,11 +490,20 @@ namespace msgarg {
         size_t pos = argXml.find_first_of('>')+1;
         string typeTag = Trim(argXml.substr(0, pos));
         string content = argXml.substr(pos, argXml.find_last_of('<')-pos);
+        size_t sigPos = 0;
 
-        if(0 == typeTag.find("<array type_sig="))
+        if(0 == (sigPos = typeTag.find("<array type_sig=")))
         {
+            // Copy the signature specified after 'type_sig='
+            sigPos = sigPos+strlen("<array type_sig=");
+            char delimiter = typeTag.at(sigPos++); // usually a double quote
+            size_t sigEnd = typeTag.find(delimiter, sigPos);
+            string sig = typeTag.substr(sigPos, sigEnd-sigPos);
+            LOG_VERBOSE("Found array signature of \"%s\"", sig.c_str());
+
+            // Add the array to the MsgArg
             vector<MsgArg> array = VectorFromString(content);
-            status = result.Set("a*", array.size(), &array[0]);
+            status = result.Set(("a" + sig).c_str(), array.size(), &array[0]);
             result.Stabilize();
         }
         else if(typeTag == "<boolean>")
