@@ -924,7 +924,9 @@ void XMPPConnector::DeleteBusAttachment(
             LOG_RELEASE("Failed to stop bus attachment: %s", QCC_StatusText(status));
         }
 
+        pthread_mutex_unlock(&m_remoteAttachmentsMutex);
         attachment->Join();
+        pthread_mutex_lock(&m_remoteAttachmentsMutex);
 
         UnregisterFromAdvertisementsAndAnnouncements(from);
 
