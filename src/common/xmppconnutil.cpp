@@ -503,7 +503,46 @@ namespace msgarg {
 
             // Add the array to the MsgArg
             vector<MsgArg> array = VectorFromString(content);
-            status = result.Set(("a" + sig).c_str(), array.size(), &array[0]);
+            vector<char*> stringarray;
+            if ( sig == "s" )
+            {
+                // For string arrays we will always add each string
+                // NOTE: We're using the contents of the MsgArg array as our string pointers
+                sig = "as";
+                for ( vector<MsgArg>::const_iterator it(array.begin());
+                      array.end() != it; ++it )
+                {
+                    stringarray.push_back(0); // push a null char* to the end of the vector
+                    status = it->Get("s", &stringarray.back()); // use the address of that vector item to get the real char*
+                    if ( ER_OK != status )
+                    {
+                        LOG_RELEASE("Failed to get string from MsgArg when it is expected! Result: %s",
+                            QCC_StatusText(status));
+                        stringarray.pop_back(); // we need to remove this item since it failed
+                    }
+                }
+                if ( stringarray.empty() )
+                {
+                    status = result.Set("as", 0, 0);
+                }
+                else
+                {
+                    status = result.Set("as", stringarray.size(), &stringarray[0]);
+                }
+            }
+            else
+            {
+                if ( array.empty() )
+                {
+                    LOG_DEBUG("Empty MsgArg array being set. Using original signature of %s", sig.c_str());
+                    sig = "a" + sig;
+                    status = result.Set(sig.c_str(), 0, 0);
+                }
+                else
+                {
+                    status = result.Set("a*", array.size(), &array[0]);
+                }
+            }
             result.Stabilize();
         }
         else if(typeTag == "<boolean>")
@@ -558,6 +597,10 @@ namespace msgarg {
         else if(typeTag == "<string>")
         {
             status = result.Set("s", content.c_str());
+            if ( ER_OK != status )
+            {
+                LOG_RELEASE("Error setting content on MsgArg! Result: %s", QCC_StatusText(status));
+            }
             result.Stabilize();
         }
         else if(typeTag == "<uint64>")
