@@ -207,7 +207,6 @@ XmppTransport::SendImpl(
     size_t buflen = 0;
     xmpp_stanza_to_text(messageStanza, &buf, &buflen);
     LOG_DEBUG("Sending XMPP message");
-    LOG_VERBOSE("Message: %s", buf);
 
     xmpp_send(m_xmppconn, messageStanza);
     LOG_VERBOSE("XMPP message sent");
@@ -319,8 +318,6 @@ XmppTransport::XmppStanzaHandler(
 
     // Logging
     LOG_DEBUG("Received message/chat stanza");
-    LOG_DEBUG("From: %s", fromAttr.c_str());
-    LOG_VERBOSE("Stanza: %s", message.c_str());
 
     if ( 0 == strcmp("message", xmpp_stanza_get_name(stanza)) ||
             0 == strcmp("chat", xmpp_stanza_get_name(stanza)) )
