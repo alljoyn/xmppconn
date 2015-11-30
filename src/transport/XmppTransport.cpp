@@ -341,13 +341,25 @@ XmppTransport::XmppStanzaHandler(
             message_body = message_body.substr(strlen("<body>"),
                     message_body.length()-strlen("<body></body>"));
 
-            // Decompress the message
-            if ( transport->m_compress )
+            // Determine if the message is compressed
+            bool message_is_compressed = false;
+            if ( message_body.size() > 0 )
+            {
+                // Trim whitespace from the beginning of the body
+                message_body.erase(0, message_body.find_first_not_of(" \t\n\r\f\v"));
+
+                // Message is compressed if it doesn't begin with an '_' or '{''
+                message_is_compressed = ( message_body[0] != '_' && message_body[0] != '{' );
+            }
+
+            // Decompress the message if necessary
+            if ( message_is_compressed )
             {
                 message_body = util::str::Decompress(message_body);
             }
             else
             {
+                // If it's not compressed then unescape it
                 util::str::UnescapeXml(message_body);
             }
 
