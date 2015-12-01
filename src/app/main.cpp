@@ -42,6 +42,7 @@
 #include <cctype>
 #include <locale>
 #include <sys/inotify.h>
+#include <unistd.h>
 
 using namespace ajn;
 #ifndef NO_AJ_GATEWAY
@@ -65,6 +66,7 @@ using std::map;
 static bool s_Compress = true;
 static bool s_Continue = true;
 static const unsigned long s_AllJoynAnnouncementWait = 5;
+static const unsigned long s_ReconnectWait = 30;
 static int s_ConfigFileDescriptor = 0;
 static int s_ConfigFileWatchDescriptor = 0;
 
@@ -479,15 +481,41 @@ int main(int argc, char** argv)
 
             LOG_RELEASE("Waiting for configuration changes before trying to connect to the XMPP server...");
             inotify_event evt = {};
-            read(s_ConfigFileDescriptor, &evt, sizeof(evt));
-            inotify_rm_watch(s_ConfigFileDescriptor, s_ConfigFileWatchDescriptor);
-            close(s_ConfigFileDescriptor);
-            // TODO: This is necessary to allow the other thread to complete writing to the file before we 
-            //  continue. We should do this in a more robust manner.
-            if (s_Continue)
+
+            fd_set descriptors;
+            FD_ZERO(&descriptors);
+            FD_SET(s_ConfigFileDescriptor, &descriptors);
+
+            timeval time_to_wait = { s_ReconnectWait };
+
+            int ret = select(s_ConfigFileDescriptor + 1, &descriptors, NULL, NULL, &time_to_wait);
+
+            if ( ret < 0 )
             {
-                sleep(s_AllJoynAnnouncementWait);
+                LOG_RELEASE("Could not monitor config file for changes");
             }
+
+            else if ( ret == 0 )
+            {
+                LOG_RELEASE("Waited %lu s, will attempt to reconnect", s_ReconnectWait);
+            }
+
+            else if ( FD_ISSET(s_ConfigFileDescriptor, &descriptors) )
+            {
+                LOG_DEBUG("Config file was modified");
+                // Process the inotify events, then remove inotify watch and close the file
+                read(s_ConfigFileDescriptor, &evt, sizeof(evt));
+                inotify_rm_watch( s_ConfigFileDescriptor, s_ConfigFileWatchDescriptor );
+                close(s_ConfigFileDescriptor);
+
+                // TODO: This is necessary to allow the other thread to complete writing to the file before we
+                //  continue. We should do this in a more robust manner.
+                if (s_Continue)
+                {
+                    sleep(s_AllJoynAnnouncementWait);
+                }
+            }
+
             waitForConfigChange = false;
         }
 
