@@ -312,6 +312,16 @@ public:
         SessionId sid = 0;
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+
+        if (m_bus->IsStopping()   ||
+            !m_bus->IsConnected() ||
+            !m_bus->IsStarted()   ||
+            m_connector->m_transport->GetConnectionState() != Transport::connected)
+        {
+            LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
+            return;
+        }
+
         QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
         if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
         {
