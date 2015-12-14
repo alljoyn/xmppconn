@@ -539,5 +539,6 @@ int main(int argc, char** argv)
 
     }while(s_Continue);
 
+    AllJoynShutdown();
 }
 
