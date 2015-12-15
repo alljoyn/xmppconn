@@ -16,15 +16,15 @@ endif
 TARGET    := xmppconn
 
 MODULES   := common app transport
-SRC_DIR   := $(addprefix src/,$(MODULES))
+SRC_DIR   := $(addprefix cpp/,$(MODULES))
 BUILD_ROOT:= build/
 
 SRC       := $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.cpp))
-OBJ       := $(patsubst src/%.cpp,build/%.o,$(SRC))
+OBJ       := $(patsubst cpp/%.cpp,build/%.o,$(SRC))
 
 BUILD_DIR := $(addprefix $(BUILD_ROOT),$(MODULES))
 
-INCLUDES  := $(addprefix -I,$(SRC_DIR)) -Isrc -I/usr/include/libxml2
+INCLUDES  := $(addprefix -I,$(SRC_DIR)) -Icpp -I/usr/include/libxml2
 
 vpath %.cpp $(SRC_DIR)
 

@@ -22,9 +22,6 @@
 #endif // !NO_AJ_GATEWAY
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
-#include <alljoyn/notification/Notification.h>
-#include <alljoyn/notification/NotificationService.h>
-#include <alljoyn/notification/NotificationSender.h>
 #include <string>
 #include <vector>
 #include <list>

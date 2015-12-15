@@ -60,7 +60,7 @@ extern volatile bool _verboselogging;
 #define LOG_RELEASE(fmt, ...) \
 { \
     GET_TIME \
-    fprintf(stderr, "%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+    fprintf(stderr, "%02i:%02i:%02i.%02ld  0x%08x - " fmt "\n", \
             t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
             (unsigned int)syscall(SYS_gettid), \
             ##__VA_ARGS__); \
@@ -69,7 +69,7 @@ extern volatile bool _verboselogging;
 #define LOG_DEBUG(fmt, ...) if(util::_dbglogging|util::_verboselogging) \
 { \
     GET_TIME \
-    printf("%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+    printf("%02i:%02i:%02i.%02ld  0x%08x - " fmt "\n", \
             t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
             (unsigned int)syscall(SYS_gettid), \
             ##__VA_ARGS__); \
@@ -78,7 +78,7 @@ extern volatile bool _verboselogging;
 #define LOG_VERBOSE(fmt,...) if(util::_verboselogging) \
 { \
     GET_TIME \
-    printf("%02i:%02i:%02i.%02ld  0x%08x - "fmt"\n", \
+    printf("%02i:%02i:%02i.%02ld  0x%08x - " fmt "\n", \
                 t->tm_hour, t->tm_min, t->tm_sec, time_now.tv_usec/10000, \
                 (unsigned int)syscall(SYS_gettid), \
                 ##__VA_ARGS__); \

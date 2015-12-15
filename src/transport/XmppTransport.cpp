@@ -36,9 +36,11 @@ XmppTransport::XmppTransport(
     Transport( listener ),
     m_jabberid(jabberid),
     m_password(password),
-    m_roster(roster),
     m_chatroom(chatroom),
+    m_roster(roster),
     m_compress(compress),
+    m_xmppctx(0),
+    m_xmppconn(0),
     m_initialized(false)
 {
     xmpp_initialize();
@@ -475,6 +477,7 @@ XmppTransport::XmppRosterHandler(
         )
 {
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
+    QCC_UNUSED(transport);
 
     FNLOG
     LOG_DEBUG("Received Roster Stanza");
@@ -573,7 +576,6 @@ XmppTransport::XmppConnectionHandler(
 
     FNLOG
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
-    ConnectionState prevConnState = transport->GetConnectionState();
     switch(event)
     {
         case XMPP_CONN_CONNECT:
