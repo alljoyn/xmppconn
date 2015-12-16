@@ -11,7 +11,8 @@ SimpleBusObject::SimpleBusObject(BusAttachment& bus, const char* path)
     const InterfaceDescription* iface = bus.GetInterface(ALLJOYN_XMPP_CONFIG_INTERFACE_NAME.c_str());
     if (!iface)
     {
-        throw BusAttachmentInterfaceException();
+        LOG_RELEASE("Failed to get interface description for interface %s!", ALLJOYN_XMPP_CONFIG_INTERFACE_NAME.c_str());
+        return;
     }
 
     status = AddInterface(*iface, ANNOUNCED);

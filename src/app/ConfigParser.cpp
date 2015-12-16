@@ -173,7 +173,10 @@ int ConfigParser::SetRoster(vector<string> roster)
     d.Accept(writer);
 
     fclose(fpWrite);
+
+    return 0;
 }
+
 int ConfigParser::GetPort()
 {
     stringstream err;
@@ -203,6 +206,7 @@ int ConfigParser::GetPort()
 
     return -1; 
 }
+
 int ConfigParser::SetPort(int value)
 {
     stringstream err;
@@ -247,6 +251,8 @@ int ConfigParser::SetPort(int value)
     of << writeBuffer;
 
     fclose(fpWrite);
+
+    return 0;
 }
 
 int ConfigParser::SetField(const char* field, const char* value)
@@ -295,6 +301,8 @@ int ConfigParser::SetField(const char* field, const char* value)
     d.Accept(writer);
 
     fclose(fpWrite);
+
+    return 0;
 }
 
 std::map<std::string, std::string> ConfigParser::GetConfigMap()

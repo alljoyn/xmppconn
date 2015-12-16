@@ -35,7 +35,7 @@ public:
         const std::string&              chatroom,
         const bool                      compress
         );
-    ~XmppTransport();
+    virtual ~XmppTransport();
 
 private:
     virtual

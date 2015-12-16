@@ -46,7 +46,7 @@ public:
     Transport(
         TransportListener* listener
         );
-    ~Transport();
+    virtual ~Transport();
 
     ConnectionError
     Run();
