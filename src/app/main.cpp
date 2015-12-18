@@ -494,7 +494,8 @@ int main(int argc, char** argv)
             {
                 LOG_DEBUG("Config file was modified");
                 // Process the inotify events, then remove inotify watch and close the file
-                read(s_ConfigFileDescriptor, &evt, sizeof(evt));
+                ssize_t bytes_read = read(s_ConfigFileDescriptor, &evt, sizeof(evt));
+                QCC_UNUSED(bytes_read);
                 inotify_rm_watch( s_ConfigFileDescriptor, s_ConfigFileWatchDescriptor );
                 close(s_ConfigFileDescriptor);
 

@@ -18,38 +18,50 @@ env = SConscript('../../core/alljoyn/build_core/SConscript')
 
 vars = Variables()
 vars.Add('BINDINGS', 'Bindings to build (comma separated list): cpp', 'cpp')
+
 vars.Add(PathVariable('ALLJOYN_DISTDIR',
-                      'Directory containing a built AllJoyn Core dist directory.',
+                      'Directory containing a pre-built AllJoyn Core dist directory.',
                       os.environ.get('ALLJOYN_DISTDIR')))
                       
 vars.Add(EnumVariable('BUILD_SERVICES_SAMPLES',
                       'Build the services samples.',
                       'off',
                       allowed_values = ['off', 'on']))
-
+ 
 vars.Add(PathVariable('APP_COMMON_DIR',
                       'Directory containing common sample application sources.',
                       os.environ.get('APP_COMMON_DIR','../../services/base/sample_apps')))
 
-vars.Add(EnumVariable('POLICYDB',
-                      'Build the services samples.',
-                      'on',
-                      allowed_values = ['off', 'on']))
-					  
-vars.Add(PathVariable('LIBXML2_BASE',
-                      'Directory containing libxml2 include files.',
-                      os.environ.get('LIBXML2_BASE','/usr/include/libxml2')))           
-                      
-vars.Add(PathVariable('RAPIDJSON_BASE',
-                      'Directory containing rapidjson include files.',
-                      os.environ.get('RAPIDJSON_BASE','/usr/include/rapidjson')))           
+vars.Add(PathVariable('LIBXML2_INCDIR',
+                      'Directory containing the libxml2 include files.',
+                      os.environ.get('LIBXML2_INCDIR','/usr/include/libxml2')))
+
+vars.Add(PathVariable('LIBXML2_LIBDIR',
+                      'Directory containing the libxml2 library files.',
+                      os.environ.get('LIBXML2_LIBDIR','/usr/lib')))
+
+vars.Add(PathVariable('RAPIDJSON_INCDIR',
+                      'Directory containing the rapidjson include folder.',
+                      os.environ.get('RAPIDJSON_INCDIR','/usr/include')))
+
+vars.Add(PathVariable('LIBSTROPHE_INCDIR',
+                      'Directory containing the libstrophe include files.',
+                      os.environ.get('LIBSTROPHE_INCDIR','/usr/include')))
+
+vars.Add(PathVariable('LIBSTROPHE_LIBDIR',
+                      'Directory containing the libstrophe library files.',
+                      os.environ.get('LIBSTROPHE_LIBDIR','/usr/lib')))
 
 vars.Add(EnumVariable('USE_GATEWAY_AGENT',
                       'Build with Gateway Agent as a dependency.',
                       'off',
                       allowed_values = ['off', 'on']))
 
-                      
+vars.Add(EnumVariable('FULLCLEAN',
+                      'Used with the scons -c option to clean everything, including AllJoyn dependencies.',
+                      'off',
+                      allowed_values = ['off', 'on']))
+
 vars.Update(env)
 Help(vars.GenerateHelpText(env))
 
