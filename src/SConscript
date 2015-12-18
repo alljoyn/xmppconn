@@ -22,7 +22,8 @@ if not xmppconn_env.has_key('_ALLJOYNCORE_'):
     if xmppconn_env['OS'] == 'linux':
         xmppconn_env.AppendUnique(LIBS = [ 'pthread' ])
 
-xmppconn_env.Append(CPPPATH = ['$LIBXML2_BASE', '.'])
+xmppconn_env.Append(CPPPATH = ['$LIBXML2_INCDIR', '$RAPIDJSON_INCDIR', '$LIBSTROPHE_INCDIR', '.'])
+xmppconn_env.Append(LIBPATH = ['$LIBXML2_LIBDIR', '$LIBSTROPHE_LIBDIR', '.'])
 xmppconn_env.Append(LIBS = ['libxml2', 'strophe', 'ssl', 'crypto', 'resolv', 'rt', 'z', 'c', 'uuid'])
 xmppconn_env.Prepend(LIBS = ['alljoyn_about', 'alljoyn_config', 'alljoyn_services_common'])
 
