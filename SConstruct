@@ -57,6 +57,11 @@ vars.Add(EnumVariable('USE_GATEWAY_AGENT',
                       'off',
                       allowed_values = ['off', 'on']))
 
+vars.Add(EnumVariable('FULLCLEAN',
+                      'Used with the scons -c option to clean everything, including AllJoyn dependencies.',
+                      'off',
+                      allowed_values = ['off', 'on']))
+
 vars.Update(env)
 Help(vars.GenerateHelpText(env))
 
