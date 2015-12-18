@@ -35,6 +35,9 @@ srcs.extend(xmppconn_env.Glob('common/*.cpp'))
 srcs.extend(xmppconn_env.Glob('transport/*.cpp'))
 objs = xmppconn_env.Object(srcs)
 
+# TEMPORARY: ignore deprecated warnings until we can rework the code
+xmppconn_env.Append(CCFLAGS = ['-Wno-deprecated-declarations'])
+
 prog = xmppconn_env.Program('xmppconn', objs)
 
 Return('prog')
