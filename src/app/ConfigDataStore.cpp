@@ -17,9 +17,9 @@
 #include "app/ConfigDataStore.h"
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
+#include "app/AboutObjApi.h"
 
 #include <alljoyn/config/AboutDataStoreInterface.h>
-#include <alljoyn/about/AboutServiceApi.h>
 #include <alljoyn/AboutData.h>
 #include <alljoyn/services_common/GuidUtil.h>
 
@@ -202,10 +202,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             newvalue.Set("i", &intVal);
             SetField(name, newvalue);
 
-            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi){
-                status = aboutObjApi->Announce();
-            }
+            Announce();
         }
     }
     else if(strcmp(name, "Roster") == 0)
@@ -245,10 +242,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
         /////////////// END TEMPORARY
 
         // Re-announce
-        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi){
-            status = aboutObjApi->Announce();
-        }
+        Announce();
     }
     else if(strcmp(name, "UserPassword") == 0)
     {
@@ -268,10 +262,7 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             newvalue.Set("s", chval);
             SetField(name, newvalue);
 
-            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi){
-                status = aboutObjApi->Announce();
-            }
+            Announce();
         }
     }
 
@@ -302,10 +293,7 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
         ConfigParser configParser(m_configFileName.c_str());
         configParser.SetField(name, tmp.c_str());
 
-        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi){
-            status = aboutObjApi->Announce();
-        }
+        Announce();
     }
 
     delete value;
@@ -316,4 +304,14 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 std::string ConfigDataStore::GetConfigFileName() const
 {
     return m_configFileName;
+}
+
+void ConfigDataStore::Announce()
+{
+    ajn::services::AboutObjApi* aboutObj = ajn::services::AboutObjApi::getInstance();
+    if (!aboutObj){
+        LOG_RELEASE("Cannot announce! Failed to get AboutObjApi instance!");
+    }
+
+    aboutObj->Announce();
 }

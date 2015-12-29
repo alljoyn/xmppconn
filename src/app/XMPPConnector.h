@@ -22,14 +22,14 @@
 #endif // !NO_AJ_GATEWAY
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
+#include <alljoyn/AboutData.h>
+#include <alljoyn/about/AnnounceHandler.h>
 #include <string>
 #include <vector>
 #include <list>
 #include <map>
 #include <pthread.h>
 
-#include <alljoyn/about/AboutPropertyStoreImpl.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>
@@ -213,12 +213,12 @@ private:
                 );
     void
         SendAnnounce(
-                uint16_t                                   version,
-                uint16_t                                   port,
-                const std::string&                         busName,
+                uint16_t                                                  version,
+                uint16_t                                                  port,
+                const std::string&                                        busName,
                 const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
                 const ajn::services::AnnounceHandler::AboutData&          aboutData,
-                const vector<util::bus::BusObjectInfo>&    busObjects
+                const vector<util::bus::BusObjectInfo>&                   busObjects
                 );
     void
         SendJoinRequest(

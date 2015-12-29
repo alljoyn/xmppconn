@@ -29,13 +29,14 @@
 #include "RemoteBusAttachment.h"
 #include "RemoteBusListener.h"
 #include "RemoteBusObject.h"
+#include <alljoyn/about/AnnouncementRegistrar.h>
 
 
 using namespace ajn;
+using namespace ajn::services;
 #ifndef NO_AJ_GATEWAY
 using namespace ajn::gw;
 #endif // !NO_AJ_GATEWAY
-using namespace ajn::services;
 using namespace qcc;
 
 using std::string;
@@ -50,7 +51,7 @@ using std::ostringstream;
 class AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    public AnnounceHandler,
+    public ajn::services::AnnounceHandler,
     public ProxyBusObject::Listener,
     public util::bus::GetBusObjectsAsyncReceiver
 {
@@ -669,6 +670,7 @@ XMPPConnector::GetRemoteAttachment(
                 string ifaceName = ifaceIter->first;
                 string ifaceXml  = ifaceIter->second;
 
+                LOG_VERBOSE("Creating interfaces from XML:\n%s", ifaceXml.c_str());
                 err = result->CreateInterfacesFromXml(ifaceXml.c_str());
                 if(err == ER_OK)
                 {
@@ -1080,6 +1082,13 @@ XMPPConnector::SendAnnounce(
     )
 {
     FNLOG
+/*
+    if ( string::npos != string(objectDescs.ToString().c_str()).find(ALLJOYN_XMPP_SUFFIX.c_str()) )
+    {
+        // Skip sending the XMPP Connector announcements
+        return;
+    }
+*/
     // Find the unique name of the announcing attachment
     string uniqueName = busName;
     map<string, string>::iterator wknIter =
@@ -1644,14 +1653,12 @@ XMPPConnector::ReceiveAnnounce(
     LOG_DEBUG("Received remote announcement: %s", busName.c_str());
 
     // The object descriptions follow
-    AnnounceHandler::ObjectDescriptions objDescs;
     qcc::String objectPath = "";
     vector<qcc::String> interfaceNames;
     while(0 != getline(msgStream, line))
     {
         if(line.empty())
         {
-            objDescs[objectPath] = interfaceNames;
             break;
         }
 
@@ -1664,8 +1671,6 @@ XMPPConnector::ReceiveAnnounce(
             if(line[0] == '/')
             {
                 // end of the object description
-                objDescs[objectPath] = interfaceNames;
-
                 interfaceNames.clear();
                 objectPath = line.c_str();
             }
@@ -1680,7 +1685,7 @@ XMPPConnector::ReceiveAnnounce(
     }
 
     // Then come the properties
-    AnnounceHandler::AboutData aboutData;
+    AboutData aboutData;
     string propName = "", propDesc = "";
     while(0 != getline(msgStream, line))
     {
@@ -1692,7 +1697,7 @@ XMPPConnector::ReceiveAnnounce(
             }
 
             // reached the end of a property
-            aboutData[propName.c_str()] = util::msgarg::FromString(propDesc);
+            aboutData.SetField(propName.c_str(), util::msgarg::FromString(propDesc));
 
             propName.clear();
             propDesc.clear();
@@ -1733,7 +1738,6 @@ XMPPConnector::ReceiveAnnounce(
                 strtoul(versionStr.c_str(), NULL, 10),
                 strtoul(portStr.c_str(), NULL, 10),
                 wkn,
-                objDescs,
                 aboutData);
     }
 }
@@ -1758,8 +1762,7 @@ XMPPConnector::ReceiveJoinRequest(
     if(0 == getline(msgStream, joiner)){ return; }
 
     // Then follow the interfaces implemented by the joiner
-    vector<XMPPConnector::RemoteObjectDescription> objects =
-            ParseBusObjectInfo(msgStream);
+    vector<XMPPConnector::RemoteObjectDescription> objects;// = ParseBusObjectInfo(msgStream);
 
     // Get or create a bus attachment to join from
     RemoteBusAttachment* bus = GetRemoteAttachment(
@@ -2617,7 +2620,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         }
 
         // Listen for announcements
-        err = AnnouncementRegistrar::RegisterAnnounceHandler(
+        err = ajn::services::AnnouncementRegistrar::RegisterAnnounceHandler(
                 *attachment, *listener, NULL, 0);
 
         if(err != ER_OK)
@@ -2666,7 +2669,7 @@ void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::stri
     if (attachment && listener)
     {
         // Stop listening for advertisements and announcements
-        QStatus status = AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
+        QStatus status = ajn::services::AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
         if (ER_OK != status)
         {
             LOG_RELEASE("Failed to unregister announce handlers: %s", QCC_StatusText(status));

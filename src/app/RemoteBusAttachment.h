@@ -19,11 +19,12 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <pthread.h>
 #include "common/xmppconnutil.h"
-#include "alljoyn/BusAttachment.h"
-#include "AboutPropertyStore.h"
-#include "AboutBusObject.h"
+#include <alljoyn/BusAttachment.h>
+#include <alljoyn/AboutObj.h>
+#include "RemoteAboutDataListener.h"
 #include "RemoteBusListener.h"
 #include "RemoteBusAttachment.h"
 #include "RemoteBusObject.h"
@@ -106,11 +107,10 @@ public:
 
     void
     RelayAnnouncement(
-        uint16_t                                                  version,
-        uint16_t                                                  port,
-        const std::string&                                        busName,
-        const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
-        const ajn::services::AnnounceHandler::AboutData&          aboutData
+        uint16_t              version,
+        uint16_t              port,
+        const std::string&    busName,
+        const ajn::AboutData& aboutData
         );
 
     void
@@ -151,11 +151,11 @@ private:
         ajn::SessionPort port;
         ajn::SessionId   remoteId;
     };
-    map<ajn::SessionId, SessionInfo> m_activeSessions;
-    pthread_mutex_t                  m_activeSessionsMutex;
+    std::map<ajn::SessionId, SessionInfo> m_activeSessions;
+    pthread_mutex_t                       m_activeSessionsMutex;
 
-    AboutPropertyStore*       m_aboutPropertyStore;
-    AboutBusObject*           m_aboutBusObject;
+    RemoteAboutDataListener* m_aboutDataListener;
+    AboutObj*                m_aboutObj;
 };
 
 

@@ -21,7 +21,6 @@
 
 using namespace std;
 using namespace ajn;
-using namespace ajn::services;
 
 RemoteBusListener::RemoteBusListener(
     RemoteBusAttachment* bus,

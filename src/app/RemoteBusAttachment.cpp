@@ -15,12 +15,10 @@
  */
 
 #include "RemoteBusAttachment.h"
-#include "alljoyn/about/AnnounceHandler.h"
 #include "XMPPConnector.h"
 
 using namespace std;
 using namespace ajn;
-using namespace ajn::services;
 
 RemoteBusAttachment::RemoteBusAttachment(
     const string&  remoteName,
@@ -33,8 +31,8 @@ RemoteBusAttachment::RemoteBusAttachment(
     m_listener(this, connector),
     m_objects(),
     m_activeSessions(),
-    m_aboutPropertyStore(NULL),
-    m_aboutBusObject(NULL)
+    m_aboutDataListener(NULL),
+    m_aboutObj(NULL)
 {
     pthread_mutex_init(&m_activeSessionsMutex, NULL);
 
@@ -50,12 +48,12 @@ RemoteBusAttachment::~RemoteBusAttachment()
         delete(*it);
     }
 
-    if(m_aboutBusObject)
+    if(m_aboutObj)
     {
-        UnregisterBusObject(*m_aboutBusObject);
-        m_aboutBusObject->Unregister();
-        delete m_aboutBusObject;
-        delete m_aboutPropertyStore;
+        UnregisterBusObject(*m_aboutObj);
+        m_aboutObj->Unannounce();
+        delete m_aboutObj;
+        delete m_aboutDataListener;
     }
 
     UnregisterBusListener(m_listener);
@@ -274,71 +272,38 @@ RemoteBusAttachment::GetPeerBySessionId(
 
 void
 RemoteBusAttachment::RelayAnnouncement(
-    uint16_t                                   version,
-    uint16_t                                   port,
-    const string&                              busName,
-    const AnnounceHandler::ObjectDescriptions& objectDescs,
-    const AnnounceHandler::AboutData&          aboutData
+    uint16_t          version,
+    uint16_t          port,
+    const string&     busName,
+    const AboutData&  aboutData
     )
 {
     QStatus err = ER_OK;
     LOG_DEBUG("Relaying announcement for %s", m_wellKnownName.c_str());
 
-    if(m_aboutBusObject)
+    if(m_aboutObj)
     {
         // Already announced. Announcement must have been updated.
-        UnregisterBusObject(*m_aboutBusObject);
-        delete m_aboutBusObject;
-        delete m_aboutPropertyStore;
+        UnregisterBusObject(*m_aboutObj);
+        delete m_aboutObj;
+        delete m_aboutDataListener;
     }
 
     // Set up our About bus object
-    m_aboutPropertyStore = new AboutPropertyStore();
-    err = m_aboutPropertyStore->SetAnnounceArgs(aboutData);
+    m_aboutDataListener = new RemoteAboutDataListener();
+    err = m_aboutDataListener->SetAnnounceArgs(aboutData);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to set About announcement args for %s: %s",
                 m_wellKnownName.c_str(), QCC_StatusText(err));
-        delete m_aboutPropertyStore;
-        m_aboutPropertyStore = 0;
+        delete m_aboutDataListener;
+        m_aboutDataListener = 0;
         return;
-    }
-
-    m_aboutBusObject = new AboutBusObject(this, *m_aboutPropertyStore);
-    err = m_aboutBusObject->AddObjectDescriptions(objectDescs);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to add About object descriptions for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
-    }
-
-    // Bind and register the announced session port
-    err = BindSessionPort(port);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to bind About announcement session port for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
-    }
-    err = m_aboutBusObject->Register(port);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to register About announcement port for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
-    }
-
-    // Register the bus object
-    err = RegisterBusObject(*m_aboutBusObject);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to register AboutService bus object: %s",
-                QCC_StatusText(err));
     }
 
     // Make the announcement
-    err = m_aboutBusObject->Announce();
+    m_aboutObj = new AboutObj(*this);
+    err = m_aboutObj->Announce(port, *m_aboutDataListener);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay announcement for %s: %s",

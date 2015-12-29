@@ -22,13 +22,15 @@
 #include <cerrno>
 #include <list>
 #include <stdint.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
 #include <qcc/StringUtil.h>
 #include <zlib.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <alljoyn/MsgArg.h>
+#include <alljoyn/InterfaceDescription.h>
+#include <alljoyn/ProxyBusObject.h>
 
 using namespace ajn;
 using namespace qcc;
@@ -36,7 +38,6 @@ using namespace qcc;
 using std::string;
 using std::vector;
 using std::list;
-using std::map;
 using std::cout;
 using std::endl;
 using std::istringstream;
