@@ -49,7 +49,7 @@ ConfigServiceListenerImpl::ConfigServiceListenerImpl(
     }
 
     m_KeyListener->setPassCode(passcode.c_str());
-    QStatus status = m_Bus->EnablePeerSecurity("ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK ALLJOYN_ECDHE_ECDSA", dynamic_cast<AuthListener*>(m_KeyListener)); 
+    QStatus status = m_Bus->EnablePeerSecurity("ALLJOYN_PIN_KEYX ALLJOYN_SRP_KEYX ALLJOYN_ECDHE_PSK", dynamic_cast<AuthListener*>(m_KeyListener)); 
     if ( ER_OK != status ){
         LOG_RELEASE("Failed to enable AllJoyn Peer Security! Reason: %s", QCC_StatusText(status));
     }
