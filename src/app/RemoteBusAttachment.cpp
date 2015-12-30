@@ -31,7 +31,6 @@ RemoteBusAttachment::RemoteBusAttachment(
     m_listener(this, connector),
     m_objects(),
     m_activeSessions(),
-    m_aboutDataListener(NULL),
     m_aboutObj(NULL)
 {
     pthread_mutex_init(&m_activeSessionsMutex, NULL);
@@ -53,7 +52,6 @@ RemoteBusAttachment::~RemoteBusAttachment()
         UnregisterBusObject(*m_aboutObj);
         m_aboutObj->Unannounce();
         delete m_aboutObj;
-        delete m_aboutDataListener;
     }
 
     UnregisterBusListener(m_listener);
@@ -275,7 +273,7 @@ RemoteBusAttachment::RelayAnnouncement(
     uint16_t          version,
     uint16_t          port,
     const string&     busName,
-    const AboutData&  aboutData
+    AboutData         aboutData
     )
 {
     QStatus err = ER_OK;
@@ -286,24 +284,11 @@ RemoteBusAttachment::RelayAnnouncement(
         // Already announced. Announcement must have been updated.
         UnregisterBusObject(*m_aboutObj);
         delete m_aboutObj;
-        delete m_aboutDataListener;
-    }
-
-    // Set up our About bus object
-    m_aboutDataListener = new RemoteAboutDataListener();
-    err = m_aboutDataListener->SetAnnounceArgs(aboutData);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to set About announcement args for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        delete m_aboutDataListener;
-        m_aboutDataListener = 0;
-        return;
     }
 
     // Make the announcement
     m_aboutObj = new AboutObj(*this);
-    err = m_aboutObj->Announce(port, *m_aboutDataListener);
+    err = m_aboutObj->Announce(port, aboutData);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay announcement for %s: %s",

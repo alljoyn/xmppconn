@@ -24,7 +24,6 @@
 #include "common/xmppconnutil.h"
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/AboutObj.h>
-#include "RemoteAboutDataListener.h"
 #include "RemoteBusListener.h"
 #include "RemoteBusAttachment.h"
 #include "RemoteBusObject.h"
@@ -110,7 +109,7 @@ public:
         uint16_t              version,
         uint16_t              port,
         const std::string&    busName,
-        const ajn::AboutData& aboutData
+        ajn::AboutData        aboutData
         );
 
     void
@@ -154,7 +153,6 @@ private:
     std::map<ajn::SessionId, SessionInfo> m_activeSessions;
     pthread_mutex_t                       m_activeSessionsMutex;
 
-    RemoteAboutDataListener* m_aboutDataListener;
     AboutObj*                m_aboutObj;
 };
 
