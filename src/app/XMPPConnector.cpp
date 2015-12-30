@@ -621,6 +621,22 @@ XMPPConnector::receiveGetMergedAclAsync(
 }
 #endif // !NO_AJ_GATEWAY
 
+bool
+XMPPConnector::IsInterfaceKnownToAlreadyExist(
+    const string& ifaceName
+    ) const
+{
+    string notif("org.alljoyn.Notification");
+    string buspeer("org.alljoyn.Bus.Peer");
+    return ifaceName == "org.freedesktop.DBus.Peer" || 
+          ifaceName == "org.freedesktop.DBus.Introspectable" || 
+          ifaceName == "org.freedesktop.DBus.Properties" || 
+          ifaceName == "org.allseen.Introspectable" || 
+//          ifaceName == "org.alljoyn.About" || 
+          ifaceName.compare(0, notif.length(), notif) == 0 ||
+          ifaceName.compare(0, buspeer.length(), buspeer) == 0;
+}
+
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(
     const string&                          from,
@@ -662,6 +678,7 @@ XMPPConnector::GetRemoteAttachment(
             vector<const InterfaceDescription*> interfaces;
 
             // Get the interface descriptions
+            bool hasInterface(false);
             map<string, string>::const_iterator ifaceIter;
             for(ifaceIter = objIter->interfaces.begin();
                 ifaceIter != objIter->interfaces.end();
@@ -669,6 +686,11 @@ XMPPConnector::GetRemoteAttachment(
             {
                 string ifaceName = ifaceIter->first;
                 string ifaceXml  = ifaceIter->second;
+
+                if ( IsInterfaceKnownToAlreadyExist(ifaceName) )
+                {
+                    continue;
+                }
 
                 LOG_VERBOSE("Creating interfaces from XML:\n%s", ifaceXml.c_str());
                 err = result->CreateInterfacesFromXml(ifaceXml.c_str());
@@ -679,6 +701,7 @@ XMPPConnector::GetRemoteAttachment(
                     if(newInterface)
                     {
                         interfaces.push_back(newInterface);
+                        hasInterface = true;
 
                         // Any SessionPorts to bind?
                         map<string, vector<SessionPort> >::iterator spMapIter =
@@ -707,12 +730,19 @@ XMPPConnector::GetRemoteAttachment(
             }
 
             // Add the bus object.
-            err = result->AddRemoteObject(objPath, interfaces);
-            if(err != ER_OK)
+            if ( hasInterface )
             {
-                LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
-                        QCC_StatusText(err));
-                break;
+                err = result->AddRemoteObject(objPath, interfaces);
+                if(err != ER_OK)
+                {
+                    LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
+                            QCC_StatusText(err));
+                    break;
+                }
+            }
+            else
+            {
+                LOG_DEBUG("No interface for remote object %s. Not creating bus object.", objPath.c_str());
             }
         }
 

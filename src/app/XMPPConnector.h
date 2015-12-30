@@ -176,6 +176,9 @@ private:
     void DeleteBusListener(
             const std::string& from
             );
+    bool IsInterfaceKnownToAlreadyExist(
+            const std::string& ifaceName
+            ) const;
 
     std::map<std::string,ajn::BusAttachment*>   m_buses;
     std::map<std::string,AllJoynListener*>      m_listeners;
