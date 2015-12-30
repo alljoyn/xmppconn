@@ -30,7 +30,6 @@
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
 #include <qcc/StringUtil.h>
-#include <alljoyn/Init.h>
 
 #include <iostream>
 #include <fstream>
@@ -254,13 +253,6 @@ void getConfigurationFields(){
 
 int main(int argc, char** argv)
 {
-    QStatus status = AllJoynInit();
-    if (status != ER_OK)
-    {
-        LOG_RELEASE("Failed to initialize AllJoyn: %s", QCC_StatusText(status));
-        return status;
-    }
-
     signal(SIGINT, SigIntHandler);
 
     // Ensure that we can open our config file
@@ -529,7 +521,5 @@ int main(int argc, char** argv)
         }
 
     }while(s_Continue);
-
-    AllJoynShutdown();
 }
 
