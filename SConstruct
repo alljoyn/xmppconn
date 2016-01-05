@@ -70,9 +70,11 @@ if env.get('ALLJOYN_DISTDIR'):
     env['ALLJOYN_DISTDIR'] = env.Dir('$ALLJOYN_DISTDIR')
     env.Append(CPPPATH = [ env.Dir('$ALLJOYN_DISTDIR/cpp/inc'),
                            env.Dir('$ALLJOYN_DISTDIR/about/inc'),
+                           env.Dir('$ALLJOYN_DISTDIR/config/inc'),
                            env.Dir('$ALLJOYN_DISTDIR/services_common/inc') ])
     env.Append(LIBPATH = [ env.Dir('$ALLJOYN_DISTDIR/cpp/lib'),
                            env.Dir('$ALLJOYN_DISTDIR/about/lib'),
+                           env.Dir('$ALLJOYN_DISTDIR/config/lib'),
                            env.Dir('$ALLJOYN_DISTDIR/services_common/lib') ])
 
 if env.get('APP_COMMON_DIR'):

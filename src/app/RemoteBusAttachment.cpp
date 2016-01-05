@@ -286,8 +286,77 @@ RemoteBusAttachment::RelayAnnouncement(
         delete m_aboutObj;
     }
 
-    // Make the announcement
+    // Check the AboutData to make sure it has everything that's needed for 15.04.
+    // NOTE: This is for interoperability with older versions of AllJoyn
+    if(!aboutData.IsValid())
+    {
+        uint8_t* appId = 0;
+        size_t size = 0;
+        if(ER_OK != aboutData.GetAppId(&appId, &size))
+        {
+            LOG_RELEASE("No AppId was provided for %s! Using default nil AppId.",
+                m_wellKnownName.c_str());
+            aboutData.SetAppId("00000000-0000-0000-000000000000");
+        }
+        char* str = 0;
+        if(ER_OK != aboutData.GetAppName(&str))
+        {
+            LOG_RELEASE("No AppName was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            aboutData.SetAppName("Unknown");
+        }
+        if(ER_OK != aboutData.GetDefaultLanguage(&str))
+        {
+            LOG_RELEASE("No Default Language was provided for %s! Using default of 'en'",
+                m_wellKnownName.c_str());
+            aboutData.SetSupportedLanguage("en");
+            aboutData.SetDefaultLanguage("en");
+        }
+        if(ER_OK != aboutData.GetDescription(&str))
+        {
+            LOG_RELEASE("No Description was provided for %s! Using default of 'Unknown'",
+                m_wellKnownName.c_str());
+            aboutData.SetDescription("Unknown");
+        }
+        if(ER_OK != aboutData.GetDeviceId(&str))
+        {
+            LOG_RELEASE("No DeviceId was provided for %s! Using default of nil.",
+                m_wellKnownName.c_str());
+            aboutData.SetDeviceId("00000000-0000-0000-000000000000");
+        }
+        if(ER_OK != aboutData.GetManufacturer(&str))
+        {
+            LOG_RELEASE("No Manufacturer was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            aboutData.SetManufacturer("Manufacturer");
+        }
+        if(ER_OK != aboutData.GetModelNumber(&str))
+        {
+            LOG_RELEASE("No ModelNumber was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            aboutData.SetModelNumber("Unknown");
+        }
+        if(ER_OK != aboutData.GetSoftwareVersion(&str))
+        {
+            LOG_RELEASE("No SoftwareVersion was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            aboutData.SetSoftwareVersion("Unknown");
+        }
+    }
+
+    // Create the AboutObj to relay the announcement
     m_aboutObj = new AboutObj(*this);
+
+    // Bind the session port
+    err = BindSessionPort(port);
+    if(err != ER_OK)
+    {
+        LOG_RELEASE("Failed to bind About announcement session port for %s: %s",
+            m_wellKnownName.c_str(), QCC_StatusText(err));
+        // NOTE: Attempt to announce anyways rather than bailing out here
+    }
+
+    // Make the announcement
     err = m_aboutObj->Announce(port, aboutData);
     if(err != ER_OK)
     {

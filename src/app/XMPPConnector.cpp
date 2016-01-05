@@ -626,14 +626,12 @@ XMPPConnector::IsInterfaceKnownToAlreadyExist(
     const string& ifaceName
     ) const
 {
-    string notif("org.alljoyn.Notification");
     string buspeer("org.alljoyn.Bus.Peer");
     return ifaceName == "org.freedesktop.DBus.Peer" || 
           ifaceName == "org.freedesktop.DBus.Introspectable" || 
           ifaceName == "org.freedesktop.DBus.Properties" || 
           ifaceName == "org.allseen.Introspectable" || 
-//          ifaceName == "org.alljoyn.About" || 
-          ifaceName.compare(0, notif.length(), notif) == 0 ||
+          ifaceName == "org.alljoyn.About" || 
           ifaceName.compare(0, buspeer.length(), buspeer) == 0;
 }
 
@@ -1715,7 +1713,7 @@ XMPPConnector::ReceiveAnnounce(
     }
 
     // Then come the properties
-    AboutData aboutData;
+    AboutData aboutData("en"); // TODO: Get the correct language information in here. Perhaps a config file setting?
     string propName = "", propDesc = "";
     while(0 != getline(msgStream, line))
     {
