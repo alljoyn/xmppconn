@@ -344,9 +344,6 @@ RemoteBusAttachment::RelayAnnouncement(
         }
     }
 
-    // Create the AboutObj to relay the announcement
-    m_aboutObj = new AboutObj(*this);
-
     // Bind the session port
     err = BindSessionPort(port);
     if(err != ER_OK)
@@ -355,6 +352,9 @@ RemoteBusAttachment::RelayAnnouncement(
             m_wellKnownName.c_str(), QCC_StatusText(err));
         // NOTE: Attempt to announce anyways rather than bailing out here
     }
+
+    // Create the AboutObj to relay the announcement
+    m_aboutObj = new AboutObj(*this);
 
     // Make the announcement
     err = m_aboutObj->Announce(port, aboutData);
