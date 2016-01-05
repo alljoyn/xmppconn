@@ -1110,13 +1110,13 @@ XMPPConnector::SendAnnounce(
     )
 {
     FNLOG
-
+/*
     if ( string::npos != string(objectDescs.ToString().c_str()).find(ALLJOYN_XMPP_SUFFIX.c_str()) )
     {
         // Skip sending the XMPP Connector announcements
         return;
     }
-
+*/
     // Find the unique name of the announcing attachment
     string uniqueName = busName;
     map<string, string>::iterator wknIter =
