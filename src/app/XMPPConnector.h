@@ -141,10 +141,16 @@ private:
 #endif
     bool m_initialized;
 
+    struct InterfaceData
+    {
+        std::string name;
+        std::string data;
+        bool        announced;
+    };
     struct RemoteObjectDescription
     {
-        std::string                        path;
-        std::map<std::string, std::string> interfaces;
+        std::string                path;
+        std::vector<InterfaceData> interfaces;
     };
 
     RemoteBusAttachment* GetRemoteAttachment(
@@ -317,7 +323,8 @@ private:
 
     std::vector<XMPPConnector::RemoteObjectDescription>
         ParseBusObjectInfo(
-                std::istringstream& msgStream
+                std::istringstream& msgStream,
+                std::map<std::string, std::vector<std::string> > announcedObjIfaceMap = std::map<std::string, std::vector<std::string> >()
                 );
 
     void ReceiveAdvertisement(const std::string& from, const std::string& message);

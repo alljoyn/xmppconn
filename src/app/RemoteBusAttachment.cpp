@@ -124,15 +124,19 @@ RemoteBusAttachment::AllJoynSignalHandler(
 QStatus
 RemoteBusAttachment::AddRemoteObject(
     const string&                       path,
-    vector<const InterfaceDescription*> interfaces
+    vector<InterfaceDescriptionData> interfaces
     )
 {
+    FNLOG;
     QStatus err = ER_OK;
-    RemoteBusObject* newObj = new RemoteBusObject(this, path, m_connector); // TODO: why pointers?
+    RemoteBusObject* newObj = new RemoteBusObject(this, path, m_connector);
+    LOG_VERBOSE("Adding remote bus object for path: %s", path.c_str());
 
     err = newObj->ImplementInterfaces(interfaces);
     if(err != ER_OK)
     {
+        LOG_RELEASE("Failed to implement interfaces on remote bus object: %s",
+                QCC_StatusText(err));
         delete newObj;
         return err;
     }
@@ -354,7 +358,7 @@ RemoteBusAttachment::RelayAnnouncement(
     }
 
     // Create the AboutObj to relay the announcement
-    m_aboutObj = new AboutObj(*this);
+    m_aboutObj = new AboutObj(*this, ajn::BusObject::ANNOUNCED);
 
     // Make the announcement
     err = m_aboutObj->Announce(port, aboutData);

@@ -23,6 +23,7 @@
 #include <pthread.h>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 #include "XMPPConnector.h"                                                      // TODO: internal documentation
 #include "transport/XmppTransport.h"
@@ -673,17 +674,18 @@ XMPPConnector::GetRemoteAttachment(
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
         {
             string objPath = objIter->path;
-            vector<const InterfaceDescription*> interfaces;
+            vector<InterfaceDescriptionData> interfaces;
 
             // Get the interface descriptions
             bool hasInterface(false);
-            map<string, string>::const_iterator ifaceIter;
+            vector<InterfaceData>::const_iterator ifaceIter;
             for(ifaceIter = objIter->interfaces.begin();
                 ifaceIter != objIter->interfaces.end();
                 ++ifaceIter)
             {
-                string ifaceName = ifaceIter->first;
-                string ifaceXml  = ifaceIter->second;
+                string ifaceName = ifaceIter->name;
+                string ifaceXml  = ifaceIter->data;
+                bool   announced  = ifaceIter->announced;
 
                 if ( IsInterfaceKnownToAlreadyExist(ifaceName) )
                 {
@@ -698,7 +700,10 @@ XMPPConnector::GetRemoteAttachment(
                             result->GetInterface(ifaceName.c_str());
                     if(newInterface)
                     {
-                        interfaces.push_back(newInterface);
+                        InterfaceDescriptionData data;
+                        data.desc = newInterface;
+                        data.announced = announced;
+                        interfaces.push_back(data);
                         hasInterface = true;
 
                         // Any SessionPorts to bind?
@@ -1520,15 +1525,15 @@ XMPPConnector::SendMessage(
 
 vector<XMPPConnector::RemoteObjectDescription>
 XMPPConnector::ParseBusObjectInfo(
-    istringstream& msgStream
+    istringstream& msgStream,
+    map<string, vector<string> > announcedObjIfaceMap
     )
 {
-    FNLOG
+    FNLOG;
     vector<XMPPConnector::RemoteObjectDescription> results;
     XMPPConnector::RemoteObjectDescription thisObj;
     string interfaceName = "";
     string interfaceDescription = "";
-
     string line = "";
     while(getline(msgStream, line))
     {
@@ -1537,8 +1542,22 @@ XMPPConnector::ParseBusObjectInfo(
             if(!interfaceDescription.empty())
             {
                 // We've reached the end of an interface description.
-                //util::str::UnescapeXml(interfaceDescription);
-                thisObj.interfaces[interfaceName] = interfaceDescription;
+                InterfaceData data;
+                data.name = interfaceName;
+                data.data = interfaceDescription; //util::str::UnescapeXml(interfaceDescription);
+                data.announced = false;
+                map<string, vector<string> >::const_iterator announcedObjIt(announcedObjIfaceMap.find(thisObj.path));
+                if ( announcedObjIfaceMap.end() != announcedObjIt )
+                {
+                    vector<string> announcedInterfaces(announcedObjIt->second);
+                    if ( announcedInterfaces.end() != std::find( announcedInterfaces.begin(),
+                            announcedInterfaces.end(), interfaceName) )
+                    {
+                        data.announced = true;
+                        LOG_VERBOSE("Parsed announced interface %s.", interfaceName.c_str());
+                    }
+                }
+                thisObj.interfaces.push_back(data);
 
                 interfaceName.clear();
                 interfaceDescription.clear();
@@ -1682,11 +1701,13 @@ XMPPConnector::ReceiveAnnounce(
 
     // The object descriptions follow
     qcc::String objectPath = "";
-    vector<qcc::String> interfaceNames;
+    vector<string> interfaceNames;
+    map<string, vector<string> > announcedObjIfaceMap;
     while(0 != getline(msgStream, line))
     {
         if(line.empty())
         {
+            announcedObjIfaceMap[objectPath.c_str()] = interfaceNames;
             break;
         }
 
@@ -1699,12 +1720,14 @@ XMPPConnector::ReceiveAnnounce(
             if(line[0] == '/')
             {
                 // end of the object description
+                announcedObjIfaceMap[objectPath.c_str()] = interfaceNames;
+
                 interfaceNames.clear();
                 objectPath = line.c_str();
             }
             else
             {
-                interfaceNames.push_back(line.c_str());
+                interfaceNames.push_back(line);
 #ifndef NO_AJ_GATEWAY
                 writeInterfaceToManifest(line);
 #endif
@@ -1743,7 +1766,7 @@ XMPPConnector::ReceiveAnnounce(
 
     // Then the bus objects
     vector<XMPPConnector::RemoteObjectDescription> objects =
-            ParseBusObjectInfo(msgStream);
+            ParseBusObjectInfo(msgStream, announcedObjIfaceMap);
 
     // Find or create the BusAttachment with the given app name
     RemoteBusAttachment* bus =

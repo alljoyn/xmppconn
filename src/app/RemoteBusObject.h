@@ -26,6 +26,12 @@
 class XMPPConnector;
 class RemoteBusAttachment;
 
+struct InterfaceDescriptionData
+{
+    const ajn::InterfaceDescription* desc;
+    bool announced;
+};
+
 class RemoteBusObject :
     public ajn::BusObject
 {
@@ -47,7 +53,7 @@ public:
 
     QStatus
     ImplementInterfaces(
-        const std::vector<const ajn::InterfaceDescription*>& interfaces
+        const std::vector<InterfaceDescriptionData>& interfaces
         );
 
     void
@@ -90,10 +96,10 @@ protected:
 
 private:
 
-    RemoteBusAttachment*                           m_bus;
-    std::vector<const ajn::InterfaceDescription*>  m_interfaces;
-    Reply                                          m_reply;
-    XMPPConnector*                                 m_connector;
+    RemoteBusAttachment*                   m_bus;
+    std::vector<InterfaceDescriptionData>  m_interfaces;
+    Reply                                  m_reply;
+    XMPPConnector*                         m_connector;
 };
 
 #endif // REMOTEBUSOBJECT_H_

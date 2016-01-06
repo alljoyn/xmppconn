@@ -71,27 +71,28 @@ RemoteBusObject::AllJoynMethodHandler(
 
 QStatus
 RemoteBusObject::ImplementInterfaces(
-    const vector<const InterfaceDescription*>& interfaces
+    const vector<InterfaceDescriptionData>& interfaces
     )
 {
-    vector<const InterfaceDescription*>::const_iterator it;
+    FNLOG;
+    vector<InterfaceDescriptionData>::const_iterator it;
     for(it = interfaces.begin(); it != interfaces.end(); ++it)
     {
-        QStatus err = AddInterface(**it);
+        QStatus err = AddInterface(*it->desc, it->announced ? ANNOUNCED : UNANNOUNCED);
         if(ER_OK != err)
         {
             LOG_RELEASE("Failed to add interface %s: %s",
-                    (*it)->GetName(), QCC_StatusText(err));
+                    it->desc->GetName(), QCC_StatusText(err));
             return err;
         }
 
         m_interfaces.push_back(*it);
 
         // Register method handlers
-        size_t numMembers = (*it)->GetMembers();
+        size_t numMembers = it->desc->GetMembers();
         InterfaceDescription::Member** interfaceMembers =
                 new InterfaceDescription::Member*[numMembers];
-        numMembers = (*it)->GetMembers(
+        numMembers = it->desc->GetMembers(
                 (const InterfaceDescription::Member**)interfaceMembers,
                 numMembers);
 
@@ -100,12 +101,21 @@ RemoteBusObject::ImplementInterfaces(
             if(interfaceMembers[i]->memberType == MESSAGE_SIGNAL)
             {
                 err = m_bus->RegisterSignalHandler(interfaceMembers[i]);
+                LOG_VERBOSE("Registered signal handler for %s%s: %s",
+                    m_bus->RemoteName().c_str(), GetPath(),
+                    interfaceMembers[i]->name.c_str());
             }
             else
             {
                 err = AddMethodHandler(interfaceMembers[i],
                         static_cast<MessageReceiver::MethodHandler>(
-                        &RemoteBusObject::AllJoynMethodHandler));       //cout << "Registered method handler for " << m_bus->RemoteName() << GetPath() << ":" << interfaceMembers[i]->name << endl;
+                        &RemoteBusObject::AllJoynMethodHandler));
+                if(err == ER_OK)
+                {
+                    LOG_VERBOSE("Registered method handler for %s%s: %s",
+                        m_bus->RemoteName().c_str(), GetPath(),
+                        interfaceMembers[i]->name.c_str());
+                }
             }
             if(err != ER_OK)
             {
@@ -132,17 +142,17 @@ RemoteBusObject::SendSignal(
     QStatus err = ER_FAIL;
 
     // Get the InterfaceDescription::Member
-    vector<const InterfaceDescription*>::iterator ifaceIter;
+    vector<InterfaceDescriptionData>::iterator ifaceIter;
     for(ifaceIter = m_interfaces.begin();
         ifaceIter != m_interfaces.end();
         ++ifaceIter)
     {
-        if(ifaceName == (*ifaceIter)->GetName())
+        if(ifaceName == ifaceIter->desc->GetName())
         {
-            size_t numMembers = (*ifaceIter)->GetMembers();
+            size_t numMembers = ifaceIter->desc->GetMembers();
             InterfaceDescription::Member** members =
                     new InterfaceDescription::Member*[numMembers];
-            numMembers = (*ifaceIter)->GetMembers(
+            numMembers = ifaceIter->desc->GetMembers(
                     (const InterfaceDescription::Member**)members,
                     numMembers);
             for(uint32_t i = 0; i < numMembers; ++i)

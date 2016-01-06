@@ -67,8 +67,8 @@ public:
 
     QStatus
     AddRemoteObject(
-        const std::string&                       path,
-        std::vector<const InterfaceDescription*> interfaces
+        const std::string&                    path,
+        std::vector<InterfaceDescriptionData> interfaces
         );
 
     std::string
