@@ -270,8 +270,12 @@ RemoteBusObject::GetAllProps(
     Message&                            msg
     )
 {
+	// NOTE: The only way to get the correct interface name is to dig
+    //  through the Message structure. It should always be the first
+    //  argument, and it should be a string value.
+    string ifaceName(msg->GetArg(0)->v_string.str);
     LOG_DEBUG("Received AllJoyn GetAllProps request for %s: %s",
-            member->iface->GetName(), member->name.c_str());
+        ifaceName.c_str(), member->name.c_str());
     bool replyReceived = false;
     string replyStr;
 
@@ -279,7 +283,7 @@ RemoteBusObject::GetAllProps(
         ScopedTransactionLocker transLock(&m_reply);
 
         m_connector->SendGetAllRequest(
-                member, m_bus->RemoteName(), GetPath());
+                ifaceName, member, m_bus->RemoteName(), GetPath());
 
         // Wait for the XMPP response signal
         transLock.ReceiveReply(replyReceived, replyStr);

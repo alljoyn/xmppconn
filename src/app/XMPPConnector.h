@@ -303,6 +303,7 @@ private:
                 );
     void
         SendGetAllRequest(
+                const std::string&                  ifaceName,
                 const InterfaceDescription::Member* member,
                 const std::string&                  destName,
                 const std::string&                  destPath

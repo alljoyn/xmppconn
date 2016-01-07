@@ -809,26 +809,83 @@ namespace msgarg {
         content = str::Trim(content);
         while(!content.empty())
         {
-            size_t typeBeginPos = content.find_first_of('<')+1;                 // TODO: check typeBeginPos for npos, other stuff like that in these kinds of functions
+            size_t typeBeginPos = content.find_first_of('<')+1;
             size_t typeEndPos = content.find_first_of(" >", typeBeginPos);
+            if(string::npos == typeBeginPos || string::npos == typeEndPos)
+            {
+                LOG_RELEASE("InvalidMsgArg XML (No matching tag begin and end characters! Content: %s",
+                        content.c_str());
+                return array;
+            }
             string elemType = content.substr(
                     typeBeginPos, typeEndPos-typeBeginPos);
+            string startTagPrefix = "<"+elemType;
             string closeTag = "</"+elemType+">";
+            const size_t startTagPrefixSize = startTagPrefix.length();
+            const size_t closeTagSize = closeTag.length();
 
-            // Find the closing tag for this element
-            size_t closeTagPos = content.find(closeTag);
-            size_t nestedTypeEndPos = typeEndPos;
-            while(closeTagPos > content.find(elemType, nestedTypeEndPos))
+            // Find the closing tag (closeTagPos)
+            size_t depth = 1;
+            size_t curPos = typeEndPos;
+            size_t closeTagPos = curPos;
+            // While depth counter is > 0
+            while ( depth > 0
+                    && curPos < content.size() ) // sanity check for invalid XML
             {
-                nestedTypeEndPos = closeTagPos+2+elemType.length();
-                closeTagPos = content.find(
-                        closeTag, closeTagPos+closeTag.length());
+                // Find the next startTagPrefix and the next closeTag
+                size_t nextStartTagPos = content.find(startTagPrefix, curPos);
+                size_t nextCloseTagPos = content.find(closeTag, curPos);
+
+                // Sanity check that we found a close tag
+                if(string::npos == nextCloseTagPos)
+                {
+                    LOG_RELEASE("Invalid MsgArg XML (no matching close tag for %s): %s",
+                            startTagPrefix.c_str(), content.c_str());
+                    return array;
+                }
+                else
+                {
+                    // Increment curPos to be beyond the next closeTag. This will
+                    //  be overridden if we found a startTagPrefix before this closeTag.
+                    curPos = nextCloseTagPos + closeTagSize;
+                }
+
+                // If we found another startTagPrefix
+                if(string::npos != nextStartTagPos)
+                {
+                    // If the next startTagPrefix is before the next closeTag
+                    if(nextStartTagPos < nextCloseTagPos)
+                    {
+                        // Increment curPos to be beyond the next startTagPrefix
+                        curPos = nextStartTagPos + startTagPrefixSize;
+
+                        // Increment the depth counter
+                        depth++;
+                    }
+                    else // Else the next closeTag applies to the current depth
+                    {
+                        // Decrement the depth counter
+                        depth--;
+                    }
+                }
+                else // Else there was only a closeTag
+                {
+                    // Decrement the depth counter
+                    depth--;
+                }
+
+                // If the depth counter is at 0
+                if(depth == 0)
+                {
+                    // We found the correct closeTag
+                    closeTagPos = nextCloseTagPos;
+                }
             }
 
             string element = content.substr(0, closeTagPos+closeTag.length());
             array.push_back(FromString(element));
 
-            content = content.substr(closeTagPos+closeTag.length());
+            content = str::Trim(content.substr(closeTagPos+closeTagSize));
         }
 
         return array;
@@ -1019,20 +1076,20 @@ namespace bus {
     }
 
     /* Recursively get BusObject information from an attachment. */
-    void
+    QStatus
     GetBusObjectsRecursive(
         vector<BusObjectInfo>& busObjects,
         ProxyBusObject&        proxy
         )
     {
-        FNLOG
+        FNLOG;
         QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
             LOG_RELEASE("Failed to introspect remote object %s (%s): %s",
                     proxy.GetServiceName().c_str(), proxy.GetPath().c_str(),
                     QCC_StatusText(err));
-            return;
+            return err;
         }
 
         BusObjectInfo thisObj;
@@ -1081,15 +1138,22 @@ namespace bus {
 
             for(uint32_t i = 0; i < num_children; ++i)
             {
-                GetBusObjectsRecursive(busObjects, *children[i]);
+                QStatus internalErr = GetBusObjectsRecursive(busObjects, *children[i]);
+                if(err == ER_OK && internalErr != ER_OK)
+                {
+                    err = internalErr;
+                    // NOTE: Keep going
+                }
             }
 
             delete[] children;
         }
+
+        return err;
     }
 
     /* Asynchronously get BusObject information from an attachment. */
-    void
+    QStatus
     GetBusObjectsAsync(
         ProxyBusObject*                                proxy,
         GetBusObjectsAsyncReceiver*                    receiver,
@@ -1097,7 +1161,7 @@ namespace bus {
         void*                                          context
         )
     {
-        FNLOG
+        FNLOG;
         vector<BusObjectInfo>* busObjects = new vector<BusObjectInfo>();
         GetBusObjectsAsyncIntrospectReceiver* introspectReceiver = new
             GetBusObjectsAsyncIntrospectReceiver();
@@ -1119,8 +1183,8 @@ namespace bus {
         {
             LOG_RELEASE("Failed asynchronous introspect for bus objects: %s",
                     QCC_StatusText(err));
-            return;
         }
+        return err;
     }
 
 } // namespace bus
