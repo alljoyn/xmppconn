@@ -35,8 +35,8 @@ class RemoteBusAttachment :
 {
 public:
     RemoteBusAttachment(
-        const std::string&  remoteName,
-        XMPPConnector* connector
+        const std::string& remoteName,
+        XMPPConnector*     connector
         );
 
     ~RemoteBusAttachment();
@@ -109,7 +109,7 @@ public:
         uint16_t              version,
         uint16_t              port,
         const std::string&    busName,
-        ajn::AboutData        aboutData
+        const ajn::AboutData& aboutData
         );
 
     void
@@ -138,11 +138,12 @@ public:
 
 private:
 
-    XMPPConnector*           m_connector;
-    std::string              m_remoteName;
-    std::string              m_wellKnownName;
-    RemoteBusListener        m_listener;
+    XMPPConnector*                m_connector;
+    std::string                   m_remoteName;
+    std::string                   m_wellKnownName;
+    RemoteBusListener             m_listener;
     std::vector<RemoteBusObject*> m_objects;
+    ajn::AboutData                m_aboutData;
 
     struct SessionInfo
     {

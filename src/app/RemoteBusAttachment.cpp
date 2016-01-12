@@ -49,8 +49,8 @@ RemoteBusAttachment::~RemoteBusAttachment()
 
     if(m_aboutObj)
     {
-        UnregisterBusObject(*m_aboutObj);
         m_aboutObj->Unannounce();
+        UnregisterBusObject(*m_aboutObj);
         delete m_aboutObj;
     }
 
@@ -277,74 +277,76 @@ RemoteBusAttachment::RelayAnnouncement(
     uint16_t          version,
     uint16_t          port,
     const string&     busName,
-    AboutData         aboutData
+    const AboutData&  aboutData
     )
 {
     QStatus err = ER_OK;
     LOG_DEBUG("Relaying announcement for %s", m_wellKnownName.c_str());
+    m_aboutData = aboutData;
 
     if(m_aboutObj)
     {
         // Already announced. Announcement must have been updated.
+        m_aboutObj->Unannounce();
         UnregisterBusObject(*m_aboutObj);
         delete m_aboutObj;
     }
 
     // Check the AboutData to make sure it has everything that's needed for 15.04.
     // NOTE: This is for interoperability with older versions of AllJoyn
-    if(!aboutData.IsValid())
+    if(!m_aboutData.IsValid())
     {
         uint8_t* appId = 0;
         size_t size = 0;
-        if(ER_OK != aboutData.GetAppId(&appId, &size))
+        if(ER_OK != m_aboutData.GetAppId(&appId, &size))
         {
             LOG_RELEASE("No AppId was provided for %s! Using default nil AppId.",
                 m_wellKnownName.c_str());
-            aboutData.SetAppId("00000000-0000-0000-000000000000");
+            m_aboutData.SetAppId("00000000-0000-0000-000000000000");
         }
         char* str = 0;
-        if(ER_OK != aboutData.GetAppName(&str))
+        if(ER_OK != m_aboutData.GetAppName(&str))
         {
             LOG_RELEASE("No AppName was provided for %s! Using default of 'Unknown'.",
                 m_wellKnownName.c_str());
-            aboutData.SetAppName("Unknown");
+            m_aboutData.SetAppName("Unknown");
         }
-        if(ER_OK != aboutData.GetDefaultLanguage(&str))
+        if(ER_OK != m_aboutData.GetDefaultLanguage(&str))
         {
             LOG_RELEASE("No Default Language was provided for %s! Using default of 'en'",
                 m_wellKnownName.c_str());
-            aboutData.SetSupportedLanguage("en");
-            aboutData.SetDefaultLanguage("en");
+            m_aboutData.SetSupportedLanguage("en");
+            m_aboutData.SetDefaultLanguage("en");
         }
-        if(ER_OK != aboutData.GetDescription(&str))
+        if(ER_OK != m_aboutData.GetDescription(&str))
         {
             LOG_RELEASE("No Description was provided for %s! Using default of 'Unknown'",
                 m_wellKnownName.c_str());
-            aboutData.SetDescription("Unknown");
+            m_aboutData.SetDescription("Unknown");
         }
-        if(ER_OK != aboutData.GetDeviceId(&str))
+        if(ER_OK != m_aboutData.GetDeviceId(&str))
         {
             LOG_RELEASE("No DeviceId was provided for %s! Using default of nil.",
                 m_wellKnownName.c_str());
-            aboutData.SetDeviceId("00000000-0000-0000-000000000000");
+            m_aboutData.SetDeviceId("00000000-0000-0000-000000000000");
         }
-        if(ER_OK != aboutData.GetManufacturer(&str))
+        if(ER_OK != m_aboutData.GetManufacturer(&str))
         {
             LOG_RELEASE("No Manufacturer was provided for %s! Using default of 'Unknown'.",
                 m_wellKnownName.c_str());
-            aboutData.SetManufacturer("Manufacturer");
+            m_aboutData.SetManufacturer("Manufacturer");
         }
-        if(ER_OK != aboutData.GetModelNumber(&str))
+        if(ER_OK != m_aboutData.GetModelNumber(&str))
         {
             LOG_RELEASE("No ModelNumber was provided for %s! Using default of 'Unknown'.",
                 m_wellKnownName.c_str());
-            aboutData.SetModelNumber("Unknown");
+            m_aboutData.SetModelNumber("Unknown");
         }
-        if(ER_OK != aboutData.GetSoftwareVersion(&str))
+        if(ER_OK != m_aboutData.GetSoftwareVersion(&str))
         {
             LOG_RELEASE("No SoftwareVersion was provided for %s! Using default of 'Unknown'.",
                 m_wellKnownName.c_str());
-            aboutData.SetSoftwareVersion("Unknown");
+            m_aboutData.SetSoftwareVersion("Unknown");
         }
     }
 
@@ -361,7 +363,7 @@ RemoteBusAttachment::RelayAnnouncement(
     m_aboutObj = new AboutObj(*this, ajn::BusObject::ANNOUNCED);
 
     // Make the announcement
-    err = m_aboutObj->Announce(port, aboutData);
+    err = m_aboutObj->Announce(port, m_aboutData);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay announcement for %s: %s",
