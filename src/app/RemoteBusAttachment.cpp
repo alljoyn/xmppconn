@@ -76,7 +76,7 @@ RemoteBusAttachment::JoinSession(
     SessionId&    id
     )
 {
-    FNLOG
+    FNLOG;
     SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
             SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
     return BusAttachment::JoinSession(
@@ -88,7 +88,7 @@ RemoteBusAttachment::RegisterSignalHandler(
     const InterfaceDescription::Member* member
     )
 {
-    FNLOG
+    FNLOG;
     const char* ifaceName = member->iface->GetName();
     if(ifaceName == strstr(ifaceName, "org.alljoyn.Bus."))
     {

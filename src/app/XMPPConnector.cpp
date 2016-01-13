@@ -80,7 +80,7 @@ public:
         void*                               context
         )
     {
-        FNLOG
+        FNLOG;
 
         // Send the advertisement via XMPP
         m_connector->SendAdvertisement(
@@ -99,7 +99,7 @@ public:
         void*                               context
         )
     {
-        FNLOG
+        FNLOG;
         IntrospectCallbackContext* ctx =
             static_cast<IntrospectCallbackContext*>(context);
 
@@ -123,7 +123,7 @@ public:
         void*           context
         )
     {
-        FNLOG
+        FNLOG;
         /** TODO: REQUIRED
          * Register sessionless signal handlers for announcing/advertising apps
          * (need to implement the required interfaces on m_bus). Other method/
@@ -212,7 +212,7 @@ public:
             return;
         }
 
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Found advertised name: %s", name);
 
@@ -260,7 +260,7 @@ public:
         {
             return;
         }
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Lost advertised name: %s", name);
         m_connector->SendAdvertisementLost(name);
@@ -273,7 +273,7 @@ public:
         const char* newOwner
         )
     {
-        FNLOG
+        FNLOG;
         /**
          * If owner changed to nobody, an Announcing app may have gone offline.
          * Send the busName to the XMPP server so that any remote connectors can
@@ -305,7 +305,7 @@ public:
         {
             return;
         }
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Received Announce: %s", busName);
         m_bus->EnableConcurrentCallbacks();
@@ -504,7 +504,7 @@ QStatus
 XMPPConnector::Start()
 {
     QStatus err = ER_OK;
-    FNLOG
+    FNLOG;
     if(!m_initialized)
     {
         LOG_RELEASE("XMPPConnector not initialized");
@@ -524,7 +524,7 @@ XMPPConnector::Start()
 
 void XMPPConnector::Stop()
 {
-    FNLOG
+    FNLOG;
     m_transport->Stop();
 }
 
@@ -1034,7 +1034,7 @@ void XMPPConnector::DeleteBusAttachment(
     const std::string& from
     )
 {
-    FNLOG
+    FNLOG;
     AllJoynListener* listener = GetBusListener(from);
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
@@ -1099,7 +1099,7 @@ void XMPPConnector::DeleteBusListener(
     const std::string& from
     )
 {
-    FNLOG
+    FNLOG;
     AllJoynListener* listener = GetBusListener(from);
     if (listener)
     {
@@ -1136,7 +1136,7 @@ XMPPConnector::SendAdvertisement(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
-    FNLOG
+    FNLOG;
     // Skip sending the global Alljoyn advertisements
     size_t found = name.find(ALLJOYN_URL_SUFFIX);
     if (found != string::npos)
@@ -1181,7 +1181,7 @@ XMPPConnector::SendAdvertisementLost(
     const string& name
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERT_LOST << "\n";
@@ -1200,14 +1200,8 @@ XMPPConnector::SendAnnounce(
     const vector<util::bus::BusObjectInfo>&    busObjects
     )
 {
-    FNLOG
-/*
-    if ( string::npos != string(objectDescs.ToString().c_str()).find(ALLJOYN_XMPP_SUFFIX.c_str()) )
-    {
-        // Skip sending the XMPP Connector announcements
-        return;
-    }
-*/
+    FNLOG;
+
     // Find the unique name of the announcing attachment
     string uniqueName = busName;
     map<string, string>::iterator wknIter =
@@ -1285,7 +1279,7 @@ XMPPConnector::SendJoinRequest(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_REQUEST << "\n";
@@ -1327,7 +1321,7 @@ XMPPConnector::SendJoinResponse(
     SessionId     sessionId
     )
 {
-    FNLOG
+    FNLOG;
     // Send the status back to the original session joiner
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";
@@ -1346,7 +1340,7 @@ XMPPConnector::SendSessionJoined(
     SessionId     localId
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
@@ -1365,7 +1359,7 @@ XMPPConnector::SendSessionLost(
     SessionId     id
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_LOST << "\n";
@@ -1383,7 +1377,7 @@ XMPPConnector::SendMethodCall(
     const string&                       objectPath
     )
 {
-    FNLOG
+    FNLOG;
     size_t numArgs = 0;
     const MsgArg* msgArgs = 0;
     message->GetArgs(numArgs, msgArgs);
@@ -1409,7 +1403,7 @@ XMPPConnector::SendMethodReply(
     Message&      reply
     )
 {
-    FNLOG
+    FNLOG;
     size_t numReplyArgs;
     const MsgArg* replyArgs = 0;
     reply->GetArgs(numReplyArgs, replyArgs);
@@ -1430,7 +1424,7 @@ XMPPConnector::SendSignal(
     Message&                            message
     )
 {
-    FNLOG
+    FNLOG;
     // Find the unique name of the signal sender
     string senderUniqueName = message->GetSender();
     map<string, string>::iterator wknIter =
@@ -1467,7 +1461,7 @@ XMPPConnector::SendGetRequest(
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROPERTY << "\n";
@@ -1486,7 +1480,7 @@ XMPPConnector::SendGetReply(
     const MsgArg& replyArg
     )
 {
-    FNLOG
+    FNLOG;
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
@@ -1506,7 +1500,7 @@ XMPPConnector::SendSetRequest(
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROPERTY << "\n";
@@ -1526,7 +1520,7 @@ XMPPConnector::SendSetReply(
     QStatus       replyStatus
     )
 {
-    FNLOG
+    FNLOG;
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROP_REPLY << "\n";
@@ -1545,7 +1539,7 @@ XMPPConnector::SendGetAllRequest(
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL << "\n";
@@ -1564,7 +1558,7 @@ XMPPConnector::SendGetAllReply(
     const MsgArg& replyArgs
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
@@ -1582,7 +1576,7 @@ XMPPConnector::SendNameOwnerChanged(
     const string& newOwner
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_NAME_OWNER_CHANGED << "\n";
@@ -1599,7 +1593,7 @@ XMPPConnector::SendMessage(
     const string& messageType
     )
 {
-    FNLOG
+    FNLOG;
     LOG_DEBUG("Sending %smessage over transport.", (messageType.empty() ? "" : (messageType+" ").c_str()));
     Transport::ConnectionError status = m_transport->Send(body);
     if (Transport::none != status)
@@ -1684,7 +1678,7 @@ XMPPConnector::ReceiveAdvertisement(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line;
 
@@ -1744,7 +1738,7 @@ XMPPConnector::ReceiveAdvertisementLost(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, name;
 
@@ -1770,7 +1764,7 @@ XMPPConnector::ReceiveAnnounce(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, remoteName, versionStr, portStr, busName;
 
@@ -1886,7 +1880,7 @@ XMPPConnector::ReceiveJoinRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, joiner, joinee, portStr;
 
@@ -2044,7 +2038,7 @@ XMPPConnector::ReceiveJoinResponse(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, appName, remoteSessionId;
 
@@ -2074,7 +2068,7 @@ XMPPConnector::ReceiveSessionJoined(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, joiner, joinee, portStr, remoteIdStr, localIdStr;
 
@@ -2118,7 +2112,7 @@ XMPPConnector::ReceiveSessionLost(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, appName, idStr;
 
@@ -2157,7 +2151,7 @@ XMPPConnector::ReceiveMethodCall(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, destName, destPath,
@@ -2223,7 +2217,7 @@ XMPPConnector::ReceiveMethodReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2262,7 +2256,7 @@ XMPPConnector::ReceiveSignal(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, senderName, destination,
@@ -2312,7 +2306,7 @@ XMPPConnector::ReceiveGetRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2357,7 +2351,7 @@ XMPPConnector::ReceiveGetReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2395,7 +2389,7 @@ XMPPConnector::ReceiveSetRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2450,7 +2444,7 @@ XMPPConnector::ReceiveSetReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath, status;
@@ -2481,7 +2475,7 @@ XMPPConnector::ReceiveGetAllRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, memberName;
@@ -2527,7 +2521,7 @@ XMPPConnector::ReceiveGetAllReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2566,7 +2560,7 @@ XMPPConnector::ReceiveNameOwnerChanged(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, busName, previousOwner, newOwner;
@@ -2800,7 +2794,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
 
 void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::string& source)
 {
-    FNLOG
+    FNLOG;
     BusAttachment* attachment = GetBusAttachment(source);
     AllJoynListener* listener = GetBusListener(source);
 

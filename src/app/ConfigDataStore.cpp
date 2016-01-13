@@ -333,6 +333,7 @@ void ConfigDataStore::Announce()
     ajn::services::AboutObjApi* aboutObj = ajn::services::AboutObjApi::getInstance();
     if (!aboutObj){
         LOG_RELEASE("Cannot announce! Failed to get AboutObjApi instance!");
+        return;
     }
 
     aboutObj->Announce();
