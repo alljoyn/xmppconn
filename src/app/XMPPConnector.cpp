@@ -1894,7 +1894,7 @@ XMPPConnector::ReceiveJoinRequest(
     if(0 == getline(msgStream, joiner)){ return; }
 
     // Then follow the interfaces implemented by the joiner
-    vector<XMPPConnector::RemoteObjectDescription> objects;// = ParseBusObjectInfo(msgStream);
+    vector<XMPPConnector::RemoteObjectDescription> objects = ParseBusObjectInfo(msgStream);
 
     // Get or create a bus attachment to join from
     RemoteBusAttachment* bus = GetRemoteAttachment(
