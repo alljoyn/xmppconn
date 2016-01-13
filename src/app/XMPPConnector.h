@@ -152,11 +152,24 @@ private:
         std::string                path;
         std::vector<InterfaceData> interfaces;
     };
+    QStatus
+    AddRemoteObject(
+        RemoteBusAttachment&                                  bus,
+        const RemoteObjectDescription&                        desc,
+        std::map<std::string,std::vector<ajn::SessionPort> >& portsToBind
+        );
+
+    QStatus
+    BindSessionPorts(
+        RemoteBusAttachment&                                        bus,
+        const std::map<std::string,std::vector<ajn::SessionPort> >& portsToBind
+        );
 
     RemoteBusAttachment* GetRemoteAttachment(
             const std::string&                          from,
             const std::string&                          remoteName,
-            const std::vector<RemoteObjectDescription>* objects = NULL
+            const std::vector<RemoteObjectDescription>* objects = NULL,
+            bool                                        announcement = false
             );
     RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
             const std::string& from,

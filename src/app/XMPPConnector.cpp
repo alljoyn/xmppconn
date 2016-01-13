@@ -636,11 +636,124 @@ XMPPConnector::IsInterfaceKnownToAlreadyExist(
           ifaceName.compare(0, buspeer.length(), buspeer) == 0;
 }
 
+
+QStatus
+XMPPConnector::AddRemoteObject(
+    RemoteBusAttachment&               bus,
+    const RemoteObjectDescription&     desc,
+    map<string, vector<SessionPort> >& portsToBind
+    )
+{
+    QStatus err(ER_OK);
+    string objPath(desc.path);
+    vector<InterfaceDescriptionData> interfaces;
+
+    // Create the interfaces from the XML and build the InterfaceDescriptionData
+    // vector based on it
+    for(vector<InterfaceData>::const_iterator ifaceIter(desc.interfaces.begin());
+        ifaceIter != desc.interfaces.end(); ++ifaceIter)
+    {
+        string ifaceName = ifaceIter->name;
+        string ifaceXml  = ifaceIter->data;
+        bool   announced = ifaceIter->announced;
+
+        if ( IsInterfaceKnownToAlreadyExist(ifaceName) )
+        {
+            continue;
+        }
+
+        LOG_VERBOSE("Creating interfaces from XML:\n%s", ifaceXml.c_str());
+        err = bus.CreateInterfacesFromXml(ifaceXml.c_str());
+        if(err == ER_OK)
+        {
+            const InterfaceDescription* newInterface =
+                    bus.GetInterface(ifaceName.c_str());
+            if(newInterface)
+            {
+                InterfaceDescriptionData data;
+                data.desc = newInterface;
+                data.announced = announced;
+                interfaces.push_back(data);
+
+                // Any SessionPorts to bind?
+                map<string, vector<SessionPort> >::iterator spMapIter =
+                        m_sessionPortMap.find(ifaceName);
+                if(spMapIter != m_sessionPortMap.end())
+                {
+                    portsToBind[ifaceName] = spMapIter->second;
+                }
+            }
+            else
+            {
+                err = ER_FAIL;
+            }
+        }
+
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed to create InterfaceDescription %s: %s",
+                    ifaceName.c_str(), QCC_StatusText(err));
+            break;
+        }
+    }
+
+    // Add the bus object.
+    if ( !interfaces.empty() )
+    {
+        LOG_DEBUG("Adding remote bus object %s to attachment %s",
+                objPath.c_str(), bus.GetUniqueName().c_str());
+        err = bus.AddRemoteObject(objPath, interfaces);
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
+                    QCC_StatusText(err));
+        }
+    }
+    else
+    {
+        LOG_DEBUG("No interface for remote object %s. Not creating bus object for attachment %s.",
+                objPath.c_str(), bus.GetUniqueName().c_str());
+    }
+
+    return err;
+}
+
+QStatus
+XMPPConnector::BindSessionPorts(
+    RemoteBusAttachment& bus,
+    const map<string,vector<SessionPort> >& portsToBind
+    )
+{
+    QStatus err(ER_OK);
+    map<string, vector<SessionPort> >::const_iterator spMapIter;
+    for(spMapIter = portsToBind.begin();
+        spMapIter != portsToBind.end();
+        ++spMapIter)
+    {
+        vector<SessionPort>::const_iterator spIter;
+        for(spIter = spMapIter->second.begin();
+            spIter != spMapIter->second.end();
+            ++spIter)
+        {
+            LOG_DEBUG("Binding session port %d for interface %s",
+                    *spIter, spMapIter->first.c_str());
+            err = bus.BindSessionPort(*spIter);
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to bind session port: %s",
+                        QCC_StatusText(err));
+            }
+        }
+    }
+    return ER_OK; // for now always return ER_OK
+}
+
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(
     const string&                          from,
     const string&                          remoteName,
-    const vector<RemoteObjectDescription>* objects
+    const vector<RemoteObjectDescription>* objects,
+    bool                                   announcement
     )
 {
     FNLOG;
@@ -661,6 +774,69 @@ XMPPConnector::GetRemoteAttachment(
         }
     }
 
+    if(result && announcement)
+    {
+        // This was an announcement after we've already created the RemoteBusAttachment
+        //  so add any RemoteBusObjects that are new
+        QStatus err = ER_OK;
+        for ( vector<RemoteObjectDescription>::const_iterator objIter(objects->begin());
+              objIter != objects->end(); ++objIter )
+        {
+            string objPath(objIter->path);
+            if( result->RemoteObjectExists(objPath) )
+            {
+                // For each interface in the remote bus object...
+                for(vector<InterfaceData>::const_iterator ifaceIter(objIter->interfaces.begin());
+                    ifaceIter != objIter->interfaces.end(); ++ifaceIter)
+                {
+                    // If its announce flag is true now then make sure it's announced
+                    // NOTE: It doesn't look like there's a way for us to query the announced
+                    //  state on the BusObject, so we will merely make sure it's announced if
+                    //  it's set.
+                    if(ifaceIter->announced)
+                    {
+                        string ifaceName = ifaceIter->name;
+                        const InterfaceDescription* ifaceDesc =
+                                    result->GetInterface(ifaceName.c_str());
+                        err = result->UpdateRemoteObjectAnnounceFlag(
+                                objPath, ifaceDesc, ajn::BusObject::ANNOUNCED);
+                        if(ER_OK != err)
+                        {
+                            LOG_RELEASE("Failed to update the Announce state of the %s interface for bus object %s: %s",
+                                ifaceName.c_str(), objPath.c_str(), QCC_StatusText(err));
+                            err = ER_OK; // reset the error status after logging the error
+                        }
+                    }
+                }
+
+                // NOTE: Perhaps we should also check that the interfaces don't
+                //  need to change. That is unlikely, though, since they are not allowed
+                //  to change after the bus object has been created.
+            }
+            else // The BusObject has not yet been added to the BusAttachment
+            {
+                LOG_DEBUG("Adding new remote bus object %s to attachment %s",
+                        objPath.c_str(), result->GetUniqueName().c_str());
+
+                // Add the new BusObject to the BusAttachment
+                map<string, vector<SessionPort> > portsToBind;
+                err = AddRemoteObject(*result, *objIter, portsToBind);
+
+                // Bind any necessary SessionPorts
+                if(err == ER_OK)
+                {
+                    err = BindSessionPorts( *result, portsToBind );
+                    if(ER_OK != err)
+                    {
+                        LOG_RELEASE("Problem binding session ports for BusAttachment %s: %s",
+                                result->GetUniqueName().c_str(), QCC_StatusText(err));
+                        err = ER_OK; // reset the error code after logging the error
+                    }
+                }
+            }
+        }
+    }
+
     if(!result && objects)
     {
         LOG_DEBUG("Creating new remote bus attachment: %s", remoteName.c_str());
@@ -673,80 +849,8 @@ XMPPConnector::GetRemoteAttachment(
         vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
         {
-            string objPath = objIter->path;
-            vector<InterfaceDescriptionData> interfaces;
-
-            // Get the interface descriptions
-            bool hasInterface(false);
-            vector<InterfaceData>::const_iterator ifaceIter;
-            for(ifaceIter = objIter->interfaces.begin();
-                ifaceIter != objIter->interfaces.end();
-                ++ifaceIter)
-            {
-                string ifaceName = ifaceIter->name;
-                string ifaceXml  = ifaceIter->data;
-                bool   announced  = ifaceIter->announced;
-
-                if ( IsInterfaceKnownToAlreadyExist(ifaceName) )
-                {
-                    continue;
-                }
-
-                LOG_VERBOSE("Creating interfaces from XML:\n%s", ifaceXml.c_str());
-                err = result->CreateInterfacesFromXml(ifaceXml.c_str());
-                if(err == ER_OK)
-                {
-                    const InterfaceDescription* newInterface =
-                            result->GetInterface(ifaceName.c_str());
-                    if(newInterface)
-                    {
-                        InterfaceDescriptionData data;
-                        data.desc = newInterface;
-                        data.announced = announced;
-                        interfaces.push_back(data);
-                        hasInterface = true;
-
-                        // Any SessionPorts to bind?
-                        map<string, vector<SessionPort> >::iterator spMapIter =
-                                m_sessionPortMap.find(ifaceName);
-                        if(spMapIter != m_sessionPortMap.end())
-                        {
-                            portsToBind[ifaceName] = spMapIter->second;
-                        }
-                    }
-                    else
-                    {
-                        err = ER_FAIL;
-                    }
-                }
-
-                if(err != ER_OK)
-                {
-                    LOG_RELEASE("Failed to create InterfaceDescription %s: %s",
-                            ifaceName.c_str(), QCC_StatusText(err));
-                    break;
-                }
-            }
-            if(err != ER_OK)
-            {
-                break;
-            }
-
-            // Add the bus object.
-            if ( hasInterface )
-            {
-                err = result->AddRemoteObject(objPath, interfaces);
-                if(err != ER_OK)
-                {
-                    LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
-                            QCC_StatusText(err));
-                    break;
-                }
-            }
-            else
-            {
-                LOG_DEBUG("No interface for remote object %s. Not creating bus object.", objPath.c_str());
-            }
+            // Add the BusObject
+            err = AddRemoteObject(*result, *objIter, portsToBind);
         }
 
         // Start and connect the new attachment.
@@ -772,34 +876,16 @@ XMPPConnector::GetRemoteAttachment(
         // Bind any necessary SessionPorts
         if(err == ER_OK)
         {
-            map<string, vector<SessionPort> >::iterator spMapIter;
-            for(spMapIter = portsToBind.begin();
-                spMapIter != portsToBind.end();
-                ++spMapIter)
+            err = BindSessionPorts( *result, portsToBind );
+            if(ER_OK != err)
             {
-                vector<SessionPort>::iterator spIter;
-                for(spIter = spMapIter->second.begin();
-                    spIter != spMapIter->second.end();
-                    ++spIter)
-                {
-                    LOG_DEBUG("Binding session port %d for interface %s",
-                            *spIter, spMapIter->first.c_str());
-                    err = result->BindSessionPort(*spIter);
-                    if(err != ER_OK)
-                    {
-                        LOG_RELEASE("Failed to bind session port: %s",
-                                QCC_StatusText(err));
-                        break;
-                    }
-                }
-
-                if(err != ER_OK)
-                {
-                    break;
-                }
+                LOG_RELEASE("Problem binding session ports for BusAttachment %s: %s",
+                        result->GetUniqueName().c_str(), QCC_StatusText(err));
+                err = ER_OK; // reset the error code after logging the error
             }
         }
 
+        // Add our RemoteBusAttachment to the vector
         if(err == ER_OK)
         {
             m_remoteAttachments[from].push_back(result);
@@ -1771,7 +1857,7 @@ XMPPConnector::ReceiveAnnounce(
 
     // Find or create the BusAttachment with the given app name
     RemoteBusAttachment* bus =
-            GetRemoteAttachment(from, remoteName, &objects);
+            GetRemoteAttachment(from, remoteName, &objects, true);
     if(bus)
     {
         // Request and announce our name

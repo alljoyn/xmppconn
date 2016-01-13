@@ -123,12 +123,19 @@ RemoteBusAttachment::AllJoynSignalHandler(
 
 QStatus
 RemoteBusAttachment::AddRemoteObject(
-    const string&                       path,
+    const string&                    path,
     vector<InterfaceDescriptionData> interfaces
     )
 {
     FNLOG;
     QStatus err = ER_OK;
+    if(RemoteObjectExists(path))
+    {
+        LOG_RELEASE("Failed to add remote bus object for path %s because it was already added.",
+                path.c_str());
+        return ER_FAIL;
+    }
+
     RemoteBusObject* newObj = new RemoteBusObject(this, path, m_connector);
     LOG_VERBOSE("Adding remote bus object for path: %s", path.c_str());
 
@@ -152,6 +159,48 @@ RemoteBusAttachment::AddRemoteObject(
 
     m_objects.push_back(newObj);
     return err;
+}
+
+QStatus
+RemoteBusAttachment::UpdateRemoteObject(
+    const string&                    path,
+    vector<InterfaceDescriptionData> interfaces
+    )
+{
+    FNLOG;
+    QStatus err = ER_OK;
+
+    // To update a BusObject we must remove it and re-add it because you
+    //  can't modify the interfaces once it has been registered.
+    err = RemoveRemoteObject(path);
+    if(ER_OK != err)
+    {
+        LOG_RELEASE("Failed to remove the remote bus object for path %s: %s",
+                path.c_str(), QCC_StatusText(err));
+        // NOTE: We continue here anyways and try to add the remote bus object
+    }
+
+    return AddRemoteObject(path, interfaces);
+}
+
+QStatus
+RemoteBusAttachment::UpdateRemoteObjectAnnounceFlag(
+    const std::string&           path,
+    const InterfaceDescription*  iface,
+    ajn::BusObject::AnnounceFlag isAnnounced
+    )
+{
+    for(std::vector<RemoteBusObject*>::const_iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            return busObj->SetAnnounceFlag(iface, isAnnounced);
+        }
+    }
+
+    return ER_BUS_OBJ_NOT_FOUND;
 }
 
 string
@@ -274,10 +323,10 @@ RemoteBusAttachment::GetPeerBySessionId(
 
 void
 RemoteBusAttachment::RelayAnnouncement(
-    uint16_t          version,
-    uint16_t          port,
-    const string&     busName,
-    const AboutData&  aboutData
+    uint16_t              version,
+    uint16_t              port,
+    const string&         busName,
+    const ajn::AboutData& aboutData
     )
 {
     QStatus err = ER_OK;
@@ -443,4 +492,42 @@ string
 RemoteBusAttachment::RemoteName() const
 {
     return m_remoteName;
+}
+
+bool
+RemoteBusAttachment::RemoteObjectExists(
+    const std::string& path
+    ) const
+{
+    for(std::vector<RemoteBusObject*>::const_iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+QStatus
+RemoteBusAttachment::RemoveRemoteObject(
+    const std::string& path
+    )
+{
+    for(std::vector<RemoteBusObject*>::iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            UnregisterBusObject(*busObj);
+            m_objects.erase(it);
+            delete busObj;
+            return ER_OK;
+        }
+    }
+
+    return ER_BUS_OBJ_NOT_FOUND;
 }

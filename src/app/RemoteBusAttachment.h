@@ -71,6 +71,19 @@ public:
         std::vector<InterfaceDescriptionData> interfaces
         );
 
+    QStatus
+    UpdateRemoteObject(
+        const std::string&                    path,
+        std::vector<InterfaceDescriptionData> interfaces
+        );
+
+    QStatus
+    UpdateRemoteObjectAnnounceFlag(
+        const std::string&           path,
+        const InterfaceDescription*  iface,
+        ajn::BusObject::AnnounceFlag isAnnounced
+        );
+
     std::string
     RequestWellKnownName(
         const std::string& remoteName
@@ -133,6 +146,12 @@ public:
         ajn::SessionId result
         );
 
+    bool
+    RemoteObjectExists(
+        const std::string& path
+        ) const;
+
+    // Accessors
     std::string WellKnownName() const;
     std::string RemoteName() const;
 
@@ -155,6 +174,11 @@ private:
     pthread_mutex_t                       m_activeSessionsMutex;
 
     AboutObj*                m_aboutObj;
+
+    QStatus
+    RemoveRemoteObject(
+        const std::string& path
+        );
 };
 
 
