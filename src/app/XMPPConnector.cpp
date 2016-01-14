@@ -2674,6 +2674,16 @@ XMPPConnector::MessageReceived(
         ReceiveGetAllReply(source, message);
         LOG_DEBUG("Received Get All Reply");
     }
+    else if(typeCode == ALLJOYN_CODE_SET_PROPERTY)
+    {
+        ReceiveSetRequest(source, message);
+        LOG_DEBUG("Received Set Request");
+    }
+    else if(typeCode == ALLJOYN_CODE_SET_PROP_REPLY)
+    {
+        ReceiveSetReply(source, message);
+        LOG_DEBUG("Received Set Reply");
+    }
     else if(typeCode == ALLJOYN_CODE_NAME_OWNER_CHANGED)
     {
         ReceiveNameOwnerChanged(source, message);
