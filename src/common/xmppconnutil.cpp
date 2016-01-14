@@ -147,6 +147,7 @@ namespace str {
         uint8_t* bytes = new uint8_t[numBytes];
         if(numBytes != HexStringToBytes(str.c_str(), bytes, numBytes))
         {
+            delete[] bytes;
             return str;
         }
 
@@ -155,6 +156,7 @@ namespace str {
 
         if(inflateInit(&zs) != Z_OK)
         {
+            delete[] bytes;
             return str;
         }
 
@@ -181,9 +183,11 @@ namespace str {
 
         if(ret != Z_STREAM_END)
         {
+            delete[] bytes;
             return str;
         }
 
+        delete[] bytes;
         return outString;
     }
 
@@ -523,11 +527,15 @@ namespace msgarg {
                 }
                 if ( stringarray.empty() )
                 {
-                    status = result.Set("as", 0, 0);
+                    string signature("as");
+                    status = result.Set(signature.c_str(), 0, 0);
+                    result.Stabilize();
                 }
                 else
                 {
-                    status = result.Set("as", stringarray.size(), &stringarray[0]);
+                    string signature("as");
+                    status = result.Set(signature.c_str(), stringarray.size(), &stringarray[0]);
+                    result.Stabilize();
                 }
             }
             else
@@ -537,21 +545,27 @@ namespace msgarg {
                     LOG_DEBUG("Empty MsgArg array being set. Using original signature of %s", sig.c_str());
                     sig = "a" + sig;
                     status = result.Set(sig.c_str(), 0, 0);
+                    result.Stabilize();
                 }
                 else
                 {
                     status = result.Set("a*", array.size(), &array[0]);
+                    result.Stabilize();
                 }
             }
             result.Stabilize();
         }
         else if(typeTag == "<boolean>")
         {
-            status = result.Set("b", content == "1");
+            string signature("b");
+            status = result.Set(signature.c_str(), content == "1");
+            result.Stabilize();
         }
         else if(typeTag == "<double>")
         {
-            status = result.Set("d", StringToU64(content.c_str(), 16));
+            string signature("d");
+            status = result.Set(signature.c_str(), StringToU64(content.c_str(), 16));
+            result.Stabilize();
         }
         else if(typeTag == "<dict_entry>")
         {
@@ -562,41 +576,52 @@ namespace msgarg {
             }
             else
             {
-                status = result.Set("{**}", &array[0], &array[1]);
+                string signature("{**}");
+                status = result.Set(signature.c_str(), &array[0], &array[1]);
                 result.Stabilize();
             }
         }
         else if(typeTag == "<signature>")
         {
-            status = result.Set("g", content.c_str());
+            string signature("g");
+            status = result.Set(signature.c_str(), content.c_str());
             result.Stabilize();
         }
         else if(typeTag == "<int32>")
         {
-            status = result.Set("i", StringToI32(content.c_str()));
+            string signature("i");
+            status = result.Set(signature.c_str(), StringToI32(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<int16>")
         {
-            status = result.Set("n", StringToI32(content.c_str()));
+            string signature("n");
+            status = result.Set(signature.c_str(), StringToI32(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<object_path>")
         {
-            status = result.Set("o", content.c_str());
+            string signature("o");
+            status = result.Set(signature.c_str(), content.c_str());
             result.Stabilize();
         }
         else if(typeTag == "<uint16>")
         {
-            status = result.Set("q", StringToU32(content.c_str()));
+            string signature("q");
+            status = result.Set(signature.c_str(), StringToU32(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<struct>")
         {
             vector<MsgArg> array = VectorFromString(content);
-            status = result.Set("r", array.size(), &array[0]);
+            string signature("r");
+            status = result.Set(signature.c_str(), array.size(), &array[0]);
             result.Stabilize();
         }
         else if(typeTag == "<string>")
         {
-            status = result.Set("s", content.c_str());
+            string signature("s");
+            status = result.Set(signature.c_str(), content.c_str());
             if ( ER_OK != status )
             {
                 LOG_RELEASE("Error setting content on MsgArg! Result: %s", QCC_StatusText(status));
@@ -605,25 +630,34 @@ namespace msgarg {
         }
         else if(typeTag == "<uint64>")
         {
-            status = result.Set("t", StringToU64(content.c_str()));
+            string signature("t");
+            status = result.Set(signature.c_str(), StringToU64(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<uint32>")
         {
-            status = result.Set("u", StringToU32(content.c_str()));
+            string signature("u");
+            status = result.Set(signature.c_str(), StringToU32(content.c_str()));
+            result.Stabilize();
         }
         else if(0 == typeTag.find("<variant signature="))
         {
             MsgArg varArg = FromString(content);
-            result.Set("v", &varArg);
+            string signature("v");
+            result.Set(signature.c_str(), &varArg);
             result.Stabilize();
         }
         else if(typeTag == "<int64>")
         {
-            status = result.Set("x", StringToI64(content.c_str()));
+            string signature("x");
+            status = result.Set(signature.c_str(), StringToI64(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<byte>")
         {
-            status = result.Set("y", StringToU32(content.c_str()));
+            string signature("y");
+            status = result.Set(signature.c_str(), StringToU32(content.c_str()));
+            result.Stabilize();
         }
         else if(typeTag == "<handle>")
         {
@@ -636,7 +670,8 @@ namespace msgarg {
             }
             else
             {
-                status = result.Set("h", bytes);
+                string signature("h");
+                status = result.Set(signature.c_str(), bytes);
                 result.Stabilize();
             }
             delete[] bytes;
@@ -655,7 +690,8 @@ namespace msgarg {
             // vector<bool> is special so we must copy it to a usable array
             bool* array = new bool[elements.size()];
             copy(elements.begin(), elements.end(), array);
-            status = result.Set("ab", elements.size(), array);
+            string signature("ab");
+            status = result.Set(signature.c_str(), elements.size(), array);
             result.Stabilize();
             delete[] array;
         }
@@ -680,7 +716,8 @@ namespace msgarg {
                             content.substr(pos, endPos-pos).c_str()));
                 }
             }
-            status = result.Set("ad", elements.size(), &elements[0]);
+            string signature("ad");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int32\">")
@@ -695,7 +732,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("ai", elements.size(), &elements[0]);
+            string signature("ai");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int16\">")
@@ -710,7 +748,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("an", elements.size(), &elements[0]);
+            string signature("an");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint16\">")
@@ -725,7 +764,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("aq", elements.size(), &elements[0]);
+            string signature("aq");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint64\">")
@@ -740,7 +780,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("at", elements.size(), &elements[0]);
+            string signature("at");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint32\">")
@@ -755,7 +796,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("au", elements.size(), &elements[0]);
+            string signature("au");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int64\">")
@@ -770,7 +812,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("ax", elements.size(), &elements[0]);
+            string signature("ax");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"byte\">")
@@ -785,7 +828,8 @@ namespace msgarg {
                         pos, endPos-pos).c_str()));
                 pos = endPos;
             }
-            status = result.Set("ay", elements.size(), &elements[0]);
+            string signature("ay");
+            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
             result.Stabilize();
         }
 
@@ -809,26 +853,83 @@ namespace msgarg {
         content = str::Trim(content);
         while(!content.empty())
         {
-            size_t typeBeginPos = content.find_first_of('<')+1;                 // TODO: check typeBeginPos for npos, other stuff like that in these kinds of functions
+            size_t typeBeginPos = content.find_first_of('<')+1;
             size_t typeEndPos = content.find_first_of(" >", typeBeginPos);
+            if(string::npos == typeBeginPos || string::npos == typeEndPos)
+            {
+                LOG_RELEASE("InvalidMsgArg XML (No matching tag begin and end characters! Content: %s",
+                        content.c_str());
+                return array;
+            }
             string elemType = content.substr(
                     typeBeginPos, typeEndPos-typeBeginPos);
+            string startTagPrefix = "<"+elemType;
             string closeTag = "</"+elemType+">";
+            const size_t startTagPrefixSize = startTagPrefix.length();
+            const size_t closeTagSize = closeTag.length();
 
-            // Find the closing tag for this element
-            size_t closeTagPos = content.find(closeTag);
-            size_t nestedTypeEndPos = typeEndPos;
-            while(closeTagPos > content.find(elemType, nestedTypeEndPos))
+            // Find the closing tag (closeTagPos)
+            size_t depth = 1;
+            size_t curPos = typeEndPos;
+            size_t closeTagPos = curPos;
+            // While depth counter is > 0
+            while ( depth > 0
+                    && curPos < content.size() ) // sanity check for invalid XML
             {
-                nestedTypeEndPos = closeTagPos+2+elemType.length();
-                closeTagPos = content.find(
-                        closeTag, closeTagPos+closeTag.length());
+                // Find the next startTagPrefix and the next closeTag
+                size_t nextStartTagPos = content.find(startTagPrefix, curPos);
+                size_t nextCloseTagPos = content.find(closeTag, curPos);
+
+                // Sanity check that we found a close tag
+                if(string::npos == nextCloseTagPos)
+                {
+                    LOG_RELEASE("Invalid MsgArg XML (no matching close tag for %s): %s",
+                            startTagPrefix.c_str(), content.c_str());
+                    return array;
+                }
+                else
+                {
+                    // Increment curPos to be beyond the next closeTag. This will
+                    //  be overridden if we found a startTagPrefix before this closeTag.
+                    curPos = nextCloseTagPos + closeTagSize;
+                }
+
+                // If we found another startTagPrefix
+                if(string::npos != nextStartTagPos)
+                {
+                    // If the next startTagPrefix is before the next closeTag
+                    if(nextStartTagPos < nextCloseTagPos)
+                    {
+                        // Increment curPos to be beyond the next startTagPrefix
+                        curPos = nextStartTagPos + startTagPrefixSize;
+
+                        // Increment the depth counter
+                        depth++;
+                    }
+                    else // Else the next closeTag applies to the current depth
+                    {
+                        // Decrement the depth counter
+                        depth--;
+                    }
+                }
+                else // Else there was only a closeTag
+                {
+                    // Decrement the depth counter
+                    depth--;
+                }
+
+                // If the depth counter is at 0
+                if(depth == 0)
+                {
+                    // We found the correct closeTag
+                    closeTagPos = nextCloseTagPos;
+                }
             }
 
             string element = content.substr(0, closeTagPos+closeTag.length());
             array.push_back(FromString(element));
 
-            content = content.substr(closeTagPos+closeTag.length());
+            content = str::Trim(content.substr(closeTagPos+closeTagSize));
         }
 
         return array;
@@ -940,7 +1041,7 @@ namespace bus {
         void*           context
         )
     {
-        FNLOG
+        FNLOG;
         GetBusObjectsTreeNode* node = reinterpret_cast<GetBusObjectsTreeNode*>(context);
         GetBusObjectsAsyncContext* ctx = node->GetContext();
 
@@ -1019,20 +1120,20 @@ namespace bus {
     }
 
     /* Recursively get BusObject information from an attachment. */
-    void
+    QStatus
     GetBusObjectsRecursive(
         vector<BusObjectInfo>& busObjects,
         ProxyBusObject&        proxy
         )
     {
-        FNLOG
+        FNLOG;
         QStatus err = proxy.IntrospectRemoteObject(500);
         if(err != ER_OK)
         {
             LOG_RELEASE("Failed to introspect remote object %s (%s): %s",
                     proxy.GetServiceName().c_str(), proxy.GetPath().c_str(),
                     QCC_StatusText(err));
-            return;
+            return err;
         }
 
         BusObjectInfo thisObj;
@@ -1081,15 +1182,22 @@ namespace bus {
 
             for(uint32_t i = 0; i < num_children; ++i)
             {
-                GetBusObjectsRecursive(busObjects, *children[i]);
+                QStatus internalErr = GetBusObjectsRecursive(busObjects, *children[i]);
+                if(err == ER_OK && internalErr != ER_OK)
+                {
+                    err = internalErr;
+                    // NOTE: Keep going
+                }
             }
 
             delete[] children;
         }
+
+        return err;
     }
 
     /* Asynchronously get BusObject information from an attachment. */
-    void
+    QStatus
     GetBusObjectsAsync(
         ProxyBusObject*                                proxy,
         GetBusObjectsAsyncReceiver*                    receiver,
@@ -1097,7 +1205,7 @@ namespace bus {
         void*                                          context
         )
     {
-        FNLOG
+        FNLOG;
         vector<BusObjectInfo>* busObjects = new vector<BusObjectInfo>();
         GetBusObjectsAsyncIntrospectReceiver* introspectReceiver = new
             GetBusObjectsAsyncIntrospectReceiver();
@@ -1119,8 +1227,8 @@ namespace bus {
         {
             LOG_RELEASE("Failed asynchronous introspect for bus objects: %s",
                     QCC_StatusText(err));
-            return;
         }
+        return err;
     }
 
 } // namespace bus

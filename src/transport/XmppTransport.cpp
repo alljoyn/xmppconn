@@ -386,7 +386,7 @@ XmppTransport::XmppPresenceHandler(
         )
 {
 
-    FNLOG
+    FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
     /*        // First determine if it's a probe and answer it if necessary
@@ -479,7 +479,7 @@ XmppTransport::XmppRosterHandler(
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     QCC_UNUSED(transport);
 
-    FNLOG
+    FNLOG;
     LOG_DEBUG("Received Roster Stanza");
 
     char* buf = 0;
@@ -574,7 +574,7 @@ XmppTransport::XmppConnectionHandler(
         )
 {
 
-    FNLOG
+    FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     switch(event)
     {

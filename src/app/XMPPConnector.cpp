@@ -23,19 +23,21 @@
 #include <pthread.h>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 #include "XMPPConnector.h"                                                      // TODO: internal documentation
 #include "transport/XmppTransport.h"
 #include "RemoteBusAttachment.h"
 #include "RemoteBusListener.h"
 #include "RemoteBusObject.h"
+#include <alljoyn/about/AnnouncementRegistrar.h>
 
 
 using namespace ajn;
+using namespace ajn::services;
 #ifndef NO_AJ_GATEWAY
 using namespace ajn::gw;
 #endif // !NO_AJ_GATEWAY
-using namespace ajn::services;
 using namespace qcc;
 
 using std::string;
@@ -50,7 +52,7 @@ using std::ostringstream;
 class AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    public AnnounceHandler,
+    public ajn::services::AnnounceHandler,
     public ProxyBusObject::Listener,
     public util::bus::GetBusObjectsAsyncReceiver
 {
@@ -78,7 +80,7 @@ public:
         void*                               context
         )
     {
-        FNLOG
+        FNLOG;
 
         // Send the advertisement via XMPP
         m_connector->SendAdvertisement(
@@ -97,7 +99,7 @@ public:
         void*                               context
         )
     {
-        FNLOG
+        FNLOG;
         IntrospectCallbackContext* ctx =
             static_cast<IntrospectCallbackContext*>(context);
 
@@ -121,7 +123,7 @@ public:
         void*           context
         )
     {
-        FNLOG
+        FNLOG;
         /** TODO: REQUIRED
          * Register sessionless signal handlers for announcing/advertising apps
          * (need to implement the required interfaces on m_bus). Other method/
@@ -210,7 +212,7 @@ public:
             return;
         }
 
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Found advertised name: %s", name);
 
@@ -258,7 +260,7 @@ public:
         {
             return;
         }
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Lost advertised name: %s", name);
         m_connector->SendAdvertisementLost(name);
@@ -271,7 +273,7 @@ public:
         const char* newOwner
         )
     {
-        FNLOG
+        FNLOG;
         /**
          * If owner changed to nobody, an Announcing app may have gone offline.
          * Send the busName to the XMPP server so that any remote connectors can
@@ -303,7 +305,7 @@ public:
         {
             return;
         }
-        FNLOG
+        FNLOG;
 
         LOG_DEBUG("Received Announce: %s", busName);
         m_bus->EnableConcurrentCallbacks();
@@ -502,7 +504,7 @@ QStatus
 XMPPConnector::Start()
 {
     QStatus err = ER_OK;
-    FNLOG
+    FNLOG;
     if(!m_initialized)
     {
         LOG_RELEASE("XMPPConnector not initialized");
@@ -522,7 +524,7 @@ XMPPConnector::Start()
 
 void XMPPConnector::Stop()
 {
-    FNLOG
+    FNLOG;
     m_transport->Stop();
 }
 
@@ -620,11 +622,138 @@ XMPPConnector::receiveGetMergedAclAsync(
 }
 #endif // !NO_AJ_GATEWAY
 
+bool
+XMPPConnector::IsInterfaceKnownToAlreadyExist(
+    const string& ifaceName
+    ) const
+{
+    string buspeer("org.alljoyn.Bus.Peer");
+    return ifaceName == "org.freedesktop.DBus.Peer" || 
+          ifaceName == "org.freedesktop.DBus.Introspectable" || 
+          ifaceName == "org.freedesktop.DBus.Properties" || 
+          ifaceName == "org.allseen.Introspectable" || 
+          ifaceName == "org.alljoyn.About" || 
+          ifaceName.compare(0, buspeer.length(), buspeer) == 0;
+}
+
+
+QStatus
+XMPPConnector::AddRemoteObject(
+    RemoteBusAttachment&               bus,
+    const RemoteObjectDescription&     desc,
+    map<string, vector<SessionPort> >& portsToBind
+    )
+{
+    QStatus err(ER_OK);
+    string objPath(desc.path);
+    vector<InterfaceDescriptionData> interfaces;
+
+    // Create the interfaces from the XML and build the InterfaceDescriptionData
+    // vector based on it
+    for(vector<InterfaceData>::const_iterator ifaceIter(desc.interfaces.begin());
+        ifaceIter != desc.interfaces.end(); ++ifaceIter)
+    {
+        string ifaceName = ifaceIter->name;
+        string ifaceXml  = ifaceIter->data;
+        bool   announced = ifaceIter->announced;
+
+        if ( IsInterfaceKnownToAlreadyExist(ifaceName) )
+        {
+            continue;
+        }
+
+        LOG_VERBOSE("Creating interfaces from XML:\n%s", ifaceXml.c_str());
+        err = bus.CreateInterfacesFromXml(ifaceXml.c_str());
+        if(err == ER_OK)
+        {
+            const InterfaceDescription* newInterface =
+                    bus.GetInterface(ifaceName.c_str());
+            if(newInterface)
+            {
+                InterfaceDescriptionData data;
+                data.desc = newInterface;
+                data.announced = announced;
+                interfaces.push_back(data);
+
+                // Any SessionPorts to bind?
+                map<string, vector<SessionPort> >::iterator spMapIter =
+                        m_sessionPortMap.find(ifaceName);
+                if(spMapIter != m_sessionPortMap.end())
+                {
+                    portsToBind[ifaceName] = spMapIter->second;
+                }
+            }
+            else
+            {
+                err = ER_FAIL;
+            }
+        }
+
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed to create InterfaceDescription %s: %s",
+                    ifaceName.c_str(), QCC_StatusText(err));
+            break;
+        }
+    }
+
+    // Add the bus object.
+    if ( !interfaces.empty() )
+    {
+        LOG_DEBUG("Adding remote bus object %s to attachment %s",
+                objPath.c_str(), bus.GetUniqueName().c_str());
+        err = bus.AddRemoteObject(objPath, interfaces);
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
+                    QCC_StatusText(err));
+        }
+    }
+    else
+    {
+        LOG_DEBUG("No interface for remote object %s. Not creating bus object for attachment %s.",
+                objPath.c_str(), bus.GetUniqueName().c_str());
+    }
+
+    return err;
+}
+
+QStatus
+XMPPConnector::BindSessionPorts(
+    RemoteBusAttachment& bus,
+    const map<string,vector<SessionPort> >& portsToBind
+    )
+{
+    QStatus err(ER_OK);
+    map<string, vector<SessionPort> >::const_iterator spMapIter;
+    for(spMapIter = portsToBind.begin();
+        spMapIter != portsToBind.end();
+        ++spMapIter)
+    {
+        vector<SessionPort>::const_iterator spIter;
+        for(spIter = spMapIter->second.begin();
+            spIter != spMapIter->second.end();
+            ++spIter)
+        {
+            LOG_DEBUG("Binding session port %d for interface %s",
+                    *spIter, spMapIter->first.c_str());
+            err = bus.BindSessionPort(*spIter);
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to bind session port: %s",
+                        QCC_StatusText(err));
+            }
+        }
+    }
+    return ER_OK; // for now always return ER_OK
+}
+
 RemoteBusAttachment*
 XMPPConnector::GetRemoteAttachment(
     const string&                          from,
     const string&                          remoteName,
-    const vector<RemoteObjectDescription>* objects
+    const vector<RemoteObjectDescription>* objects,
+    bool                                   announcement
     )
 {
     FNLOG;
@@ -645,6 +774,69 @@ XMPPConnector::GetRemoteAttachment(
         }
     }
 
+    if(result && announcement)
+    {
+        // This was an announcement after we've already created the RemoteBusAttachment
+        //  so add any RemoteBusObjects that are new
+        QStatus err = ER_OK;
+        for ( vector<RemoteObjectDescription>::const_iterator objIter(objects->begin());
+              objIter != objects->end(); ++objIter )
+        {
+            string objPath(objIter->path);
+            if( result->RemoteObjectExists(objPath) )
+            {
+                // For each interface in the remote bus object...
+                for(vector<InterfaceData>::const_iterator ifaceIter(objIter->interfaces.begin());
+                    ifaceIter != objIter->interfaces.end(); ++ifaceIter)
+                {
+                    // If its announce flag is true now then make sure it's announced
+                    // NOTE: It doesn't look like there's a way for us to query the announced
+                    //  state on the BusObject, so we will merely make sure it's announced if
+                    //  it's set.
+                    if(ifaceIter->announced)
+                    {
+                        string ifaceName = ifaceIter->name;
+                        const InterfaceDescription* ifaceDesc =
+                                    result->GetInterface(ifaceName.c_str());
+                        err = result->UpdateRemoteObjectAnnounceFlag(
+                                objPath, ifaceDesc, ajn::BusObject::ANNOUNCED);
+                        if(ER_OK != err)
+                        {
+                            LOG_RELEASE("Failed to update the Announce state of the %s interface for bus object %s: %s",
+                                ifaceName.c_str(), objPath.c_str(), QCC_StatusText(err));
+                            err = ER_OK; // reset the error status after logging the error
+                        }
+                    }
+                }
+
+                // NOTE: Perhaps we should also check that the interfaces don't
+                //  need to change. That is unlikely, though, since they are not allowed
+                //  to change after the bus object has been created.
+            }
+            else // The BusObject has not yet been added to the BusAttachment
+            {
+                LOG_DEBUG("Adding new remote bus object %s to attachment %s",
+                        objPath.c_str(), result->GetUniqueName().c_str());
+
+                // Add the new BusObject to the BusAttachment
+                map<string, vector<SessionPort> > portsToBind;
+                err = AddRemoteObject(*result, *objIter, portsToBind);
+
+                // Bind any necessary SessionPorts
+                if(err == ER_OK)
+                {
+                    err = BindSessionPorts( *result, portsToBind );
+                    if(ER_OK != err)
+                    {
+                        LOG_RELEASE("Problem binding session ports for BusAttachment %s: %s",
+                                result->GetUniqueName().c_str(), QCC_StatusText(err));
+                        err = ER_OK; // reset the error code after logging the error
+                    }
+                }
+            }
+        }
+    }
+
     if(!result && objects)
     {
         LOG_DEBUG("Creating new remote bus attachment: %s", remoteName.c_str());
@@ -657,61 +849,8 @@ XMPPConnector::GetRemoteAttachment(
         vector<RemoteObjectDescription>::const_iterator objIter;
         for(objIter = objects->begin(); objIter != objects->end(); ++objIter)
         {
-            string objPath = objIter->path;
-            vector<const InterfaceDescription*> interfaces;
-
-            // Get the interface descriptions
-            map<string, string>::const_iterator ifaceIter;
-            for(ifaceIter = objIter->interfaces.begin();
-                ifaceIter != objIter->interfaces.end();
-                ++ifaceIter)
-            {
-                string ifaceName = ifaceIter->first;
-                string ifaceXml  = ifaceIter->second;
-
-                err = result->CreateInterfacesFromXml(ifaceXml.c_str());
-                if(err == ER_OK)
-                {
-                    const InterfaceDescription* newInterface =
-                            result->GetInterface(ifaceName.c_str());
-                    if(newInterface)
-                    {
-                        interfaces.push_back(newInterface);
-
-                        // Any SessionPorts to bind?
-                        map<string, vector<SessionPort> >::iterator spMapIter =
-                                m_sessionPortMap.find(ifaceName);
-                        if(spMapIter != m_sessionPortMap.end())
-                        {
-                            portsToBind[ifaceName] = spMapIter->second;
-                        }
-                    }
-                    else
-                    {
-                        err = ER_FAIL;
-                    }
-                }
-
-                if(err != ER_OK)
-                {
-                    LOG_RELEASE("Failed to create InterfaceDescription %s: %s",
-                            ifaceName.c_str(), QCC_StatusText(err));
-                    break;
-                }
-            }
-            if(err != ER_OK)
-            {
-                break;
-            }
-
-            // Add the bus object.
-            err = result->AddRemoteObject(objPath, interfaces);
-            if(err != ER_OK)
-            {
-                LOG_RELEASE("Failed to add remote object %s: %s", objPath.c_str(),
-                        QCC_StatusText(err));
-                break;
-            }
+            // Add the BusObject
+            err = AddRemoteObject(*result, *objIter, portsToBind);
         }
 
         // Start and connect the new attachment.
@@ -737,34 +876,16 @@ XMPPConnector::GetRemoteAttachment(
         // Bind any necessary SessionPorts
         if(err == ER_OK)
         {
-            map<string, vector<SessionPort> >::iterator spMapIter;
-            for(spMapIter = portsToBind.begin();
-                spMapIter != portsToBind.end();
-                ++spMapIter)
+            err = BindSessionPorts( *result, portsToBind );
+            if(ER_OK != err)
             {
-                vector<SessionPort>::iterator spIter;
-                for(spIter = spMapIter->second.begin();
-                    spIter != spMapIter->second.end();
-                    ++spIter)
-                {
-                    LOG_DEBUG("Binding session port %d for interface %s",
-                            *spIter, spMapIter->first.c_str());
-                    err = result->BindSessionPort(*spIter);
-                    if(err != ER_OK)
-                    {
-                        LOG_RELEASE("Failed to bind session port: %s",
-                                QCC_StatusText(err));
-                        break;
-                    }
-                }
-
-                if(err != ER_OK)
-                {
-                    break;
-                }
+                LOG_RELEASE("Problem binding session ports for BusAttachment %s: %s",
+                        result->GetUniqueName().c_str(), QCC_StatusText(err));
+                err = ER_OK; // reset the error code after logging the error
             }
         }
 
+        // Add our RemoteBusAttachment to the vector
         if(err == ER_OK)
         {
             m_remoteAttachments[from].push_back(result);
@@ -913,7 +1034,7 @@ void XMPPConnector::DeleteBusAttachment(
     const std::string& from
     )
 {
-    FNLOG
+    FNLOG;
     AllJoynListener* listener = GetBusListener(from);
 
     pthread_mutex_lock(&m_remoteAttachmentsMutex);
@@ -978,7 +1099,7 @@ void XMPPConnector::DeleteBusListener(
     const std::string& from
     )
 {
-    FNLOG
+    FNLOG;
     AllJoynListener* listener = GetBusListener(from);
     if (listener)
     {
@@ -1015,7 +1136,7 @@ XMPPConnector::SendAdvertisement(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
-    FNLOG
+    FNLOG;
     // Skip sending the global Alljoyn advertisements
     size_t found = name.find(ALLJOYN_URL_SUFFIX);
     if (found != string::npos)
@@ -1060,7 +1181,7 @@ XMPPConnector::SendAdvertisementLost(
     const string& name
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_ADVERT_LOST << "\n";
@@ -1079,7 +1200,8 @@ XMPPConnector::SendAnnounce(
     const vector<util::bus::BusObjectInfo>&    busObjects
     )
 {
-    FNLOG
+    FNLOG;
+
     // Find the unique name of the announcing attachment
     string uniqueName = busName;
     map<string, string>::iterator wknIter =
@@ -1157,7 +1279,7 @@ XMPPConnector::SendJoinRequest(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_REQUEST << "\n";
@@ -1199,7 +1321,7 @@ XMPPConnector::SendJoinResponse(
     SessionId     sessionId
     )
 {
-    FNLOG
+    FNLOG;
     // Send the status back to the original session joiner
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_JOIN_RESPONSE << "\n";
@@ -1218,7 +1340,7 @@ XMPPConnector::SendSessionJoined(
     SessionId     localId
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_JOINED << "\n";
@@ -1237,7 +1359,7 @@ XMPPConnector::SendSessionLost(
     SessionId     id
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SESSION_LOST << "\n";
@@ -1255,7 +1377,7 @@ XMPPConnector::SendMethodCall(
     const string&                       objectPath
     )
 {
-    FNLOG
+    FNLOG;
     size_t numArgs = 0;
     const MsgArg* msgArgs = 0;
     message->GetArgs(numArgs, msgArgs);
@@ -1281,7 +1403,7 @@ XMPPConnector::SendMethodReply(
     Message&      reply
     )
 {
-    FNLOG
+    FNLOG;
     size_t numReplyArgs;
     const MsgArg* replyArgs = 0;
     reply->GetArgs(numReplyArgs, replyArgs);
@@ -1302,7 +1424,7 @@ XMPPConnector::SendSignal(
     Message&                            message
     )
 {
-    FNLOG
+    FNLOG;
     // Find the unique name of the signal sender
     string senderUniqueName = message->GetSender();
     map<string, string>::iterator wknIter =
@@ -1339,7 +1461,7 @@ XMPPConnector::SendGetRequest(
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROPERTY << "\n";
@@ -1358,7 +1480,7 @@ XMPPConnector::SendGetReply(
     const MsgArg& replyArg
     )
 {
-    FNLOG
+    FNLOG;
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
@@ -1378,7 +1500,7 @@ XMPPConnector::SendSetRequest(
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROPERTY << "\n";
@@ -1398,7 +1520,7 @@ XMPPConnector::SendSetReply(
     QStatus       replyStatus
     )
 {
-    FNLOG
+    FNLOG;
     // Return the reply
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_SET_PROP_REPLY << "\n";
@@ -1411,18 +1533,19 @@ XMPPConnector::SendSetReply(
 
 void
 XMPPConnector::SendGetAllRequest(
+    const string& ifaceName,
     const InterfaceDescription::Member* member,
     const string& destName,
     const string& destPath
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL << "\n";
     msgStream << destName << "\n";
     msgStream << destPath << "\n";
-    msgStream << member->iface->GetName() << "\n";
+    msgStream << ifaceName << "\n";
     msgStream << member->name << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_GET_ALL);
@@ -1435,7 +1558,7 @@ XMPPConnector::SendGetAllReply(
     const MsgArg& replyArgs
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
@@ -1453,7 +1576,7 @@ XMPPConnector::SendNameOwnerChanged(
     const string& newOwner
     )
 {
-    FNLOG
+    FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
     msgStream << ALLJOYN_CODE_NAME_OWNER_CHANGED << "\n";
@@ -1470,7 +1593,7 @@ XMPPConnector::SendMessage(
     const string& messageType
     )
 {
-    FNLOG
+    FNLOG;
     LOG_DEBUG("Sending %smessage over transport.", (messageType.empty() ? "" : (messageType+" ").c_str()));
     Transport::ConnectionError status = m_transport->Send(body);
     if (Transport::none != status)
@@ -1483,15 +1606,15 @@ XMPPConnector::SendMessage(
 
 vector<XMPPConnector::RemoteObjectDescription>
 XMPPConnector::ParseBusObjectInfo(
-    istringstream& msgStream
+    istringstream& msgStream,
+    map<string, vector<string> > announcedObjIfaceMap
     )
 {
-    FNLOG
+    FNLOG;
     vector<XMPPConnector::RemoteObjectDescription> results;
     XMPPConnector::RemoteObjectDescription thisObj;
     string interfaceName = "";
     string interfaceDescription = "";
-
     string line = "";
     while(getline(msgStream, line))
     {
@@ -1500,8 +1623,22 @@ XMPPConnector::ParseBusObjectInfo(
             if(!interfaceDescription.empty())
             {
                 // We've reached the end of an interface description.
-                //util::str::UnescapeXml(interfaceDescription);
-                thisObj.interfaces[interfaceName] = interfaceDescription;
+                InterfaceData data;
+                data.name = interfaceName;
+                data.data = interfaceDescription; //util::str::UnescapeXml(interfaceDescription);
+                data.announced = false;
+                map<string, vector<string> >::const_iterator announcedObjIt(announcedObjIfaceMap.find(thisObj.path));
+                if ( announcedObjIfaceMap.end() != announcedObjIt )
+                {
+                    vector<string> announcedInterfaces(announcedObjIt->second);
+                    if ( announcedInterfaces.end() != std::find( announcedInterfaces.begin(),
+                            announcedInterfaces.end(), interfaceName) )
+                    {
+                        data.announced = true;
+                        LOG_VERBOSE("Parsed announced interface %s.", interfaceName.c_str());
+                    }
+                }
+                thisObj.interfaces.push_back(data);
 
                 interfaceName.clear();
                 interfaceDescription.clear();
@@ -1541,7 +1678,7 @@ XMPPConnector::ReceiveAdvertisement(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line;
 
@@ -1601,7 +1738,7 @@ XMPPConnector::ReceiveAdvertisementLost(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, name;
 
@@ -1627,7 +1764,7 @@ XMPPConnector::ReceiveAnnounce(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, remoteName, versionStr, portStr, busName;
 
@@ -1644,14 +1781,14 @@ XMPPConnector::ReceiveAnnounce(
     LOG_DEBUG("Received remote announcement: %s", busName.c_str());
 
     // The object descriptions follow
-    AnnounceHandler::ObjectDescriptions objDescs;
     qcc::String objectPath = "";
-    vector<qcc::String> interfaceNames;
+    vector<string> interfaceNames;
+    map<string, vector<string> > announcedObjIfaceMap;
     while(0 != getline(msgStream, line))
     {
         if(line.empty())
         {
-            objDescs[objectPath] = interfaceNames;
+            announcedObjIfaceMap[objectPath.c_str()] = interfaceNames;
             break;
         }
 
@@ -1664,14 +1801,14 @@ XMPPConnector::ReceiveAnnounce(
             if(line[0] == '/')
             {
                 // end of the object description
-                objDescs[objectPath] = interfaceNames;
+                announcedObjIfaceMap[objectPath.c_str()] = interfaceNames;
 
                 interfaceNames.clear();
                 objectPath = line.c_str();
             }
             else
             {
-                interfaceNames.push_back(line.c_str());
+                interfaceNames.push_back(line);
 #ifndef NO_AJ_GATEWAY
                 writeInterfaceToManifest(line);
 #endif
@@ -1680,7 +1817,7 @@ XMPPConnector::ReceiveAnnounce(
     }
 
     // Then come the properties
-    AnnounceHandler::AboutData aboutData;
+    AboutData aboutData("en"); // TODO: Get the correct language information in here. Perhaps a config file setting?
     string propName = "", propDesc = "";
     while(0 != getline(msgStream, line))
     {
@@ -1692,7 +1829,7 @@ XMPPConnector::ReceiveAnnounce(
             }
 
             // reached the end of a property
-            aboutData[propName.c_str()] = util::msgarg::FromString(propDesc);
+            aboutData.SetField(propName.c_str(), util::msgarg::FromString(propDesc));
 
             propName.clear();
             propDesc.clear();
@@ -1710,11 +1847,11 @@ XMPPConnector::ReceiveAnnounce(
 
     // Then the bus objects
     vector<XMPPConnector::RemoteObjectDescription> objects =
-            ParseBusObjectInfo(msgStream);
+            ParseBusObjectInfo(msgStream, announcedObjIfaceMap);
 
     // Find or create the BusAttachment with the given app name
     RemoteBusAttachment* bus =
-            GetRemoteAttachment(from, remoteName, &objects);
+            GetRemoteAttachment(from, remoteName, &objects, true);
     if(bus)
     {
         // Request and announce our name
@@ -1733,7 +1870,6 @@ XMPPConnector::ReceiveAnnounce(
                 strtoul(versionStr.c_str(), NULL, 10),
                 strtoul(portStr.c_str(), NULL, 10),
                 wkn,
-                objDescs,
                 aboutData);
     }
 }
@@ -1744,7 +1880,7 @@ XMPPConnector::ReceiveJoinRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, joiner, joinee, portStr;
 
@@ -1758,8 +1894,7 @@ XMPPConnector::ReceiveJoinRequest(
     if(0 == getline(msgStream, joiner)){ return; }
 
     // Then follow the interfaces implemented by the joiner
-    vector<XMPPConnector::RemoteObjectDescription> objects =
-            ParseBusObjectInfo(msgStream);
+    vector<XMPPConnector::RemoteObjectDescription> objects = ParseBusObjectInfo(msgStream);
 
     // Get or create a bus attachment to join from
     RemoteBusAttachment* bus = GetRemoteAttachment(
@@ -1903,7 +2038,7 @@ XMPPConnector::ReceiveJoinResponse(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, appName, remoteSessionId;
 
@@ -1933,7 +2068,7 @@ XMPPConnector::ReceiveSessionJoined(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, joiner, joinee, portStr, remoteIdStr, localIdStr;
 
@@ -1977,7 +2112,7 @@ XMPPConnector::ReceiveSessionLost(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     istringstream msgStream(message);
     string line, appName, idStr;
 
@@ -2016,7 +2151,7 @@ XMPPConnector::ReceiveMethodCall(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, destName, destPath,
@@ -2082,7 +2217,7 @@ XMPPConnector::ReceiveMethodReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2121,7 +2256,7 @@ XMPPConnector::ReceiveSignal(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, senderName, destination,
@@ -2171,7 +2306,7 @@ XMPPConnector::ReceiveGetRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2216,7 +2351,7 @@ XMPPConnector::ReceiveGetReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2254,7 +2389,7 @@ XMPPConnector::ReceiveSetRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, propName;
@@ -2309,7 +2444,7 @@ XMPPConnector::ReceiveSetReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath, status;
@@ -2340,7 +2475,7 @@ XMPPConnector::ReceiveGetAllRequest(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, destName, destPath, ifaceName, memberName;
@@ -2368,7 +2503,7 @@ XMPPConnector::ReceiveGetAllRequest(
     }
 
     MsgArg values;
-    err = proxy.GetAllProperties(ifaceName.c_str(), values, 5000);              //cout << "Got all properties:\n" << util::msgarg::ToString(values, 2) << endl;
+    err = proxy.GetAllProperties(ifaceName.c_str(), values, 15000);              cout << "Got all properties:\n" << util::msgarg::ToString(values, 2) << endl;
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to get all properties: %s",
@@ -2386,7 +2521,7 @@ XMPPConnector::ReceiveGetAllReply(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, remoteName, objPath;
@@ -2425,7 +2560,7 @@ XMPPConnector::ReceiveNameOwnerChanged(
     const string& message
     )
 {
-    FNLOG
+    FNLOG;
     // Parse the required information
     istringstream msgStream(message);
     string line, busName, previousOwner, newOwner;
@@ -2617,7 +2752,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         }
 
         // Listen for announcements
-        err = AnnouncementRegistrar::RegisterAnnounceHandler(
+        err = ajn::services::AnnouncementRegistrar::RegisterAnnounceHandler(
                 *attachment, *listener, NULL, 0);
 
         if(err != ER_OK)
@@ -2659,14 +2794,14 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
 
 void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::string& source)
 {
-    FNLOG
+    FNLOG;
     BusAttachment* attachment = GetBusAttachment(source);
     AllJoynListener* listener = GetBusListener(source);
 
     if (attachment && listener)
     {
         // Stop listening for advertisements and announcements
-        QStatus status = AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
+        QStatus status = ajn::services::AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
         if (ER_OK != status)
         {
             LOG_RELEASE("Failed to unregister announce handlers: %s", QCC_StatusText(status));

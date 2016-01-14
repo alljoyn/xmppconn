@@ -25,7 +25,6 @@
 
 #include <alljoyn/about/AboutPropertyStoreImpl.h>
 #include <alljoyn/about/AnnouncementRegistrar.h>
-#include <alljoyn/about/AboutServiceApi.h>
 #include <alljoyn/services_common/GuidUtil.h>
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
@@ -313,7 +312,7 @@ int main(int argc, char** argv)
                 cleanup();
                 return status;
             }
-        
+
             configDataStore = new ConfigDataStore(FACTORY_FILE.c_str(),
                                                   CONF_FILE.c_str(),
                                                   s_AppId.c_str(),
@@ -328,7 +327,7 @@ int main(int argc, char** argv)
                 LOG_RELEASE("Failed to get About Service instance!");
                 return ER_BUS_NOT_ALLOWED;
             }
-        
+
             busListener = new CommonBusListener(s_Bus, simpleCallback);
         
             SessionPort sp = 900;

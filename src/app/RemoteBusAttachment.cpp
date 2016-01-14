@@ -15,12 +15,10 @@
  */
 
 #include "RemoteBusAttachment.h"
-#include "alljoyn/about/AnnounceHandler.h"
 #include "XMPPConnector.h"
 
 using namespace std;
 using namespace ajn;
-using namespace ajn::services;
 
 RemoteBusAttachment::RemoteBusAttachment(
     const string&  remoteName,
@@ -33,8 +31,7 @@ RemoteBusAttachment::RemoteBusAttachment(
     m_listener(this, connector),
     m_objects(),
     m_activeSessions(),
-    m_aboutPropertyStore(NULL),
-    m_aboutBusObject(NULL)
+    m_aboutObj(NULL)
 {
     pthread_mutex_init(&m_activeSessionsMutex, NULL);
 
@@ -50,12 +47,11 @@ RemoteBusAttachment::~RemoteBusAttachment()
         delete(*it);
     }
 
-    if(m_aboutBusObject)
+    if(m_aboutObj)
     {
-        UnregisterBusObject(*m_aboutBusObject);
-        m_aboutBusObject->Unregister();
-        delete m_aboutBusObject;
-        delete m_aboutPropertyStore;
+        m_aboutObj->Unannounce();
+        UnregisterBusObject(*m_aboutObj);
+        delete m_aboutObj;
     }
 
     UnregisterBusListener(m_listener);
@@ -80,7 +76,7 @@ RemoteBusAttachment::JoinSession(
     SessionId&    id
     )
 {
-    FNLOG
+    FNLOG;
     SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
             SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
     return BusAttachment::JoinSession(
@@ -92,7 +88,7 @@ RemoteBusAttachment::RegisterSignalHandler(
     const InterfaceDescription::Member* member
     )
 {
-    FNLOG
+    FNLOG;
     const char* ifaceName = member->iface->GetName();
     if(ifaceName == strstr(ifaceName, "org.alljoyn.Bus."))
     {
@@ -127,16 +123,27 @@ RemoteBusAttachment::AllJoynSignalHandler(
 
 QStatus
 RemoteBusAttachment::AddRemoteObject(
-    const string&                       path,
-    vector<const InterfaceDescription*> interfaces
+    const string&                    path,
+    vector<InterfaceDescriptionData> interfaces
     )
 {
+    FNLOG;
     QStatus err = ER_OK;
-    RemoteBusObject* newObj = new RemoteBusObject(this, path, m_connector); // TODO: why pointers?
+    if(RemoteObjectExists(path))
+    {
+        LOG_RELEASE("Failed to add remote bus object for path %s because it was already added.",
+                path.c_str());
+        return ER_FAIL;
+    }
+
+    RemoteBusObject* newObj = new RemoteBusObject(this, path, m_connector);
+    LOG_VERBOSE("Adding remote bus object for path: %s", path.c_str());
 
     err = newObj->ImplementInterfaces(interfaces);
     if(err != ER_OK)
     {
+        LOG_RELEASE("Failed to implement interfaces on remote bus object: %s",
+                QCC_StatusText(err));
         delete newObj;
         return err;
     }
@@ -152,6 +159,48 @@ RemoteBusAttachment::AddRemoteObject(
 
     m_objects.push_back(newObj);
     return err;
+}
+
+QStatus
+RemoteBusAttachment::UpdateRemoteObject(
+    const string&                    path,
+    vector<InterfaceDescriptionData> interfaces
+    )
+{
+    FNLOG;
+    QStatus err = ER_OK;
+
+    // To update a BusObject we must remove it and re-add it because you
+    //  can't modify the interfaces once it has been registered.
+    err = RemoveRemoteObject(path);
+    if(ER_OK != err)
+    {
+        LOG_RELEASE("Failed to remove the remote bus object for path %s: %s",
+                path.c_str(), QCC_StatusText(err));
+        // NOTE: We continue here anyways and try to add the remote bus object
+    }
+
+    return AddRemoteObject(path, interfaces);
+}
+
+QStatus
+RemoteBusAttachment::UpdateRemoteObjectAnnounceFlag(
+    const std::string&           path,
+    const InterfaceDescription*  iface,
+    ajn::BusObject::AnnounceFlag isAnnounced
+    )
+{
+    for(std::vector<RemoteBusObject*>::const_iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            return busObj->SetAnnounceFlag(iface, isAnnounced);
+        }
+    }
+
+    return ER_BUS_OBJ_NOT_FOUND;
 }
 
 string
@@ -274,71 +323,96 @@ RemoteBusAttachment::GetPeerBySessionId(
 
 void
 RemoteBusAttachment::RelayAnnouncement(
-    uint16_t                                   version,
-    uint16_t                                   port,
-    const string&                              busName,
-    const AnnounceHandler::ObjectDescriptions& objectDescs,
-    const AnnounceHandler::AboutData&          aboutData
+    uint16_t              version,
+    uint16_t              port,
+    const string&         busName,
+    const ajn::AboutData& aboutData
     )
 {
     QStatus err = ER_OK;
     LOG_DEBUG("Relaying announcement for %s", m_wellKnownName.c_str());
+    m_aboutData = aboutData;
 
-    if(m_aboutBusObject)
+    if(m_aboutObj)
     {
         // Already announced. Announcement must have been updated.
-        UnregisterBusObject(*m_aboutBusObject);
-        delete m_aboutBusObject;
-        delete m_aboutPropertyStore;
+        m_aboutObj->Unannounce();
+        UnregisterBusObject(*m_aboutObj);
+        delete m_aboutObj;
     }
 
-    // Set up our About bus object
-    m_aboutPropertyStore = new AboutPropertyStore();
-    err = m_aboutPropertyStore->SetAnnounceArgs(aboutData);
-    if(err != ER_OK)
+    // Check the AboutData to make sure it has everything that's needed for 15.04.
+    // NOTE: This is for interoperability with older versions of AllJoyn
+    if(!m_aboutData.IsValid())
     {
-        LOG_RELEASE("Failed to set About announcement args for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        delete m_aboutPropertyStore;
-        m_aboutPropertyStore = 0;
-        return;
+        uint8_t* appId = 0;
+        size_t size = 0;
+        if(ER_OK != m_aboutData.GetAppId(&appId, &size))
+        {
+            LOG_RELEASE("No AppId was provided for %s! Using default nil AppId.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetAppId("00000000-0000-0000-000000000000");
+        }
+        char* str = 0;
+        if(ER_OK != m_aboutData.GetAppName(&str))
+        {
+            LOG_RELEASE("No AppName was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetAppName("Unknown");
+        }
+        if(ER_OK != m_aboutData.GetDefaultLanguage(&str))
+        {
+            LOG_RELEASE("No Default Language was provided for %s! Using default of 'en'",
+                m_wellKnownName.c_str());
+            m_aboutData.SetSupportedLanguage("en");
+            m_aboutData.SetDefaultLanguage("en");
+        }
+        if(ER_OK != m_aboutData.GetDescription(&str))
+        {
+            LOG_RELEASE("No Description was provided for %s! Using default of 'Unknown'",
+                m_wellKnownName.c_str());
+            m_aboutData.SetDescription("Unknown");
+        }
+        if(ER_OK != m_aboutData.GetDeviceId(&str))
+        {
+            LOG_RELEASE("No DeviceId was provided for %s! Using default of nil.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetDeviceId("00000000-0000-0000-000000000000");
+        }
+        if(ER_OK != m_aboutData.GetManufacturer(&str))
+        {
+            LOG_RELEASE("No Manufacturer was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetManufacturer("Manufacturer");
+        }
+        if(ER_OK != m_aboutData.GetModelNumber(&str))
+        {
+            LOG_RELEASE("No ModelNumber was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetModelNumber("Unknown");
+        }
+        if(ER_OK != m_aboutData.GetSoftwareVersion(&str))
+        {
+            LOG_RELEASE("No SoftwareVersion was provided for %s! Using default of 'Unknown'.",
+                m_wellKnownName.c_str());
+            m_aboutData.SetSoftwareVersion("Unknown");
+        }
     }
 
-    m_aboutBusObject = new AboutBusObject(this, *m_aboutPropertyStore);
-    err = m_aboutBusObject->AddObjectDescriptions(objectDescs);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to add About object descriptions for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
-    }
-
-    // Bind and register the announced session port
+    // Bind the session port
     err = BindSessionPort(port);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to bind About announcement session port for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
-    }
-    err = m_aboutBusObject->Register(port);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to register About announcement port for %s: %s",
-                m_wellKnownName.c_str(), QCC_StatusText(err));
-        return;
+            m_wellKnownName.c_str(), QCC_StatusText(err));
+        // NOTE: Attempt to announce anyways rather than bailing out here
     }
 
-    // Register the bus object
-    err = RegisterBusObject(*m_aboutBusObject);
-    if(err != ER_OK)
-    {
-        LOG_RELEASE("Failed to register AboutService bus object: %s",
-                QCC_StatusText(err));
-    }
+    // Create the AboutObj to relay the announcement
+    m_aboutObj = new AboutObj(*this, ajn::BusObject::ANNOUNCED);
 
     // Make the announcement
-    err = m_aboutBusObject->Announce();
+    err = m_aboutObj->Announce(port, m_aboutData);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay announcement for %s: %s",
@@ -418,4 +492,42 @@ string
 RemoteBusAttachment::RemoteName() const
 {
     return m_remoteName;
+}
+
+bool
+RemoteBusAttachment::RemoteObjectExists(
+    const std::string& path
+    ) const
+{
+    for(std::vector<RemoteBusObject*>::const_iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+QStatus
+RemoteBusAttachment::RemoveRemoteObject(
+    const std::string& path
+    )
+{
+    for(std::vector<RemoteBusObject*>::iterator it(m_objects.begin());
+        m_objects.end() != it; ++it)
+    {
+        RemoteBusObject* busObj(*it);
+        if(path == busObj->GetPath())
+        {
+            UnregisterBusObject(*busObj);
+            m_objects.erase(it);
+            delete busObj;
+            return ER_OK;
+        }
+    }
+
+    return ER_BUS_OBJ_NOT_FOUND;
 }

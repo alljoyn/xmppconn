@@ -37,6 +37,7 @@ objs = xmppconn_env.Object(srcs)
 
 # TEMPORARY: ignore deprecated warnings until we can rework the code
 xmppconn_env.Append(CCFLAGS = ['-Wno-deprecated-declarations'])
+#xmppconn_env.Append(CCFLAGS = ['-Wno-error'])
 
 prog = xmppconn_env.Program('xmppconn', objs)
 
