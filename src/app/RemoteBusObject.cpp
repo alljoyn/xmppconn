@@ -159,10 +159,18 @@ RemoteBusObject::SendSignal(
             {
                 if(ifaceMember == members[i]->name.c_str())
                 {
+                    uint16_t ttl = 0;
+                    uint8_t flags = 0;
+                    Message* msg = NULL;
+                    if(sessionId == 0)
+                    {
+                        flags = ALLJOYN_FLAG_SESSIONLESS;
+                    }
                     err = Signal(
                             (destination.empty() ?
                             NULL : destination.c_str()), sessionId,
-                            *members[i], &msgArgs[0], msgArgs.size());
+                            *members[i], &msgArgs[0], msgArgs.size(),
+                            ttl, flags, msg);
                     if(err != ER_OK)
                     {
                         LOG_RELEASE("Failed to send signal: %s",

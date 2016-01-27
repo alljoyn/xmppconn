@@ -71,6 +71,12 @@ public:
     ~AllJoynListener()
     {
         m_bus->UnregisterAllHandlers(this);
+        while(!m_sessionlessSignals.empty())
+        {
+            const InterfaceDescription::Member* member(m_sessionlessSignals.front());
+            delete member;
+            m_sessionlessSignals.erase(m_sessionlessSignals.begin());
+        }
     }
 
     void
@@ -93,6 +99,67 @@ public:
     }
 
     void
+    SessionlessSignalHandler(
+        const InterfaceDescription::Member* member,
+        const char* srcPath,
+        Message& message
+        )
+    {
+        // Check for a sessionless signal since right now we have to
+        // always register all signals even if they're not sessionless.
+        // All sessionless signals have a session ID of 0.
+        if ( message->GetSessionId() == 0 )
+        {
+            m_connector->SendSignal(
+                member,
+                srcPath,
+                message
+                );
+        }
+    }
+
+    QStatus
+    AddSessionlessSignalHandler(
+        const InterfaceDescription::Member* member
+        )
+    {
+        FNLOG;
+
+        // Don't add it if we already registered it
+        for(vector<const InterfaceDescription::Member*>::const_iterator it(m_sessionlessSignals.begin());
+            m_sessionlessSignals.end() != it; ++it)
+        {
+            const InterfaceDescription::Member* current(*it);
+            if(*member == *current &&
+                string(member->iface->GetName()) == string(current->iface->GetName()))
+            {
+                return ER_OK;
+            }
+        }
+
+        // We need to register the signal handler since it's not already registered
+        m_sessionlessSignals.push_back(new InterfaceDescription::Member(*member));
+        QStatus status = m_bus->RegisterSignalHandler(
+            this,
+            static_cast<MessageReceiver::SignalHandler>(&AllJoynListener::SessionlessSignalHandler),
+            member,
+            NULL
+            );
+        if(ER_OK != status)
+        {
+            LOG_RELEASE("Failed to register signal handler for %s in interface %s: %s",
+                    member->name.c_str(), member->iface->GetName(), QCC_StatusText(status));
+        }
+        else
+        {
+            LOG_VERBOSE("Registered signal handler for %s in interface %s",
+                    member->name.c_str(), member->iface->GetName());
+        }
+
+        return status;
+    }
+
+    void
     GetBusObjectsAnnouncementCallback(
         ProxyBusObject*                     obj,
         vector<util::bus::BusObjectInfo>    busObjects,
@@ -102,6 +169,47 @@ public:
         FNLOG;
         IntrospectCallbackContext* ctx =
             static_cast<IntrospectCallbackContext*>(context);
+
+        // Go through the bus objects and add sessionless signal handlers to m_bus for each signal
+        for ( vector<util::bus::BusObjectInfo>::const_iterator it(busObjects.begin());
+              busObjects.end() != it; ++it )
+        {
+            vector<const InterfaceDescription*> ifaces(it->interfaces);
+            for ( vector<const InterfaceDescription*>::const_iterator ifaceit(ifaces.begin());
+                  ifaces.end() != ifaceit; ++ifaceit )
+            {
+                const InterfaceDescription* iface(*ifaceit);
+                size_t count( iface->GetMembers() );
+                const InterfaceDescription::Member** members = new const InterfaceDescription::Member*[count];
+
+                count = iface->GetMembers( members, count );
+                for ( size_t index(0); index < count; ++index )
+                {
+                    if ( members[index] && members[index]->memberType == MESSAGE_SIGNAL )
+                    {
+                        // We have found a sessionless signal. Register a handler if we don't already have one
+                        // HACK: We actually have to register all signals, not just sessionless
+                        //  because the InterfaceDescription isn't actually required to tell us, and
+                        //  even normal things like Notifications don't set the isSessionlessSignal flag
+                        //  or add a sessionless annotation, so there's no way for us to know until we
+                        //  receive the signal and check that its session ID is 0.
+                        AddSessionlessSignalHandler(members[index]);
+                    }
+                }
+
+                delete[] members;
+            }
+        }
+
+        // This prevents us from failing to add the match rule at this point
+        m_bus->EnableConcurrentCallbacks();
+
+        QStatus status = m_bus->AddMatch("type='signal',sessionless='t'");
+        if(ER_OK != status)
+        {
+            LOG_RELEASE("Failed to add match rule for sessionless signals: %s",
+                    QCC_StatusText(status));
+        }
 
         // Send the announcement via XMPP
         m_connector->SendAnnounce(
@@ -389,6 +497,7 @@ private:
 
     XMPPConnector* m_connector;
     BusAttachment* m_bus;
+    vector<const InterfaceDescription::Member*> m_sessionlessSignals;
 };
 
 const string XMPPConnector::ALLJOYN_CODE_ADVERTISEMENT      = "__ADVERTISEMENT";
@@ -2275,7 +2384,7 @@ XMPPConnector::ReceiveSignal(
     if(0 == getline(msgStream, ifaceMember)){ return; }
 
     // The rest is the message arguments
-    string messageArgsString = "";
+    string messageArgsString;
     while(0 != getline(msgStream, line))
     {
         messageArgsString += line + "\n";
@@ -2286,8 +2395,8 @@ XMPPConnector::ReceiveSignal(
     RemoteBusAttachment* bus = GetRemoteAttachment(from, senderName);
     if(!bus)
     {
-        LOG_RELEASE("No bus attachment to handle incoming signal. Sender: %s",
-                senderName.c_str());
+        LOG_RELEASE("No bus attachment to handle incoming signal for interface %s, member %s. Sender: %s",
+                ifaceName.c_str(), ifaceMember.c_str(), senderName.c_str());
         return;
     }
 
@@ -2295,6 +2404,10 @@ XMPPConnector::ReceiveSignal(
     vector<MsgArg> msgArgs = util::msgarg::VectorFromString(messageArgsString);
     SessionId localSessionId = bus->GetLocalSessionId(
             strtoul(remoteSessionId.c_str(), NULL, 10));
+    if(remoteSessionId == "0")
+    {
+        localSessionId = 0;
+    }
     bus->RelaySignal(
             destination, localSessionId, objectPath,
             ifaceName, ifaceMember, msgArgs);
