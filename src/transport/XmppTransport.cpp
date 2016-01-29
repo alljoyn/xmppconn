@@ -55,8 +55,17 @@ XmppTransport::XmppTransport(
 
 XmppTransport::~XmppTransport()
 {
-    xmpp_conn_release(m_xmppconn);
-    xmpp_ctx_free(m_xmppctx);
+    if (m_xmppconn)
+    {
+        if (xmpp_conn_release(m_xmppconn))
+        {
+            m_xmppconn = NULL;
+        }
+    }
+    if (m_xmppctx)
+    {
+        xmpp_ctx_free(m_xmppctx);
+    }
     xmpp_shutdown();
 }
 
@@ -152,9 +161,12 @@ XmppTransport::StopImpl()
 {
     if ( m_xmppconn )
     {
-        xmpp_disconnect(m_xmppconn);
         xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
-        m_xmppconn = NULL;
+        xmpp_disconnect(m_xmppconn);
+        if (xmpp_conn_release(m_xmppconn))
+        {
+            m_xmppconn = NULL;
+        }
     }
 }
 
