@@ -110,6 +110,7 @@ public:
         // All sessionless signals have a session ID of 0.
         if ( message->GetSessionId() == 0 )
         {
+            FNLOG;
             m_connector->SendSignal(
                 member,
                 srcPath,
@@ -235,12 +236,7 @@ public:
         )
     {
         FNLOG;
-        /** TODO: REQUIRED
-         * Register sessionless signal handlers for announcing/advertising apps
-         * (need to implement the required interfaces on m_bus). Other method/
-         * signal handlers are registered when a session is joined. This fix
-         * MIGHT allow notifications to be handled naturally.
-         */
+
         IntrospectCallbackContext* ctx =
                 static_cast<IntrospectCallbackContext*>(context);
 
