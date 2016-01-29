@@ -110,6 +110,7 @@ public:
         // All sessionless signals have a session ID of 0.
         if ( message->GetSessionId() == 0 )
         {
+            FNLOG;
             m_connector->SendSignal(
                 member,
                 srcPath,
@@ -174,6 +175,7 @@ public:
         for ( vector<util::bus::BusObjectInfo>::const_iterator it(busObjects.begin());
               busObjects.end() != it; ++it )
         {
+            bool has_signal(false);
             vector<const InterfaceDescription*> ifaces(it->interfaces);
             for ( vector<const InterfaceDescription*>::const_iterator ifaceit(ifaces.begin());
                   ifaces.end() != ifaceit; ++ifaceit )
@@ -194,21 +196,23 @@ public:
                         //  or add a sessionless annotation, so there's no way for us to know until we
                         //  receive the signal and check that its session ID is 0.
                         AddSessionlessSignalHandler(members[index]);
+                        has_signal = true;
+                    }
+                }
+
+                if(has_signal)
+                {
+                    string matchRule = "type='signal',sessionless='t',interface='" + string(iface->GetName()) + "'";
+                    QStatus status = m_bus->AddMatchNonBlocking(matchRule.c_str());
+                    if(ER_OK != status)
+                    {
+                        LOG_RELEASE("Failed to add sessionless signal match rule \"%s\": %s",
+                                matchRule.c_str(), QCC_StatusText(status));
                     }
                 }
 
                 delete[] members;
             }
-        }
-
-        // This prevents us from failing to add the match rule at this point
-        m_bus->EnableConcurrentCallbacks();
-
-        QStatus status = m_bus->AddMatch("type='signal',sessionless='t'");
-        if(ER_OK != status)
-        {
-            LOG_RELEASE("Failed to add match rule for sessionless signals: %s",
-                    QCC_StatusText(status));
         }
 
         // Send the announcement via XMPP
@@ -232,12 +236,7 @@ public:
         )
     {
         FNLOG;
-        /** TODO: REQUIRED
-         * Register sessionless signal handlers for announcing/advertising apps
-         * (need to implement the required interfaces on m_bus). Other method/
-         * signal handlers are registered when a session is joined. This fix
-         * MIGHT allow notifications to be handled naturally.
-         */
+
         IntrospectCallbackContext* ctx =
                 static_cast<IntrospectCallbackContext*>(context);
 
