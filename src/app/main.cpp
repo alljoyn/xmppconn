@@ -261,6 +261,7 @@ int main(int argc, char** argv)
     }
 
     signal(SIGINT, SigIntHandler);
+    signal(SIGPIPE, SIG_IGN);	//ignore "broken pipes" caused by TLS errors
 
     // Ensure that we can open our config file
     ifstream conf_file(CONF_FILE.c_str());
