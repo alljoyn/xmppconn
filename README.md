@@ -19,17 +19,20 @@ The following dependencies must be obtained and installed:
 * libxml2
 * libstrophe
 * RapidJSON
+
+Optionally, if you are building xmppconn to be used with the AllJoyn Gateway Agent you need to obtain and install the following:
+
 * AllJoyn Gateway Agent
 
-First set up the environment. Make sure to change the CPU value to the correct value for your system (e.g. x86\_64, arm, etc.). Also set the OS to the correct value if necessary.
+### Building
+
+First set up the environment. Make sure to change the CPU value to the correct value for your system (e.g. x86\_64, arm, etc.). Also set the OS to the correct value if necessary. If you would like to build the debug version make sure you change the VARIANT value from release to debug.
 
     export CPU=x86
     export OS=linux
     export VARIANT=release
-    cd ~
-    mkdir -p xmppconn_src
-    cd xmppconn_src
-    export ROOTPATH=`pwd`
+    export ROOTPATH=~/src
+    mkdir -p $ROOTPATH
 
 #### libxml2
 
@@ -50,95 +53,100 @@ It is necessary to install libstrophe. Issue the following commands to install i
     make
     sudo make install
 
+If you don't want to install libstrophe you may skip the _sudo make install_ step above and set the LIBSTROPHE_INCDIR and LIBSTROPHE_LIBDIR environment variables to the location of your include and library folder paths.
+
 #### RapidJSON
 
-It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from https://github.com/miloyip/rapidjson.git. After downloading, the RAPIDJSON\_PATH environment variable must be defined before building xmppconn. For example, if your RapidJSON source code folder is RAPIDJSON\_ROOT, then RAPIDJSON\_PATH needs to point to $RAPIDJSON\_ROOT/include:
+It is necessary to download the RapidJSON source code (building is not necessary since the library is header-only). Source code can be downloaded from https://github.com/miloyip/rapidjson.git. After downloading, copy the rapidjson include folder to your /usr/include folder (assuming the RapidJSON source code folder is RAPIDJSON\_ROOT):
 
-    export RAPIDJSON_PATH=$RAPIDJSON_ROOT/include
+    sudo cp -r $RAPIDJSON_ROOT/include/rapidjson /usr/include/
+
+If you don't want to install the RapidJSON include files in your /usr/include/ folder you may instead set the RAPIDJSON_INCDIR environment variable to be the path to the folder that contains the rapidjson include folder.
     
-#### AllJoyn Gateway Agent
+#### AllJoyn Core and Base Services
 
-Pull the source code and build the AllJoyn Gateway Agent as follows. 
+Pull the source code for AllJoyn Core and Base Services as follows: 
 
-    cd $ROOTPATH
-    mkdir -p alljoyn_src/core alljoyn_src/services alljoyn_src/gateway
-    cd alljoyn_src/core
+    export ALLJOYN_ROOT=$ROOTPATH/alljoyn_src
+    mkdir -p $ALLJOYN_ROOT
+    cd $ALLJOYN_ROOT
+    mkdir -p core services gateway
+    cd $ALLJOYN_ROOT/core
     git clone https://git.allseenalliance.org/gerrit/core/alljoyn
     cd alljoyn
-    git checkout RB14.12b
-    cd $ROOTPATH/alljoyn_src/services
+    git checkout RB15.04
+    cd $ALLJOYN_ROOT/services
     git clone https://git.allseenalliance.org/gerrit/services/base
     cd base
-    git checkout RB14.12
-    cd $ROOTPATH/alljoyn_src/gateway
+    git checkout RB15.04
+
+#### AllJoyn Gateway Agent (optional)
+
+Pull the source code for the AllJoyn Gateway Agent as follows: 
+
+    cd $ALLJOYN_ROOT/gateway
     git clone https://git.allseenalliance.org/gerrit/gateway/gwagent
     cd gwagent
-    git checkout RB14.12
-    export GWAGENT_SRC_DIR=`pwd`
-    unset ALLJOYN_DISTDIR
-    export VARIANT=debug
-    scons V=1 OS=$OS CPU=$CPU BINDINGS=cpp VARIANT=$VARIANT WS=off POLICYDB=on
-    export ALLJOYN_DISTDIR=$GWAGENT_SRC_DIR/build/linux/$CPU/$VARIANT/dist
-    mkdir -p $ROOTPATH/build/lib
-    find $ALLJOYN_DISTDIR -name "*\.so" -exec cp {} $ROOTPATH/build/lib/ \;
-    export LD_LIBRARY_PATH=$ROOTPATH/build/lib
-
-**NOTE:** If the scons command fails then refer to http://wiki.allseenalliance.org/gateway/getting\_started for more information.
+    git checkout RB15.04
 
 #### xmppconn
 
-**NOTE:** Before building, make sure that RAPIDJSON\_PATH and ALLJOYN\_DISTDIR environment variables, described above, are set appropriately.
+Pull the source code from the repository into the xmppconn folder under $ALLJOYN_ROOT/gateway, and run scons:
 
-Pull the source code from the repository into the xmppconn folder under $ROOTPATH, and run "make", specifying that we are NOT building a Gateway Connector app (explained in the next section):
-
-    cd $ROOTPATH
+    cd $ALLJOYN_ROOT/gateway
     git clone https://bitbucket.org/affinegy/xmppconn.git
     cd xmppconn
-    make NO_AJ_GATEWAY=1
+    scons BINDINGS=cpp OS=$OS CPU=$CPU VARIANT=$VARIANT WS=off POLICYDB=on USE_GATEWAY_AGENT=off
+    mkdir -p $ALLJOYN_ROOT/build/lib
+    mkdir -p $ALLJOYN_ROOT/build/bin
+    find $ALLJOYN_ROOT/gateway/xmppconn/build -name "*\.so" -exec cp {} $ALLJOYN_ROOT/build/lib/ \;
+    find $ALLJOYN_ROOT/gateway/xmppconn/build -type f -name "xmppconn" -exec cp {} $ALLJOYN_ROOT/build/bin/ \;
+    export LD_LIBRARY_PATH=$ALLJOYN_ROOT/build/lib
 
-## Installation
+**NOTE:** If you plan to build with the Gateway Agent then your scons command should use `USE_GATEWAY_AGENT=on`.
 
-An AllJoyn daemon must be running on the same local system for this program to work. Refer to http://wiki.allseenalliance.org/gateway/getting\_started to learn how to set up your system with the proper AllJoyn dependencies.
+**NOTE:** If the scons command fails then refer to http://wiki.allseenalliance.org/gateway/getting\_started for more information.
 
-Once that is completed it is possible to install this application in two ways:
+## Installing and Running xmppconn
+
+An AllJoyn routing node must be running on the same local system for this program to work. The next section explains how to make sure this is happening.
+
+Prior to running xmppconn it is necessary to set up a configuration file. That is explained in a section below.
+
+Once the configuration file has been set up it is possible to run xmppconn on your system in two ways:
 
 1. As a normal AllJoyn application
 2. As an AllJoyn Gateway Connector application
 
-### Running as a normal AllJoyn application
+### Installing and Running the AllJoyn Daemon
 
-When running as a normal AllJoyn application without the Gateaway Agent it is unnecessary for the gateway agent to be running. In this case just make sure the alljoyn-daemon is running. If the instructions were followed according to the above Wiki article the daemon should already exist. It can be started as follows:
+An AllJoyn routing node must be running on the same local system for this program to work. The easiest way to do this on a Debian system is to use the AllJoyn core Debian package from the downloads.chariot.global APT repository.
 
-    sudo service alljoyn start
+First append the line `deb http://downloads.chariot.global trusty main` to the `/etc/apt/sources.list` file. For example:
+    
+    echo 'deb http://downloads.chariot.global trusty main' | sudo tee -a /etc/apt/sources.list
 
-Then the xmppconn application can run directly if desired:
+Then add the certificate for the downloads.chariot.global apt server to your system:
 
-    cd $ROOTPATH/xmppconn
-    build/xmppconn
+    sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 96AAA3BF
 
-If it is desired that xmppconn be installed do the following:
+Now you can update your apt cache and install AllJoyn Core:
 
-    cd $ROOTPATH/xmppconn
-    sudo cp build/xmppconn /usr/bin/
-    sudo cp conf/xmppconn.init /etc/init.d/xmppconn
-    cd /etc/rc3.d
-    sudo ln -s ../init.d/xmppconn S95xmppconn
+    sudo apt-get update
+    sudo apt-get install alljoyn-core
 
-Next set up the configuration file:
+If no package exists for your system then you will have to build and install the AllJoyn daemon yourself. Refer to http://wiki.allseenalliance.org/gateway/getting\_started to learn how to do this.
 
-In the terminal navigate to the /etc/xmppconn folder and then open the xmppconn\_factory.conf file as superuser to edit it.
+### Setting up xmppconn_factory.conf
 
-    sudo gedit /etc/xmppconn/xmppconn_factory.conf
+Prior to running xmppconn it is necessary to set up the `xmppconn_factory.conf` file. The `xmppconn_factory.conf` file is used to specify the xmppconn configuration of a device at its factory default settings. When xmppconn starts it first looks for the `xmppconn.conf` file, and if it can't find it then it will look for the `xmppconn_factory.conf` file, then copy it to `xmppconn.conf`.
 
-You will need to get the ProductID from the developer portal (it will be assigned when you create a new product).
-Paste the ProductID into the ProductID field in the xmppcon\_factory.conf file that you just opened.
+First make a copy of the `xmppconn_factory.conf` file that is found in the conf folder under the the xmppconn source repository:
 
-You also need a SerialNumber for your product. You can type any alphanumeric string in that field for now. But be aware that it must be a unique serial number. When you try to register more than one device with the same serial number the server will return an error. This will happen during the pairing sequence that we discuss later.
+    mkdir -p $ALLJOYN_ROOT/gateway/xmppconn/build/conf
+    cp $ALLJOYN_ROOT/gateway/xmppconn/conf/xmppconn_factory.conf $ALLJOYN_ROOT/gateway/xmppconn/build/conf/
 
-These arguments can be optionally modified as needed:
-
-    Verbosity - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose
-    Compress - whether or not to compress the body of each message. This is recommended, and must match what the paired device is doing.
+Now open the `$ALLJOYN_ROOT/gateway/xmppconn/build/conf/xmppconn\_factory.conf` file in your favorite editor.
 
 The file looks like the following:
 
@@ -158,20 +166,112 @@ The file looks like the following:
      "Compress":"1"
     }
 
-Save and close the file. Now copy that file to /etc/xmppconn/xmppconn.conf as follows:
-     
-    sudo cp /etc/xmppconn/xmppconn_factory.conf /etc/xmppconn/xmppconn.conf
-    
-You are now ready to connect the xmppconn service with the mobile app.
+#### About fields
 
-Start the XMPP connector by typing *sudo xmppconn* to see if the file is valid. If the file isn't valid, the terminal will tell you that the xmppconn.conf file is not valid. If it is running without error you can stop it by pressing Ctrl+C.
-    
+The following fields are announced in the XMPP Connector's About Announcement. These match the AllJoyn About fields with the same names:
+- DeviceName
+- AppName
+- Manufacturer
+- ModelNumber
+- Description
+- DateOfManufacture
+- SoftwareVersion
+- HardwareVersion
+- SupportUrl
+
+#### Optional fields
+
+The following arguments can be optionally modified as needed:
+
+- Verbosity - level of debug output verbosity. Can be 0, 1, or 2, with 2 being the most verbose.
+- Compress - whether or not to compress the body of each message. This is recommended.
+
+#### CHARIOT-specific fields
+
+The `ProductId` and `SerialNumber` fields are used to help connect to the CHARIOT service. These fields are used during the pairing sequence with the CHARIOT Join app. It can also be used by other applications and services for the same purpose.
+
+If you are using the CHARIOT service then you should add these fields to your `xmppconn_factory.conf` file with the proper information as follows: 
+
+##### ProductId
+
+The `ProductId` is used during configuration. If you're using the CHARIOT service you will need to get the ProductID from the Developer Portal, located at https://dev.chariot.global. If you don't have an account you can sign up for one and log in. To get a product ID you can create a new product in the Developer Portal.
+
+Paste the ProductID into the ProductID field in the xmppconn\_factory.conf file that you just opened.
+
+##### SerialNumber
+
+To use the CHARIOT service you also need a `SerialNumber` for your device. You can type any alphanumeric string in that field. But be aware that it must be a unique serial number. When you try to register more than one device with the same serial number the CHARIOT Join app will refuse to pair with it.
+
+Save and close the file. You are now ready to connect the xmppconn service with the mobile app.
+
+#### XMPP Connection fields
+
+Several fields are not provided in the default `xmppconn_factory.conf` file but are fundamental to how xmppconn works. These fields specify how xmppconn connects to an XMPP server. When using the CHARIOT service these are usually configured and written to the `xmppconn.conf` file during the pairing procedure by using the AllJoyn Config API. However, they can be specified manually if you have a JID and password for an XMPP server.
+
+*NOTE: If you are using the CHARIOT service you most likely don't want to set these fields.*
+
+##### UserJID
+
+This is the full Jabber ID (JID) that xmppconn uses to connect to the XMPP server. An example of this is `myxmppuser@xmpp.chariot.global/myresource`
+
+##### UserPassword
+
+This is the password used to authenticate to the XMPP server.
+
+##### Server
+
+This is the XMPP server. For example: `xmpp.chariot.global`
+
+##### Roster
+
+The Roster field is used to specify the JIDs of the other XMPP Connector devices with which this device communicates. It is a list of JIDs that this device is willing to accept communication from. When xmppconn receives data from the XMPP server it ignores anything that is not from a JID specified in this list.
+
+    [
+      "myotherdevice@muc.xmpp.chariot.global/someresource",
+      "yetanotherdevice@muc.xmpp.chariot.global/someotherresource"
+    ],
+
+##### RoomJID
+
+This is the Full JID of the XMPP chat room to which this device sends all XMPP communications. For example:
+ 
+    roomname@muc.xmpp.chariot.global/roomresource
+
+### Running as a normal AllJoyn application
+
+When running as a normal AllJoyn application without the Gateaway Agent it is unnecessary for the Gateway Agent to be running. If you would like to run xmppconn as a Gateway Agent Connector app then skip this section. 
+
+First make sure the alljoyn-daemon is running. If the instructions were followed according to the above section the daemon should already exist. It can be started as follows:
+
+    sudo service alljoyn start
+
+Copy the `xmppconn_factory.conf` file to the  `/etc/xmppconn/` folder:
+
+    sudo mkdir -p /etc/xmppconn
+    sudo cp $ALLJOYN_ROOT/gateway/xmppconn/build/conf/xmppconn_factory.conf /etc/xmppconn/
+
+Then the xmppconn application can run directly if desired:
+
+    cd $ALLJOYN_ROOT/build/bin
+    sudo ./xmppconn
+
+If it is desired that xmppconn be installed do the following:
+
+    $ALLJOYN_ROOT/gateway/xmppconn
+    sudo cp build/bin/xmppconn /usr/bin/
+    sudo cp conf/xmppconn.init /etc/init.d/xmppconn
+    cd /etc/rc3.d
+    sudo ln -s ../init.d/xmppconn S95xmppconn
+
+Then you can start the XMPP connector by typing `sudo service xmppconn start`
+
+Check that it is still running by typing `sudo service xmppconn status`. If it is not, then the conf file is possibly invalid. Check the `/var/log/xmppconn.log` file for more information.
 
 ### Running as an AllJoyn Gateway Connector application
 
-The previous section described how to run xmppconn as a service via the Linux command line. You can also run it as a Gateway Connector phone app. The functionality should be the same in both cases.
+The previous section described how to run xmppconn as a service via the Linux command line. If you would rather run it as a Gateway Connector application then you can follow these instructions. Otherwise, skip this section.
 
-#### Installation
+#### Installation as a Gateway Agent Connector
 
 You need to create a directory structure for the xmppconn app:
 
@@ -186,20 +286,13 @@ Under Gateway Connector, the xmppconn process will be run as "xmppconn" user. It
      sudo chown -R xmppconn /opt/alljoyn/apps/xmppconn
      sudo chgrp -R xmppconn /opt/alljoyn/apps/xmppconn
 
-Note that in the previous section, we ran the command "make NO\_AJ\_GATEWAY=1" in the $ROOTPATH/xmppconn directory. The NO\_AJ\_GATEWAY flag means that we are building the "standalone" version of XMPP Connector. This time, we will build it without that flag:
+Note that in the *Building from source* section, we ran the `scons` command to build xmppconn and its dependencies. It is necessary to build with the `USE_GATEWAY_AGENT=on` flag in order to run as a Gateway Connector. If you did not do that then you need to go back to that section and start again from the `scons` command.
 
-    cd $ROOTPATH/xmppconn
-    make
+Now copy the Manifest file to the top-level xmppconn app directory:
 
-Copy the resulting executable, to the "bin" subdirectory of xmppconn app:
+    sudo cp $ALLJOYN_ROOT/gateway/xmppconn/Manifest.xml /opt/alljoyn/apps/xmppconn
 
-    sudo cp $ROOTPATH/xmppconn/build/xmppconn /opt/alljoyn/apps/xmppconn/bin
-
-Copy the Manifest file to the top-level xmppconn app directory:
-
-    sudo cp $ROOTPATH/xmppconn/Manifest.xml /opt/alljoyn/apps/xmppconn
-
-The Manifest file has to be modified to allow the xmppconn process to be run as "xmppconn" user. Add the following line after the <env_variables> line:
+The Manifest.xml file has to be modified to allow the xmppconn process to be run as *xmppconn* user. Add the following line after the `<env_variables>` line:
 
     <variable name="HOME">/home/xmppconn</variable>
 
@@ -214,11 +307,11 @@ Note that the "store" and "acls" subdirectories will remain empty for now. You a
 Start the Gateway Agent:
 
     sudo service alljoyn-gwagent start
-    
+
 Verify that it is running:
 
     sudo service alljoyn-gwagent status
-    
+
 The instructions for downloading and running the Gateway Connector app are on the AllSeen Alliance website at ["Installing the Gateway Controller Sample Android App"](https://wiki.allseenalliance.org/gateway/getting\_started#installing\_the\_gateway\_controller\_sample\_android\_app). After installing the app, open it and click on AllJoyn Gateway Configuration Manager. You should see "Affinegy XMPP Connector" (a button that says Affin...) in the Gateway Connector Applications list. At this point, the state of the app should show "Stopped". This is because we haven't created any Access Control Lists (ACL's) yet.
 
 #### Creating an ACL
@@ -233,7 +326,7 @@ Verify that it is running:
 
     sudo service alljoyn-gwagent status
     
-NOTE: It is possible that the Gateway Agent is not running at this point (you might see the message "The process appears to be dead but pidfile still exists"). If this happens, you will need to restart the AllJoyn service, and then restart the Gateway Agent:
+*NOTE:* It is possible that the Gateway Agent is not running at this point (you might see the message "The process appears to be dead but pidfile still exists"). If this happens, you will need to restart the AllJoyn service, and then restart the Gateway Agent:
 
     sudo service alljoyn restart
     sudo service alljoyn-gwagent restart
@@ -248,7 +341,7 @@ In the Gateway Connector app, you should now see the XMPP connector status as "R
     $ ps -ef | grep xmppconn
     xmppconn 26639 26502 16 17:03 ? 00:00:12 [xmppconn]
     alljoyn 29748 9804 0 17:04 pts/0 00:00:00 grep --color=auto xmppconn
-    
+
 You should now be able to use the xmppconn app to make devices communicate across networks, just as with the command-line version. For example, you can use CHARIOT Join to see controller-connector communication on separate networks.
 
 
