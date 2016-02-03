@@ -326,6 +326,34 @@ public:
         m_bus->EnableConcurrentCallbacks();
 
         // Get the objects and interfaces implemented by the advertising device
+        SessionId sid = 0;
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+
+        if (m_bus->IsStopping()   ||
+            !m_bus->IsConnected() ||
+            !m_bus->IsStarted()   ||
+            m_connector->m_transport->GetConnectionState() != Transport::connected)
+        {
+            LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
+            return;
+        }
+
+        QStatus err = ER_OK;
+        SessionPort port = m_connector->GetSessionPort(name);
+
+        if (port)
+        {
+            err = m_bus->JoinSession(name, port, NULL, sid, opts);
+        }
+
+        if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
+        {
+            LOG_RELEASE("Failed to join session with Advertising device: %s",
+                    QCC_StatusText(err));
+            return;
+        }
+
         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
         if(!proxy->IsValid())
         {
@@ -338,7 +366,7 @@ public:
         ctx->introspectReason = IntrospectCallbackContext::advertisement;
         ctx->sessionId = 0;
         ctx->proxy = proxy;
-        QStatus err = proxy->IntrospectRemoteObjectAsync(
+        err = proxy->IntrospectRemoteObjectAsync(
                 this,
                 static_cast<ProxyBusObject::Listener::IntrospectCB>(
                 &AllJoynListener::IntrospectCallback),
@@ -606,6 +634,36 @@ XMPPConnector::AddSessionPortMatch(
     )
 {
     m_sessionPortMap[interfaceName].push_back(port);
+}
+
+SessionPort
+XMPPConnector::GetSessionPort(
+        const string& interfaceName
+        )
+{
+    SessionPort port = 0;
+
+    // Try to find an exact match first
+    map<string, vector<SessionPort> >::const_iterator it = m_sessionPortMap.find(interfaceName);
+    if ( it != m_sessionPortMap.end() && !(it->second.empty()) )
+    {
+        port = it->second.front();
+    }
+
+    // If the exact interface name is not found, look for an interface with the same prefix
+    if (port == 0)
+    {
+        for ( it = m_sessionPortMap.begin(); it != m_sessionPortMap.end(); ++ it )
+        {
+            if ( interfaceName.find(it->first) != string::npos
+                    && !(it->second.empty()) )    //found a prefix match
+            {
+                port = it->second.front();
+            }
+        }
+    }
+
+    return port;
 }
 
 QStatus
