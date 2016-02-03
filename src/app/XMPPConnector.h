@@ -88,7 +88,7 @@ public:
      *  If there is no exact match, try to get a port that corresponds
      *  to a substring (prefix) of the interface.
      *  @param[in] interfaceName  The name of the interface
-     *  @param[out] port          The SessionPort for that interface
+     *  @returns                  The SessionPort for that interface
      */
     SessionPort
     GetSessionPort(

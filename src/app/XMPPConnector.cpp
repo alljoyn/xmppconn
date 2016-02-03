@@ -647,7 +647,7 @@ XMPPConnector::GetSessionPort(
     map<string, vector<SessionPort> >::const_iterator it = m_sessionPortMap.find(interfaceName);
     if ( it != m_sessionPortMap.end() && !(it->second.empty()) )
     {
-        port = *it->second.begin();
+        port = it->second.front();
     }
 
     // If the exact interface name is not found, look for an interface with the same prefix
@@ -655,10 +655,10 @@ XMPPConnector::GetSessionPort(
     {
         for ( it = m_sessionPortMap.begin(); it != m_sessionPortMap.end(); ++ it )
         {
-            if ( interfaceName.find(it->first) != string::npos )    //found a prefix match
+            if ( interfaceName.find(it->first) != string::npos
+                    && !(it->second.empty()) )    //found a prefix match
             {
-                port = *it->second.begin();
-
+                port = it->second.front();
             }
         }
     }
