@@ -83,6 +83,18 @@ public:
         ajn::SessionPort   port
         );
 
+    /**
+     *  Get a session port corresponding to a particular interface name.
+     *  If there is no exact match, try to get a port that corresponds
+     *  to a substring (prefix) of the interface.
+     *  @param[in] interfaceName  The name of the interface
+     *  @param[in] port           The SessionPort for that interface
+     */
+    SessionPort
+    GetSessionPort(
+            const string& interfaceName
+            );
+
     // Blocks until stop() is called, listens for XMPP
     QStatus Start();
     void Stop();
