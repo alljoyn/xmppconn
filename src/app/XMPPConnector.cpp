@@ -325,7 +325,7 @@ public:
 
         m_bus->EnableConcurrentCallbacks();
 
-        // Get the objects and interfaces implemented by the announcing device
+        // Get the objects and interfaces implemented by the advertising device
         SessionId sid = 0;
         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
@@ -354,7 +354,6 @@ public:
             return;
         }
 
-        // Get the objects and interfaces implemented by the advertising device
         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, name, "/", 0);
         if(!proxy->IsValid())
         {
