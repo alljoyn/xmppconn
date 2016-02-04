@@ -181,6 +181,13 @@ public:
                   ifaces.end() != ifaceit; ++ifaceit )
             {
                 const InterfaceDescription* iface(*ifaceit);
+
+                // Skip signals from interfaces that we don't want to send over (like org.alljoyn.Bus and org.alljoyn.About)
+                if(m_connector->IsInterfaceKnownToAlreadyExist(iface->GetName()))
+                {
+                    continue;
+                }
+
                 size_t count( iface->GetMembers() );
                 const InterfaceDescription::Member** members = new const InterfaceDescription::Member*[count];
 
