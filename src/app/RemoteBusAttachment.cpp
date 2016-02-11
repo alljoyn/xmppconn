@@ -349,9 +349,9 @@ RemoteBusAttachment::RelayAnnouncement(
         size_t size = 0;
         if(ER_OK != m_aboutData.GetAppId(&appId, &size))
         {
-            LOG_RELEASE("No AppId was provided for %s! Using default nil AppId.",
+            LOG_RELEASE("No AppId was provided for %s! Using default of nil UUID.",
                 m_wellKnownName.c_str());
-            m_aboutData.SetAppId("00000000-0000-0000-000000000000");
+            m_aboutData.SetAppId("00000000-0000-0000-0000-000000000000");
         }
         char* str = 0;
         if(ER_OK != m_aboutData.GetAppName(&str))
@@ -375,9 +375,9 @@ RemoteBusAttachment::RelayAnnouncement(
         }
         if(ER_OK != m_aboutData.GetDeviceId(&str))
         {
-            LOG_RELEASE("No DeviceId was provided for %s! Using default of nil.",
+            LOG_RELEASE("No DeviceId was provided for %s! Using default of nil UUID.",
                 m_wellKnownName.c_str());
-            m_aboutData.SetDeviceId("00000000-0000-0000-000000000000");
+            m_aboutData.SetDeviceId("00000000-0000-0000-0000-000000000000");
         }
         if(ER_OK != m_aboutData.GetManufacturer(&str))
         {
