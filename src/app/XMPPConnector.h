@@ -23,7 +23,6 @@
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
 #include <alljoyn/AboutData.h>
-#include <alljoyn/about/AnnounceHandler.h>
 #include <string>
 #include <vector>
 #include <list>

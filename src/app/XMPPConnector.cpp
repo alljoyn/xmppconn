@@ -30,11 +30,9 @@
 #include "RemoteBusAttachment.h"
 #include "RemoteBusListener.h"
 #include "RemoteBusObject.h"
-#include <alljoyn/about/AnnouncementRegistrar.h>
 
 
 using namespace ajn;
-using namespace ajn::services;
 #ifndef NO_AJ_GATEWAY
 using namespace ajn::gw;
 #endif // !NO_AJ_GATEWAY
