@@ -52,7 +52,8 @@ using std::ostringstream;
 class AllJoynListener :
     public BusListener,
     public SessionPortListener,
-    public ajn::services::AnnounceHandler,
+    public MessageReceiver,
+    public AboutListener,
     public ProxyBusObject::Listener,
     public util::bus::GetBusObjectsAsyncReceiver
 {
@@ -433,79 +434,95 @@ public:
         m_connector->SendNameOwnerChanged(util::convertToString(busName), util::convertToString(previousOwner), util::convertToString(newOwner));
     }
 
-    void
-    Announce(
-        uint16_t                  version,
-        uint16_t                  port,
-        const char*               busName,
-        const ObjectDescriptions& objectDescs,
-        const AboutData&          aboutData
-        )
+    void Announced(
+            const char *    busName,
+            uint16_t        version,
+            SessionPort     port,
+            const MsgArg &  objectDescriptionArg,
+            const MsgArg &  aboutDataArg
+            )
     {
         // Is this announcement coming from us?
-        if(m_connector->OwnsWellKnownName(busName))
-        {
-            return;
-        }
-        FNLOG;
+         if(m_connector->OwnsWellKnownName(busName))
+         {
+             return;
+         }
+         FNLOG;
 
-        LOG_DEBUG("Received Announce: %s", busName);
-        m_bus->EnableConcurrentCallbacks();
+         LOG_DEBUG("Received Announce: %s", busName);
+         m_bus->EnableConcurrentCallbacks();
 
-        // Get the objects and interfaces implemented by the announcing device
-        SessionId sid = 0;
-        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
-                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+         // Get the objects and interfaces implemented by the announcing device
+         SessionId sid = 0;
+         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
 
-        if (m_bus->IsStopping()   ||
-            !m_bus->IsConnected() ||
-            !m_bus->IsStarted()   ||
-            m_connector->m_transport->GetConnectionState() != Transport::connected)
-        {
-            LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
-            return;
-        }
+         if (m_bus->IsStopping()   ||
+             !m_bus->IsConnected() ||
+             !m_bus->IsStarted()   ||
+             m_connector->m_transport->GetConnectionState() != Transport::connected)
+         {
+             LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
+             return;
+         }
 
-        QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
-        if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
-        {
-            LOG_RELEASE("Failed to join session with Announcing device: %s",
-                    QCC_StatusText(err));
-            return;
-        }
+         QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
+         if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
+         {
+             LOG_RELEASE("Failed to join session with Announcing device: %s",
+                     QCC_StatusText(err));
+             return;
+         }
 
-        ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
-        if(!proxy->IsValid())
-        {
-            LOG_RELEASE("Invalid ProxyBusObject for %s", busName);
-            delete proxy;
-            return;
-        }
+         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
+         if(!proxy->IsValid())
+         {
+             LOG_RELEASE("Invalid ProxyBusObject for %s", busName);
+             delete proxy;
+             return;
+         }
 
-        IntrospectCallbackContext* ctx = new IntrospectCallbackContext();
-        ctx->introspectReason = IntrospectCallbackContext::announcement;
-        ctx->AnnouncementInfo.version     = version;
-        ctx->AnnouncementInfo.port        = port;
-        ctx->AnnouncementInfo.busName     = busName;
-        ctx->AnnouncementInfo.objectDescs = objectDescs;
-        ctx->AnnouncementInfo.aboutData   = aboutData;
-        ctx->sessionId = sid;
-        ctx->proxy = proxy;
-        err = proxy->IntrospectRemoteObjectAsync(
-                this,
-                static_cast<ProxyBusObject::Listener::IntrospectCB>(
-                &AllJoynListener::IntrospectCallback),
-                ctx);
-        if(err != ER_OK)
-        {
-            LOG_RELEASE("Failed asynchronous introspect for announcing attachment: %s",
-                    QCC_StatusText(err));
-            delete ctx;
-            delete proxy;
-            m_bus->LeaveSession(sid);
-            return;
-        }
+         IntrospectCallbackContext* ctx    = new IntrospectCallbackContext();
+         ctx->introspectReason             = IntrospectCallbackContext::announcement;
+         ctx->AnnouncementInfo.version     = version;
+         ctx->AnnouncementInfo.port        = port;
+         ctx->AnnouncementInfo.busName     = busName;
+         ctx->AnnouncementInfo.aboutData   = AboutData(aboutDataArg);
+         ctx->sessionId                    = sid;
+         ctx->proxy                        = proxy;
+
+         // Add object descriptions
+         AboutObjectDescription aod(objectDescriptionArg);
+         size_t pathCount = aod.GetPaths(NULL, 0);
+         const char** paths = new const char*[pathCount];
+         aod.GetPaths(paths, pathCount);
+         for (size_t i = 0; i < pathCount; ++i) {
+             size_t interfaceCount = aod.GetInterfaces(paths[i], NULL, 0);
+             const char** interfaces = new const char*[interfaceCount];
+             aod.GetInterfaces(paths[i], interfaces, interfaceCount);
+             for (size_t j = 0; j < interfaceCount; ++j) {
+                 ctx->AnnouncementInfo.objectDescs[paths[i]].push_back(interfaces[j]);
+             }
+             delete [] interfaces;
+         }
+         delete [] paths;
+
+         err = proxy->IntrospectRemoteObjectAsync(
+                 this,
+                 static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                 &AllJoynListener::IntrospectCallback),
+                 ctx);
+         if(err != ER_OK)
+         {
+             LOG_RELEASE("Failed asynchronous introspect for announcing attachment: %s",
+                     QCC_StatusText(err));
+             delete ctx;
+             delete proxy;
+             m_bus->LeaveSession(sid);
+             return;
+         }
     }
+
 
 private:
     struct IntrospectCallbackContext
@@ -518,11 +535,11 @@ private:
 
         struct
         {
-            uint16_t           version;
-            uint16_t           port;
-            string             busName;
-            ObjectDescriptions objectDescs;
-            AboutData          aboutData;
+            uint16_t                     version;
+            uint16_t                     port;
+            string                       busName;
+            map<string, vector<string> > objectDescs;
+            AboutData                    aboutData;
         } AnnouncementInfo;
 
         SessionId       sessionId;
@@ -1368,8 +1385,8 @@ XMPPConnector::SendAnnounce(
     uint16_t                                   version,
     uint16_t                                   port,
     const string&                              busName,
-    const AnnounceHandler::ObjectDescriptions& objectDescs,
-    const AnnounceHandler::AboutData&          aboutData,
+    const map<string, vector<string> >&        objectDescs,
+    AboutData&                                 aboutData,
     const vector<util::bus::BusObjectInfo>&    busObjects
     )
 {
@@ -1392,11 +1409,11 @@ XMPPConnector::SendAnnounce(
     msgStream << port << "\n";
     msgStream << busName << "\n";
 
-    AnnounceHandler::ObjectDescriptions::const_iterator objIter;
+    map<string, vector<string> >::const_iterator objIter;
     for(objIter = objectDescs.begin(); objIter != objectDescs.end(); ++objIter)
     {
         msgStream << objIter->first.c_str() << "\n";
-        vector<String>::const_iterator val_iter;
+        vector<string>::const_iterator val_iter;
         for(val_iter = objIter->second.begin();
             val_iter != objIter->second.end();
             ++val_iter)
@@ -1413,14 +1430,18 @@ XMPPConnector::SendAnnounce(
 
     msgStream << "\n";
 
-    AnnounceHandler::AboutData::const_iterator aboutIter;
-    for(aboutIter = aboutData.begin();
-        aboutIter != aboutData.end();
-        ++aboutIter)
+    size_t fieldCount = aboutData.GetFields();
+    const char** fields = new const char*[fieldCount];
+    aboutData.GetFields(fields, fieldCount);
+
+    for (size_t i = 0; i < fieldCount; ++i)
     {
-        msgStream << aboutIter->first.c_str() << "\n";
-        msgStream << util::msgarg::ToString(aboutIter->second) << "\n\n";
+        msgStream << fields[i] << "\n";
+        MsgArg* tmp;
+        aboutData.GetField(fields[i], tmp, "en");
+        msgStream << util::msgarg::ToString(*tmp) << "\n\n";
     }
+    delete [] fields;
 
     msgStream << "\n";
 
@@ -2939,12 +2960,12 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
         }
 
         // Listen for announcements
-        err = ajn::services::AnnouncementRegistrar::RegisterAnnounceHandler(
-                *attachment, *listener, NULL, 0);
+        attachment->RegisterAboutListener(*listener);
+        err = attachment->WhoImplements(NULL);
 
         if(err != ER_OK)
         {
-            LOG_RELEASE("Could not register Announcement handler for %s: %s",
+            LOG_RELEASE("WhoImplements for %s failed: %s",
                     source.c_str(),
                     QCC_StatusText(err));
         }
@@ -2988,11 +3009,7 @@ void XMPPConnector::UnregisterFromAdvertisementsAndAnnouncements(const std::stri
     if (attachment && listener)
     {
         // Stop listening for advertisements and announcements
-        QStatus status = ajn::services::AnnouncementRegistrar::UnRegisterAllAnnounceHandlers(*attachment);
-        if (ER_OK != status)
-        {
-            LOG_RELEASE("Failed to unregister announce handlers: %s", QCC_StatusText(status));
-        }
+        attachment->UnregisterAllAboutListeners();
     }
 }
 
