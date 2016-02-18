@@ -23,8 +23,6 @@
 #include "common/CommonBusListener.h"
 #include "SimpleBusObject.h"
 
-#include <alljoyn/about/AboutPropertyStoreImpl.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
 #include <alljoyn/services_common/GuidUtil.h>
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>

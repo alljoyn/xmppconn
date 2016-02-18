@@ -23,7 +23,6 @@
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
 #include <alljoyn/AboutData.h>
-#include <alljoyn/about/AnnounceHandler.h>
 #include <string>
 #include <vector>
 #include <list>
@@ -247,12 +246,12 @@ private:
                 );
     void
         SendAnnounce(
-                uint16_t                                                  version,
-                uint16_t                                                  port,
-                const std::string&                                        busName,
-                const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
-                const ajn::services::AnnounceHandler::AboutData&          aboutData,
-                const vector<util::bus::BusObjectInfo>&                   busObjects
+                uint16_t                                    version,
+                uint16_t                                    port,
+                const std::string&                          busName,
+                const std::map<string, vector<string> >&    objectDescs,
+                AboutData&                                  aboutData,
+                const vector<util::bus::BusObjectInfo>&     busObjects
                 );
     void
         SendJoinRequest(
