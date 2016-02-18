@@ -443,84 +443,84 @@ public:
             )
     {
         // Is this announcement coming from us?
-         if(m_connector->OwnsWellKnownName(busName))
-         {
-             return;
-         }
-         FNLOG;
+        if(m_connector->OwnsWellKnownName(busName))
+        {
+            return;
+        }
+        FNLOG;
 
-         LOG_DEBUG("Received Announce: %s", busName);
-         m_bus->EnableConcurrentCallbacks();
+        LOG_DEBUG("Received Announce: %s", busName);
+        m_bus->EnableConcurrentCallbacks();
 
-         // Get the objects and interfaces implemented by the announcing device
-         SessionId sid = 0;
-         SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
-                 SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+        // Get the objects and interfaces implemented by the announcing device
+        SessionId sid = 0;
+        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, true,
+                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
 
-         if (m_bus->IsStopping()   ||
-             !m_bus->IsConnected() ||
-             !m_bus->IsStarted()   ||
-             m_connector->m_transport->GetConnectionState() != Transport::connected)
-         {
-             LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
-             return;
-         }
+        if (m_bus->IsStopping()   ||
+                !m_bus->IsConnected() ||
+                !m_bus->IsStarted()   ||
+                m_connector->m_transport->GetConnectionState() != Transport::connected)
+        {
+            LOG_DEBUG("Session will not be joined because the bus attachment or the connection is not in a valid state");
+            return;
+        }
 
-         QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
-         if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
-         {
-             LOG_RELEASE("Failed to join session with Announcing device: %s",
-                     QCC_StatusText(err));
-             return;
-         }
+        QStatus err = m_bus->JoinSession(busName, port, NULL, sid, opts);
+        if(err != ER_OK && err != ER_ALLJOYN_JOINSESSION_REPLY_ALREADY_JOINED)
+        {
+            LOG_RELEASE("Failed to join session with Announcing device: %s",
+                    QCC_StatusText(err));
+            return;
+        }
 
-         ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
-         if(!proxy->IsValid())
-         {
-             LOG_RELEASE("Invalid ProxyBusObject for %s", busName);
-             delete proxy;
-             return;
-         }
+        ProxyBusObject* proxy = new ProxyBusObject(*m_bus, busName, "/", 0);
+        if(!proxy->IsValid())
+        {
+            LOG_RELEASE("Invalid ProxyBusObject for %s", busName);
+            delete proxy;
+            return;
+        }
 
-         IntrospectCallbackContext* ctx    = new IntrospectCallbackContext();
-         ctx->introspectReason             = IntrospectCallbackContext::announcement;
-         ctx->AnnouncementInfo.version     = version;
-         ctx->AnnouncementInfo.port        = port;
-         ctx->AnnouncementInfo.busName     = busName;
-         ctx->AnnouncementInfo.aboutData   = AboutData(aboutDataArg);
-         ctx->sessionId                    = sid;
-         ctx->proxy                        = proxy;
+        IntrospectCallbackContext* ctx    = new IntrospectCallbackContext();
+        ctx->introspectReason             = IntrospectCallbackContext::announcement;
+        ctx->AnnouncementInfo.version     = version;
+        ctx->AnnouncementInfo.port        = port;
+        ctx->AnnouncementInfo.busName     = busName;
+        ctx->AnnouncementInfo.aboutData   = AboutData(aboutDataArg);
+        ctx->sessionId                    = sid;
+        ctx->proxy                        = proxy;
 
-         // Add object descriptions
-         AboutObjectDescription aod(objectDescriptionArg);
-         size_t pathCount = aod.GetPaths(NULL, 0);
-         const char** paths = new const char*[pathCount];
-         aod.GetPaths(paths, pathCount);
-         for (size_t i = 0; i < pathCount; ++i) {
-             size_t interfaceCount = aod.GetInterfaces(paths[i], NULL, 0);
-             const char** interfaces = new const char*[interfaceCount];
-             aod.GetInterfaces(paths[i], interfaces, interfaceCount);
-             for (size_t j = 0; j < interfaceCount; ++j) {
-                 ctx->AnnouncementInfo.objectDescs[paths[i]].push_back(interfaces[j]);
-             }
-             delete [] interfaces;
-         }
-         delete [] paths;
+        // Add object descriptions
+        AboutObjectDescription aod(objectDescriptionArg);
+        size_t pathCount = aod.GetPaths(NULL, 0);
+        const char** paths = new const char*[pathCount];
+        aod.GetPaths(paths, pathCount);
+        for (size_t i = 0; i < pathCount; ++i) {
+            size_t interfaceCount = aod.GetInterfaces(paths[i], NULL, 0);
+            const char** interfaces = new const char*[interfaceCount];
+            aod.GetInterfaces(paths[i], interfaces, interfaceCount);
+            for (size_t j = 0; j < interfaceCount; ++j) {
+                ctx->AnnouncementInfo.objectDescs[paths[i]].push_back(interfaces[j]);
+            }
+            delete [] interfaces;
+        }
+        delete [] paths;
 
-         err = proxy->IntrospectRemoteObjectAsync(
-                 this,
-                 static_cast<ProxyBusObject::Listener::IntrospectCB>(
-                 &AllJoynListener::IntrospectCallback),
-                 ctx);
-         if(err != ER_OK)
-         {
-             LOG_RELEASE("Failed asynchronous introspect for announcing attachment: %s",
-                     QCC_StatusText(err));
-             delete ctx;
-             delete proxy;
-             m_bus->LeaveSession(sid);
-             return;
-         }
+        err = proxy->IntrospectRemoteObjectAsync(
+                this,
+                static_cast<ProxyBusObject::Listener::IntrospectCB>(
+                        &AllJoynListener::IntrospectCallback),
+                        ctx);
+        if(err != ER_OK)
+        {
+            LOG_RELEASE("Failed asynchronous introspect for announcing attachment: %s",
+                    QCC_StatusText(err));
+            delete ctx;
+            delete proxy;
+            m_bus->LeaveSession(sid);
+            return;
+        }
     }
 
 
