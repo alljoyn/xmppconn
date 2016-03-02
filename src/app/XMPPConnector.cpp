@@ -1610,6 +1610,23 @@ XMPPConnector::SendMethodReply(
 }
 
 void
+XMPPConnector::SendMethodReply(
+    const string& destName,
+    const string& destPath,
+    QStatus       error
+    )
+{
+    FNLOG;
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_METHOD_REPLY << "\n";
+    msgStream << destName << "\n";
+    msgStream << destPath << "\n";
+    msgStream << static_cast<uint32_t>(error) << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_METHOD_REPLY);
+}
+
+void
 XMPPConnector::SendSignal(
     const InterfaceDescription::Member* member,
     const char*                         srcPath,
@@ -1679,6 +1696,24 @@ XMPPConnector::SendGetReply(
     msgStream << destName << "\n";
     msgStream << destPath << "\n";
     msgStream << util::msgarg::ToString(replyArg) << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_GET_PROP_REPLY);
+}
+
+void
+XMPPConnector::SendGetReply(
+    const string& destName,
+    const string& destPath,
+    QStatus       error
+    )
+{
+    FNLOG;
+    // Return the reply
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_GET_PROP_REPLY << "\n";
+    msgStream << destName << "\n";
+    msgStream << destPath << "\n";
+    msgStream << static_cast<uint32_t>(error) << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_GET_PROP_REPLY);
 }
@@ -1757,6 +1792,24 @@ XMPPConnector::SendGetAllReply(
     msgStream << destName << "\n";
     msgStream << destPath << "\n";
     msgStream << util::msgarg::ToString(replyArgs) << "\n";
+
+    SendMessage(msgStream.str(), ALLJOYN_CODE_GET_ALL_REPLY);
+}
+
+void
+XMPPConnector::SendGetAllReply(
+    const string& destName,
+    const string& destPath,
+    QStatus       error
+    )
+{
+    FNLOG;
+    // Construct the text that will be the body of our message
+    ostringstream msgStream;
+    msgStream << ALLJOYN_CODE_GET_ALL_REPLY << "\n";
+    msgStream << destName << "\n";
+    msgStream << destPath << "\n";
+    msgStream << static_cast<uint32_t>(error) << "\n";
 
     SendMessage(msgStream.str(), ALLJOYN_CODE_GET_ALL_REPLY);
 }
@@ -2374,6 +2427,7 @@ XMPPConnector::ReceiveMethodCall(
     {
         LOG_RELEASE("No bus attachment to handle incoming method call. Message: %s",
                 message.c_str());
+        SendMethodReply(destName, destPath, ER_BUS_NO_SUCH_OBJECT);
         return;
     }
 
@@ -2386,6 +2440,7 @@ XMPPConnector::ReceiveMethodCall(
     {
         LOG_RELEASE("Failed to introspect remote object to relay method call: %s",
                 QCC_StatusText(err));
+        SendMethodReply(destName, destPath, err);
         return;
     }
 
@@ -2397,6 +2452,7 @@ XMPPConnector::ReceiveMethodCall(
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay method call: %s", QCC_StatusText(err));
+        SendMethodReply(destName, destPath, err);
         return;
     }
 
@@ -2526,6 +2582,7 @@ XMPPConnector::ReceiveGetRequest(
     {
         LOG_RELEASE("Failed to introspect remote object to relay get request: %s",
                 QCC_StatusText(err));
+        SendGetReply(destName, destPath, err);
         return;
     }
 
@@ -2534,7 +2591,8 @@ XMPPConnector::ReceiveGetRequest(
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay Get request: %s", QCC_StatusText(err));
-        return;                                                                 // TODO: send the actual response status back
+        SendGetReply(destName, destPath, err);
+        return;
     }
 
     // Return the reply
@@ -2695,6 +2753,7 @@ XMPPConnector::ReceiveGetAllRequest(
     {
         LOG_RELEASE("Failed to introspect remote object to relay GetAll request: %s",
                 QCC_StatusText(err));
+        SendGetAllReply(destName, destPath, err);
         return;
     }
 
@@ -2704,7 +2763,8 @@ XMPPConnector::ReceiveGetAllRequest(
     {
         LOG_RELEASE("Failed to get all properties: %s",
                QCC_StatusText(err));
-        return;                                                                 // TODO: send the actual response status back
+        SendGetAllReply(destName, destPath, err);
+        return;
     }
 
     // Return the reply
