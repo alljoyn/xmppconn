@@ -293,6 +293,12 @@ private:
                 ajn::Message&      reply
                 );
     void
+        SendMethodReply(
+                const string& destName,
+                const string& destPath,
+                QStatus error
+                );
+    void
         SendSignal(
                 const InterfaceDescription::Member* member,
                 const char*                         srcPath,
@@ -310,6 +316,12 @@ private:
                 const std::string& destName,
                 const std::string& destPath,
                 const ajn::MsgArg& replyArg
+                );
+    void
+        SendGetReply(
+                const std::string& destName,
+                const std::string& destPath,
+                QStatus            error
                 );
     void
         SendSetRequest(
@@ -337,6 +349,12 @@ private:
                 const std::string& destName,
                 const std::string& destPath,
                 const ajn::MsgArg& replyArgs
+                );
+    void
+        SendGetAllReply(
+                const std::string& destName,
+                const std::string& destPath,
+                QStatus            error
                 );
 
     void
