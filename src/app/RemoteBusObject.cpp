@@ -57,14 +57,50 @@ RemoteBusObject::AllJoynMethodHandler(
 
     if(replyReceived)
     {
-        vector<MsgArg> replyArgs =
-                util::msgarg::VectorFromString(replyStr);
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            vector<MsgArg> replyArgs =
+                    util::msgarg::VectorFromString(replyStr);
+            QStatus err = MethodReply(
+                    message, &replyArgs[0], replyArgs.size());
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to reply to method call: %s",
+                        QCC_StatusText(err));
+            }
+        }
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            if(ss >> status)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling a method call!");
+                status = ER_FAIL;
+            }
+            QStatus err = MethodReply(
+                    message, static_cast<QStatus>(status));
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send error reply of '%s' to method call: %s",
+                        replyStr.c_str(), QCC_StatusText(err));
+            }
+        }
+    }
+    else
+    {
+        LOG_RELEASE("Failed to receive the method reply for %s in a timely manner.",
+                member->name.c_str());
         QStatus err = MethodReply(
-                message, &replyArgs[0], replyArgs.size());
+            message, ER_FAIL);
         if(err != ER_OK)
         {
-            LOG_RELEASE("Failed to reply to method call: %s",
-                    QCC_StatusText(err));
+            LOG_RELEASE("Failed to send an ER_FAIL reply to a method call: %s",
+                QCC_StatusText(err));
         }
     }
 }
@@ -225,18 +261,38 @@ RemoteBusObject::Get(
 
     if(replyReceived)
     {
-        MsgArg arg(util::msgarg::FromString(replyStr));
-        if(arg.Signature() == "v") {
-            val = *arg.v_variant.val;
-        } else {
-            val = arg;
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            MsgArg arg(util::msgarg::FromString(replyStr));
+            if(arg.Signature() == "v") {
+                val = *arg.v_variant.val;
+            } else {
+                val = arg;
+            }
+            val.Stabilize();
+            return ER_OK;
         }
-        val.Stabilize();
-        return ER_OK;
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            if(ss >> status)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling Get call!");
+                status = ER_FAIL;
+            }
+            return static_cast<QStatus>(status);
+        }
     }
     else
     {
-        return ER_BUS_NO_SUCH_PROPERTY;
+        LOG_RELEASE("Failed to receive the get reply for %s, %s in a timely manner.",
+                ifaceName, propName);
+        return ER_FAIL;
     }
 }
 
@@ -264,11 +320,22 @@ RemoteBusObject::Set(
 
     if(replyReceived)
     {
-        return static_cast<QStatus>(strtol(replyStr.c_str(), NULL, 10));
+        // Check for an error result and generate a new reply
+        stringstream ss(replyStr);
+        uint32_t status = 0;
+        if(ss >> status)
+        {
+            // The conversion from string to uint32_t failed
+            status = ER_FAIL;
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling Set call!");
+        }
+       return static_cast<QStatus>(status);
     }
     else
     {
-        return ER_BUS_NO_SUCH_PROPERTY;
+        LOG_RELEASE("Failed to receive the Set reply for %s, %s in a timely manner.",
+                ifaceName, propName);
+        return ER_FAIL;
     }
 }
 
@@ -299,11 +366,47 @@ RemoteBusObject::GetAllProps(
 
     if(replyReceived)
     {
-        MsgArg result = util::msgarg::FromString(replyStr);
-        QStatus err = MethodReply(msg, &result, 1);
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            MsgArg result = util::msgarg::FromString(replyStr);
+            QStatus err = MethodReply(msg, &result, 1);
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send method reply to GetAllProps request: %s",
+                        QCC_StatusText(err));
+            }
+        }
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            if(ss >> status)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling GetAllProps call!");
+                status = ER_FAIL;
+            }
+            QStatus err = MethodReply(
+                    msg, static_cast<QStatus>(status));
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send error reply of '%s' to GetAllProps request: %s",
+                        replyStr.c_str(), QCC_StatusText(err));
+            }
+        }
+    }
+    else
+    {
+        LOG_RELEASE("Failed to receive the GetAllProps reply for %s, %s in a timely manner.",
+                ifaceName.c_str(), member->name.c_str());
+        QStatus err = MethodReply(
+                msg, ER_FAIL);
         if(err != ER_OK)
         {
-            LOG_RELEASE("Failed to send method reply to GetAllProps request: %s",
+            LOG_RELEASE("Failed to send an ER_FAIL reply to GetAllProps request: %s",
                     QCC_StatusText(err));
         }
     }
