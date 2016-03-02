@@ -21,7 +21,6 @@
 
 #include <alljoyn/config/AboutDataStoreInterface.h>
 #include <alljoyn/AboutData.h>
-#include <alljoyn/services_common/GuidUtil.h>
 
 #include <fstream>
 #include <iomanip>
@@ -199,6 +198,7 @@ QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter
 
 QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
 {
+    QCC_UNUSED(languageTag);
     QStatus status = ER_INVALID_VALUE;
     ConfigParser configParser(m_configFileName.c_str());
     char* chval = NULL;

@@ -23,7 +23,6 @@
 #include "common/CommonBusListener.h"
 #include "SimpleBusObject.h"
 
-#include <alljoyn/services_common/GuidUtil.h>
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
 #include <qcc/StringUtil.h>
@@ -176,6 +175,7 @@ void cleanup()
 
 static void SigIntHandler(int sig)
 {
+    QCC_UNUSED(sig);
     LOG_RELEASE("Handling SIGINT");
     inotify_rm_watch(s_ConfigFileDescriptor, s_ConfigFileWatchDescriptor);
     s_Continue = false;
@@ -251,6 +251,8 @@ void getConfigurationFields(){
 
 int main(int argc, char** argv)
 {
+    QCC_UNUSED(argc);
+    QCC_UNUSED(argv);
     QStatus status = AllJoynInit();
     if (status != ER_OK)
     {

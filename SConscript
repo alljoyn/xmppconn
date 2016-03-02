@@ -21,15 +21,15 @@ env['_XMPPCONN'] = True
 if not env.has_key('_ALLJOYN_ABOUT_') and os.path.exists('../../core/alljoyn/services/about/SConscript'):
     env.SConscript('../../core/alljoyn/services/about/SConscript')
 
-if not env.has_key('_ALLJOYN_SERVICES_COMMON_') and os.path.exists('../../services/base/services_common/SConscript'):
-    env.SConscript('../../services/base/services_common/SConscript')
+#if not env.has_key('_ALLJOYN_SERVICES_COMMON_') and os.path.exists('../../services/base/services_common/SConscript'):
+#    env.SConscript('../../services/base/services_common/SConscript')
 
-if env['BUILD_SERVICES_SAMPLES'] == 'on':
-    if not env.has_key('_ALLJOYN_CONTROLPANEL_') and os.path.exists('../../services/base/controlpanel/SConscript'):
-        env.SConscript('../../services/base/controlpanel/SConscript')
+#if env['BUILD_SERVICES_SAMPLES'] == 'on':
+#    if not env.has_key('_ALLJOYN_CONTROLPANEL_') and os.path.exists('../../services/base/controlpanel/SConscript'):
+#        env.SConscript('../../services/base/controlpanel/SConscript')
 
-if not env.has_key('_ALLJOYN_CONFIG_') and os.path.exists('../../services/base/config/SConscript'):
-    env.SConscript('../../services/base/config/SConscript')
+if not env.has_key('_ALLJOYN_CONFIG_') and os.path.exists('../../core/alljoyn/services/config/SConscript'):
+    env.SConscript('../../core/alljoyn/services/config/SConscript')
 
 if not env.has_key('_ALLJOYNCORE_') and os.path.exists('../../core/alljoyn/alljoyn_core/SConscript'):
     env.SConscript('../../core/alljoyn/alljoyn_core/SConscript')

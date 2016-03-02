@@ -329,6 +329,8 @@ RemoteBusAttachment::RelayAnnouncement(
     const ajn::AboutData& aboutData
     )
 {
+    QCC_UNUSED(version);
+    QCC_UNUSED(busName);
     QStatus err = ER_OK;
     LOG_DEBUG("Relaying announcement for %s", m_wellKnownName.c_str());
     m_aboutData = aboutData;
