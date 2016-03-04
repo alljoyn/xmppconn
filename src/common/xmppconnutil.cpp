@@ -1041,6 +1041,7 @@ namespace bus {
         void*           context
         )
     {
+        QCC_UNUSED(status);
         FNLOG;
         GetBusObjectsTreeNode* node = reinterpret_cast<GetBusObjectsTreeNode*>(context);
         GetBusObjectsAsyncContext* ctx = node->GetContext();

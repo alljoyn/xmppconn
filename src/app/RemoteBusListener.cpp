@@ -127,6 +127,7 @@ RemoteBusListener::SessionLost(
     SessionLostReason reason
     )
 {
+    QCC_UNUSED(reason);
     LOG_DEBUG("Session lost. Attachment: %s Id: %d",
             m_bus->RemoteName().c_str(), id);
 

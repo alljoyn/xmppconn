@@ -166,6 +166,7 @@ public:
         void*                               context
         )
     {
+        QCC_UNUSED(obj);
         FNLOG;
         IntrospectCallbackContext* ctx =
             static_cast<IntrospectCallbackContext*>(context);
@@ -311,6 +312,8 @@ public:
         const char*   namePrefix
         )
     {
+        QCC_UNUSED(transport);
+        QCC_UNUSED(namePrefix);
         // Do not re-advertise these
         if(name == strstr(name, "org.alljoyn.BusNode") ||
            name == strstr(name, "org.alljoyn.sl")      ||
@@ -394,6 +397,8 @@ public:
         const char*   namePrefix
         )
     {
+        QCC_UNUSED(transport);
+        QCC_UNUSED(namePrefix);
         // These are not re-advertised by us
         if(name == strstr(name, "org.alljoyn.BusNode") ||
            name == strstr(name, "org.alljoyn.sl")     ||
@@ -587,6 +592,8 @@ XMPPConnector::XMPPConnector(
     m_propertyBus("propertyBus"),
     m_busInterfaceName(busInterfaceName)
 {
+    QCC_UNUSED(bus);
+    QCC_UNUSED(appName);
     m_transport = new XmppTransport( this,
         xmppJid, xmppPassword, xmppRoster, xmppChatroom, compress);
 
@@ -1471,6 +1478,7 @@ XMPPConnector::SendJoinRequest(
     const vector<util::bus::BusObjectInfo>& busObjects
     )
 {
+    QCC_UNUSED(opts);
     FNLOG;
     // Construct the text that will be the body of our message
     ostringstream msgStream;
@@ -1633,6 +1641,7 @@ XMPPConnector::SendSignal(
     Message&                            message
     )
 {
+    QCC_UNUSED(srcPath);
     FNLOG;
     // Find the unique name of the signal sender
     string senderUniqueName = message->GetSender();
@@ -2558,6 +2567,7 @@ XMPPConnector::ReceiveGetRequest(
     const string& message
     )
 {
+    QCC_UNUSED(from);
     FNLOG;
     // Parse the required information
     istringstream msgStream(message);
@@ -2643,6 +2653,7 @@ XMPPConnector::ReceiveSetRequest(
     const string& message
     )
 {
+    QCC_UNUSED(from);
     FNLOG;
     // Parse the required information
     istringstream msgStream(message);
@@ -2729,6 +2740,7 @@ XMPPConnector::ReceiveGetAllRequest(
     const string& message
     )
 {
+    QCC_UNUSED(from);
     FNLOG;
     // Parse the required information
     istringstream msgStream(message);
@@ -2958,6 +2970,7 @@ XMPPConnector::GlobalConnectionStateChanged(
     const Transport::ConnectionError& error
     )
 {
+    QCC_UNUSED(error);
     switch(new_state)
     {
     case Transport::connected:
@@ -2994,6 +3007,7 @@ XMPPConnector::RemoteSourcePresenceStateChanged(
     const Transport::ConnectionError& error
     )
 {
+    QCC_UNUSED(error);
     switch(new_state)
     {
     case Transport::connected:

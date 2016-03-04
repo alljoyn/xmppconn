@@ -42,6 +42,8 @@ bool SrpKeyXListener::RequestCredentials(const char* authMechanism,
                                          uint16_t credMask,
                                          Credentials& creds)
 {
+    QCC_UNUSED(authPeer);
+    QCC_UNUSED(userId);
     if (strcmp(authMechanism, "ALLJOYN_SRP_KEYX") == 0 || strcmp(authMechanism, "ALLJOYN_PIN_KEYX") == 0 || strcmp(authMechanism, "ALLJOYN_ECDHE_PSK") == 0) {
         if (credMask & AuthListener::CRED_PASSWORD) {
             if (authCount <= 3) {
@@ -61,5 +63,6 @@ bool SrpKeyXListener::RequestCredentials(const char* authMechanism,
 
 void SrpKeyXListener::AuthenticationComplete(const char* authMechanism, const char* authPeer, bool success)
 {
+    QCC_UNUSED(authPeer);
     std::cout << "Authentication with " << authMechanism << (success ? " was successful" : " failed") << std::endl;
 }

@@ -582,7 +582,9 @@ XmppTransport::XmppConnectionHandler(
         void* const                userdata
         )
 {
-
+    QCC_UNUSED(conn);
+    QCC_UNUSED(err);
+    QCC_UNUSED(streamerror);
     FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     switch(event)
