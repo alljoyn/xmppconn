@@ -823,12 +823,15 @@ XMPPConnector::IsInterfaceKnownToAlreadyExist(
     ) const
 {
     string buspeer("org.alljoyn.Bus.Peer");
+    string bussec2("org.alljoyn.Bus.Security");
     return ifaceName == "org.freedesktop.DBus.Peer" || 
           ifaceName == "org.freedesktop.DBus.Introspectable" || 
           ifaceName == "org.freedesktop.DBus.Properties" || 
           ifaceName == "org.allseen.Introspectable" || 
-          ifaceName == "org.alljoyn.About" || 
-          ifaceName.compare(0, buspeer.length(), buspeer) == 0;
+          ifaceName == "org.alljoyn.About" ||
+          ifaceName == "org.alljoyn.Bus.Application" ||
+          ifaceName.compare(0, buspeer.length(), buspeer) == 0 || 
+          ifaceName.compare(0, bussec2.length(), bussec2) == 0;
 }
 
 
