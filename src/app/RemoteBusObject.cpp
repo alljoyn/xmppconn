@@ -76,7 +76,8 @@ RemoteBusObject::AllJoynMethodHandler(
             // Check for an error result and generate a new reply
             stringstream ss(replyStr);
             uint32_t status = 0;
-            if(ss >> status)
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
             {
                 // The conversion from string to uint32_t failed
                 LOG_RELEASE("Failed to convert from status code to uint32_t when handling a method call!");
@@ -279,7 +280,8 @@ RemoteBusObject::Get(
             // Check for an error result and generate a new reply
             stringstream ss(replyStr);
             uint32_t status = 0;
-            if(ss >> status)
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
             {
                 // The conversion from string to uint32_t failed
                 LOG_RELEASE("Failed to convert from status code to uint32_t when handling Get call!");
@@ -323,7 +325,8 @@ RemoteBusObject::Set(
         // Check for an error result and generate a new reply
         stringstream ss(replyStr);
         uint32_t status = 0;
-        if(ss >> status)
+        ss >> status;
+        if((ss.rdstate() & stringstream::failbit ) != 0)
         {
             // The conversion from string to uint32_t failed
             status = ER_FAIL;
@@ -383,7 +386,8 @@ RemoteBusObject::GetAllProps(
             // Check for an error result and generate a new reply
             stringstream ss(replyStr);
             uint32_t status = 0;
-            if(ss >> status)
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
             {
                 // The conversion from string to uint32_t failed
                 LOG_RELEASE("Failed to convert from status code to uint32_t when handling GetAllProps call!");
