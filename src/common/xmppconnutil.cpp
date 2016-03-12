@@ -534,7 +534,10 @@ namespace msgarg {
                 else
                 {
                     string signature("as");
-                    status = result.Set(signature.c_str(), stringarray.size(), &stringarray[0]);
+                    if(stringarray.size() > 0)
+                    {
+                        status = result.Set(signature.c_str(), stringarray.size(), &stringarray[0]);
+                    }
                     result.Stabilize();
                 }
             }
@@ -549,7 +552,10 @@ namespace msgarg {
                 }
                 else
                 {
-                    status = result.Set("a*", array.size(), &array[0]);
+                    if(array.size() > 0)
+                    {
+                        status = result.Set("a*", array.size(), &array[0]);
+                    }
                     result.Stabilize();
                 }
             }
@@ -717,7 +723,10 @@ namespace msgarg {
                 }
             }
             string signature("ad");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int32\">")
@@ -733,7 +742,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("ai");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int16\">")
@@ -749,7 +761,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("an");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint16\">")
@@ -765,7 +780,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("aq");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint64\">")
@@ -781,7 +799,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("at");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"uint32\">")
@@ -797,7 +818,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("au");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"int64\">")
@@ -813,7 +837,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("ax");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
         else if(typeTag == "<array type=\"byte\">")
@@ -829,7 +856,10 @@ namespace msgarg {
                 pos = endPos;
             }
             string signature("ay");
-            status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            if(elements.size() > 0)
+            {
+                status = result.Set(signature.c_str(), elements.size(), &elements[0]);
+            }
             result.Stabilize();
         }
 

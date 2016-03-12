@@ -327,7 +327,7 @@ RemoteBusObject::Set(
         {
             // The conversion from string to uint32_t failed
             status = ER_FAIL;
-                LOG_RELEASE("Failed to convert from status code to uint32_t when handling Set call!");
+            LOG_RELEASE("Failed to convert from status code to uint32_t when handling Set call!");
         }
        return static_cast<QStatus>(status);
     }
