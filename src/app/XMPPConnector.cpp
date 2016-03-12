@@ -2456,11 +2456,12 @@ XMPPConnector::ReceiveMethodCall(
         return;
     }
 
+    Message reply(*bus);
     vector<MsgArg> messageArgs =
             util::msgarg::VectorFromString(messageArgsString);
-    Message reply(*bus);
+    MsgArg* pArgs = messageArgs.size() > 0 ? &messageArgs[0] : NULL;
     err = proxy.MethodCall(ifaceName.c_str(), memberName.c_str(),
-            &messageArgs[0], messageArgs.size(), reply, 5000);
+            pArgs, messageArgs.size(), reply, 5000);
     if(err != ER_OK)
     {
         LOG_RELEASE("Failed to relay method call: %s", QCC_StatusText(err));
