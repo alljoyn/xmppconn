@@ -28,10 +28,6 @@ vars.Add(EnumVariable('BUILD_SERVICES_SAMPLES',
                       'off',
                       allowed_values = ['off', 'on']))
  
-vars.Add(PathVariable('APP_COMMON_DIR',
-                      'Directory containing common sample application sources.',
-                      os.environ.get('APP_COMMON_DIR','../../services/base/sample_apps')))
-
 vars.Add(PathVariable('LIBXML2_INCDIR',
                       'Directory containing the libxml2 include files.',
                       os.environ.get('LIBXML2_INCDIR','/usr/include/libxml2')))
