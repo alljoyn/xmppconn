@@ -206,7 +206,7 @@ RemoteBusObject::SendSignal(
                     err = Signal(
                             (destination.empty() ?
                             NULL : destination.c_str()), sessionId,
-                            *members[i], &msgArgs[0], msgArgs.size(),
+                            *members[i], (msgArgs.size() > 0 ? &msgArgs[0] : NULL), msgArgs.size(),
                             ttl, flags, msg);
                     if(err != ER_OK)
                     {
