@@ -18,6 +18,7 @@
 #include "RemoteBusAttachment.h"
 #include "ScopedTransactionLocker.h"
 #include "XMPPConnector.h"
+#include <algorithm>
 
 using namespace std;
 using namespace ajn;
@@ -42,9 +43,21 @@ RemoteBusObject::AllJoynMethodHandler(
     )
 {
     LOG_DEBUG("Received method call: %s", member->name.c_str());
+
+    // Check if a reply is necessary (denoted by org.freedesktop.DBus.Method.NoReply annotation being true)
+    bool replyNecessary = true;
+    qcc::String replyNecessaryAnnotation;
+    if(member->GetAnnotation("org.freedesktop.DBus.Method.NoReply", replyNecessaryAnnotation))
+    {
+        const string trueStr("true");
+        string valueStr(replyNecessaryAnnotation.c_str());
+        std::transform(valueStr.begin(), valueStr.end(), valueStr.begin(), ::tolower);
+        replyNecessary = (trueStr == valueStr);
+    }
+
     bool replyReceived = false;
     string replyStr;
-
+    if(replyNecessary)
     {
         ScopedTransactionLocker transLock(&m_reply);
 
@@ -53,6 +66,11 @@ RemoteBusObject::AllJoynMethodHandler(
 
         // Wait for the XMPP response signal
         transLock.ReceiveReply(replyReceived, replyStr);
+    }
+    else
+    {
+        m_connector->SendMethodCall(
+                member, message, m_bus->RemoteName(), GetPath());
     }
 
     if(replyReceived)
@@ -92,7 +110,7 @@ RemoteBusObject::AllJoynMethodHandler(
             }
         }
     }
-    else
+    else if(replyNecessary)
     {
         LOG_RELEASE("Failed to receive the method reply for %s in a timely manner.",
                 member->name.c_str());
