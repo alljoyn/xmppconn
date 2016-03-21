@@ -411,7 +411,7 @@ RemoteBusAttachment::RelayAnnouncement(
     }
 
     // Create the AboutObj to relay the announcement
-    m_aboutObj = new AboutObj(*this, ajn::BusObject::ANNOUNCED);
+    m_aboutObj = new AboutObj(*this, ajn::BusObject::UNANNOUNCED);
 
     // Make the announcement
     err = m_aboutObj->Announce(port, m_aboutData);
