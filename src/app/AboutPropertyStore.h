@@ -34,19 +34,22 @@ public:
     {
         // Construct the property store args
         std::vector<ajn::MsgArg> dictArgs;
+        std::string signature;
         ajn::services::AnnounceHandler::AboutData::const_iterator aboutIter;
         for(aboutIter = aboutData.begin();
             aboutIter != aboutData.end();
             ++aboutIter)
         {
-            ajn::MsgArg dictEntry("{sv}",
+            signature = "{sv}";
+            ajn::MsgArg dictEntry(signature.c_str(),
                     aboutIter->first.c_str(), &aboutIter->second);
             dictEntry.Stabilize();                                          //cout << dictEntry.ToString(4) << endl;
 
             dictArgs.push_back(dictEntry);
         }
 
-        QStatus err = m_announceArgs.Set("a{sv}",
+        signature = "a{sv}";
+        QStatus err = m_announceArgs.Set(signature.c_str(),
                 dictArgs.size(), &dictArgs[0]);
         m_announceArgs.Stabilize();                                         //cout << m_announceArgs.ToString(4) << endl;
 
