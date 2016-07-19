@@ -40,6 +40,8 @@ SessionPort CommonBusListener::getSessionPort()
 
 bool CommonBusListener::AcceptSessionJoiner(ajn::SessionPort sessionPort, const char* joiner, const ajn::SessionOpts& opts)
 {
+    QCC_UNUSED(joiner);
+    QCC_UNUSED(opts);
     if (sessionPort != m_SessionPort) {
         return false;
     }
@@ -50,6 +52,8 @@ bool CommonBusListener::AcceptSessionJoiner(ajn::SessionPort sessionPort, const 
 
 void CommonBusListener::SessionJoined(SessionPort sessionPort, SessionId id, const char* joiner)
 {
+    QCC_UNUSED(sessionPort);
+    QCC_UNUSED(joiner);
     std::cout << "Session has been joined successfully" << std::endl;
     if (m_Bus) {
         m_Bus->SetSessionListener(id, this);
@@ -59,6 +63,7 @@ void CommonBusListener::SessionJoined(SessionPort sessionPort, SessionId id, con
 
 void CommonBusListener::SessionLost(SessionId sessionId, SessionLostReason reason)
 {
+    QCC_UNUSED(reason);
     std::cout << "Session has been lost" << std::endl;
     std::vector<SessionId>::iterator it = std::find(m_SessionIds.begin(), m_SessionIds.end(), sessionId);
     if (it != m_SessionIds.end()) {

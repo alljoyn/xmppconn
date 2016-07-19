@@ -22,14 +22,13 @@
 #endif // !NO_AJ_GATEWAY
 #include <alljoyn/BusAttachment.h>
 #include <alljoyn/BusListener.h>
+#include <alljoyn/AboutData.h>
 #include <string>
 #include <vector>
 #include <list>
 #include <map>
 #include <pthread.h>
 
-#include <alljoyn/about/AboutPropertyStoreImpl.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlwriter.h>
@@ -82,6 +81,18 @@ public:
         const std::string& interfaceName,
         ajn::SessionPort   port
         );
+
+    /**
+     *  Get a session port corresponding to a particular interface name.
+     *  If there is no exact match, try to get a port that corresponds
+     *  to a substring (prefix) of the interface.
+     *  @param[in] interfaceName  The name of the interface
+     *  @returns                  The SessionPort for that interface
+     */
+    SessionPort
+    GetSessionPort(
+            const string& interfaceName
+            );
 
     // Blocks until stop() is called, listens for XMPP
     QStatus Start();
@@ -141,16 +152,35 @@ private:
 #endif
     bool m_initialized;
 
+    struct InterfaceData
+    {
+        std::string name;
+        std::string data;
+        bool        announced;
+    };
     struct RemoteObjectDescription
     {
-        std::string                        path;
-        std::map<std::string, std::string> interfaces;
+        std::string                path;
+        std::vector<InterfaceData> interfaces;
     };
+    QStatus
+    AddRemoteObject(
+        RemoteBusAttachment&                                  bus,
+        const RemoteObjectDescription&                        desc,
+        std::map<std::string,std::vector<ajn::SessionPort> >& portsToBind
+        );
+
+    QStatus
+    BindSessionPorts(
+        RemoteBusAttachment&                                        bus,
+        const std::map<std::string,std::vector<ajn::SessionPort> >& portsToBind
+        );
 
     RemoteBusAttachment* GetRemoteAttachment(
             const std::string&                          from,
             const std::string&                          remoteName,
-            const std::vector<RemoteObjectDescription>* objects = NULL
+            const std::vector<RemoteObjectDescription>* objects = NULL,
+            bool                                        announcement = false
             );
     RemoteBusAttachment* GetRemoteAttachmentByAdvertisedName(
             const std::string& from,
@@ -176,6 +206,9 @@ private:
     void DeleteBusListener(
             const std::string& from
             );
+    bool IsInterfaceKnownToAlreadyExist(
+            const std::string& ifaceName
+            ) const;
 
     std::map<std::string,ajn::BusAttachment*>   m_buses;
     std::map<std::string,AllJoynListener*>      m_listeners;
@@ -213,12 +246,12 @@ private:
                 );
     void
         SendAnnounce(
-                uint16_t                                   version,
-                uint16_t                                   port,
-                const std::string&                         busName,
-                const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
-                const ajn::services::AnnounceHandler::AboutData&          aboutData,
-                const vector<util::bus::BusObjectInfo>&    busObjects
+                uint16_t                                    version,
+                uint16_t                                    port,
+                const std::string&                          busName,
+                const std::map<string, vector<string> >&    objectDescs,
+                AboutData&                                  aboutData,
+                const vector<util::bus::BusObjectInfo>&     busObjects
                 );
     void
         SendJoinRequest(
@@ -260,6 +293,12 @@ private:
                 ajn::Message&      reply
                 );
     void
+        SendMethodReply(
+                const string& destName,
+                const string& destPath,
+                QStatus error
+                );
+    void
         SendSignal(
                 const InterfaceDescription::Member* member,
                 const char*                         srcPath,
@@ -279,6 +318,12 @@ private:
                 const ajn::MsgArg& replyArg
                 );
     void
+        SendGetReply(
+                const std::string& destName,
+                const std::string& destPath,
+                QStatus            error
+                );
+    void
         SendSetRequest(
                 const std::string& ifaceName,
                 const std::string& propName,
@@ -294,6 +339,7 @@ private:
                 );
     void
         SendGetAllRequest(
+                const std::string&                  ifaceName,
                 const InterfaceDescription::Member* member,
                 const std::string&                  destName,
                 const std::string&                  destPath
@@ -303,6 +349,12 @@ private:
                 const std::string& destName,
                 const std::string& destPath,
                 const ajn::MsgArg& replyArgs
+                );
+    void
+        SendGetAllReply(
+                const std::string& destName,
+                const std::string& destPath,
+                QStatus            error
                 );
 
     void
@@ -314,7 +366,8 @@ private:
 
     std::vector<XMPPConnector::RemoteObjectDescription>
         ParseBusObjectInfo(
-                std::istringstream& msgStream
+                std::istringstream& msgStream,
+                std::map<std::string, std::vector<std::string> > announcedObjIfaceMap = std::map<std::string, std::vector<std::string> >()
                 );
 
     void ReceiveAdvertisement(const std::string& from, const std::string& message);
