@@ -28,10 +28,6 @@ vars.Add(EnumVariable('BUILD_SERVICES_SAMPLES',
                       'off',
                       allowed_values = ['off', 'on']))
  
-vars.Add(PathVariable('APP_COMMON_DIR',
-                      'Directory containing common sample application sources.',
-                      os.environ.get('APP_COMMON_DIR','../../services/base/sample_apps')))
-
 vars.Add(PathVariable('LIBXML2_INCDIR',
                       'Directory containing the libxml2 include files.',
                       os.environ.get('LIBXML2_INCDIR','/usr/include/libxml2')))
@@ -70,9 +66,11 @@ if env.get('ALLJOYN_DISTDIR'):
     env['ALLJOYN_DISTDIR'] = env.Dir('$ALLJOYN_DISTDIR')
     env.Append(CPPPATH = [ env.Dir('$ALLJOYN_DISTDIR/cpp/inc'),
                            env.Dir('$ALLJOYN_DISTDIR/about/inc'),
+                           env.Dir('$ALLJOYN_DISTDIR/config/inc'),
                            env.Dir('$ALLJOYN_DISTDIR/services_common/inc') ])
     env.Append(LIBPATH = [ env.Dir('$ALLJOYN_DISTDIR/cpp/lib'),
                            env.Dir('$ALLJOYN_DISTDIR/about/lib'),
+                           env.Dir('$ALLJOYN_DISTDIR/config/lib'),
                            env.Dir('$ALLJOYN_DISTDIR/services_common/lib') ])
 
 if env.get('APP_COMMON_DIR'):

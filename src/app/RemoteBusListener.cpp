@@ -21,7 +21,6 @@
 
 using namespace std;
 using namespace ajn;
-using namespace ajn::services;
 
 RemoteBusListener::RemoteBusListener(
     RemoteBusAttachment* bus,
@@ -128,6 +127,7 @@ RemoteBusListener::SessionLost(
     SessionLostReason reason
     )
 {
+    QCC_UNUSED(reason);
     LOG_DEBUG("Session lost. Attachment: %s Id: %d",
             m_bus->RemoteName().c_str(), id);
 

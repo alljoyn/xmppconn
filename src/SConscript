@@ -25,7 +25,7 @@ if not xmppconn_env.has_key('_ALLJOYNCORE_'):
 xmppconn_env.Append(CPPPATH = ['$LIBXML2_INCDIR', '$RAPIDJSON_INCDIR', '$LIBSTROPHE_INCDIR', '.'])
 xmppconn_env.Append(LIBPATH = ['$LIBXML2_LIBDIR', '$LIBSTROPHE_LIBDIR', '.'])
 xmppconn_env.Append(LIBS = ['libxml2', 'strophe', 'ssl', 'crypto', 'resolv', 'rt', 'z', 'c', 'uuid'])
-xmppconn_env.Prepend(LIBS = ['alljoyn_about', 'alljoyn_config', 'alljoyn_services_common'])
+xmppconn_env.Prepend(LIBS = ['alljoyn_about', 'alljoyn_config'])
 
 if xmppconn_env['USE_GATEWAY_AGENT'] == 'off':
     xmppconn_env.Append(CCFLAGS = ['-DNO_AJ_GATEWAY'])
@@ -34,6 +34,10 @@ srcs = xmppconn_env.Glob('app/*.cpp')
 srcs.extend(xmppconn_env.Glob('common/*.cpp'))
 srcs.extend(xmppconn_env.Glob('transport/*.cpp'))
 objs = xmppconn_env.Object(srcs)
+
+# TEMPORARY: ignore deprecated warnings until we can rework the code
+xmppconn_env.Append(CCFLAGS = ['-Wno-deprecated-declarations'])
+#xmppconn_env.Append(CCFLAGS = ['-Wno-error'])
 
 prog = xmppconn_env.Program('xmppconn', objs)
 
