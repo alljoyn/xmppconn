@@ -49,5 +49,7 @@ class ConfigDataStore : public AboutDataStoreInterface {
     std::string m_deviceId;
     RestartCallback m_restartCallback;
     bool m_IsInitialized;
+
+    void Announce();
 };
 #endif
