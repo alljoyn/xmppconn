@@ -19,11 +19,11 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <pthread.h>
 #include "common/xmppconnutil.h"
-#include "alljoyn/BusAttachment.h"
-#include "AboutPropertyStore.h"
-#include "AboutBusObject.h"
+#include <alljoyn/BusAttachment.h>
+#include <alljoyn/AboutObj.h>
 #include "RemoteBusListener.h"
 #include "RemoteBusAttachment.h"
 #include "RemoteBusObject.h"
@@ -35,8 +35,8 @@ class RemoteBusAttachment :
 {
 public:
     RemoteBusAttachment(
-        const std::string&  remoteName,
-        XMPPConnector* connector
+        const std::string& remoteName,
+        XMPPConnector*     connector
         );
 
     ~RemoteBusAttachment();
@@ -67,8 +67,21 @@ public:
 
     QStatus
     AddRemoteObject(
-        const std::string&                       path,
-        std::vector<const InterfaceDescription*> interfaces
+        const std::string&                    path,
+        std::vector<InterfaceDescriptionData> interfaces
+        );
+
+    QStatus
+    UpdateRemoteObject(
+        const std::string&                    path,
+        std::vector<InterfaceDescriptionData> interfaces
+        );
+
+    QStatus
+    UpdateRemoteObjectAnnounceFlag(
+        const std::string&           path,
+        const InterfaceDescription*  iface,
+        ajn::BusObject::AnnounceFlag isAnnounced
         );
 
     std::string
@@ -106,11 +119,10 @@ public:
 
     void
     RelayAnnouncement(
-        uint16_t                                                  version,
-        uint16_t                                                  port,
-        const std::string&                                        busName,
-        const ajn::services::AnnounceHandler::ObjectDescriptions& objectDescs,
-        const ajn::services::AnnounceHandler::AboutData&          aboutData
+        uint16_t              version,
+        uint16_t              port,
+        const std::string&    busName,
+        const ajn::AboutData& aboutData
         );
 
     void
@@ -134,16 +146,23 @@ public:
         ajn::SessionId result
         );
 
+    bool
+    RemoteObjectExists(
+        const std::string& path
+        ) const;
+
+    // Accessors
     std::string WellKnownName() const;
     std::string RemoteName() const;
 
 private:
 
-    XMPPConnector*           m_connector;
-    std::string              m_remoteName;
-    std::string              m_wellKnownName;
-    RemoteBusListener        m_listener;
+    XMPPConnector*                m_connector;
+    std::string                   m_remoteName;
+    std::string                   m_wellKnownName;
+    RemoteBusListener             m_listener;
     std::vector<RemoteBusObject*> m_objects;
+    ajn::AboutData                m_aboutData;
 
     struct SessionInfo
     {
@@ -151,11 +170,15 @@ private:
         ajn::SessionPort port;
         ajn::SessionId   remoteId;
     };
-    map<ajn::SessionId, SessionInfo> m_activeSessions;
-    pthread_mutex_t                  m_activeSessionsMutex;
+    std::map<ajn::SessionId, SessionInfo> m_activeSessions;
+    pthread_mutex_t                       m_activeSessionsMutex;
 
-    AboutPropertyStore*       m_aboutPropertyStore;
-    AboutBusObject*           m_aboutBusObject;
+    AboutObj*                m_aboutObj;
+
+    QStatus
+    RemoveRemoteObject(
+        const std::string& path
+        );
 };
 
 

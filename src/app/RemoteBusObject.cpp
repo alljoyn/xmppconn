@@ -18,6 +18,7 @@
 #include "RemoteBusAttachment.h"
 #include "ScopedTransactionLocker.h"
 #include "XMPPConnector.h"
+#include <algorithm>
 
 using namespace std;
 using namespace ajn;
@@ -42,9 +43,21 @@ RemoteBusObject::AllJoynMethodHandler(
     )
 {
     LOG_DEBUG("Received method call: %s", member->name.c_str());
+
+    // Check if a reply is necessary (denoted by org.freedesktop.DBus.Method.NoReply annotation being true)
+    bool replyNecessary = true;
+    qcc::String replyNecessaryAnnotation;
+    if(member->GetAnnotation("org.freedesktop.DBus.Method.NoReply", replyNecessaryAnnotation))
+    {
+        const string trueStr("true");
+        string valueStr(replyNecessaryAnnotation.c_str());
+        std::transform(valueStr.begin(), valueStr.end(), valueStr.begin(), ::tolower);
+        replyNecessary = (trueStr == valueStr);
+    }
+
     bool replyReceived = false;
     string replyStr;
-
+    if(replyNecessary)
     {
         ScopedTransactionLocker transLock(&m_reply);
 
@@ -54,44 +67,87 @@ RemoteBusObject::AllJoynMethodHandler(
         // Wait for the XMPP response signal
         transLock.ReceiveReply(replyReceived, replyStr);
     }
+    else
+    {
+        m_connector->SendMethodCall(
+                member, message, m_bus->RemoteName(), GetPath());
+    }
 
     if(replyReceived)
     {
-        vector<MsgArg> replyArgs =
-                util::msgarg::VectorFromString(replyStr);
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            vector<MsgArg> replyArgs =
+                    util::msgarg::VectorFromString(replyStr);
+            QStatus err = MethodReply(
+                    message, &replyArgs[0], replyArgs.size());
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to reply to method call: %s",
+                        QCC_StatusText(err));
+            }
+        }
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling a method call!");
+                status = ER_FAIL;
+            }
+            QStatus err = MethodReply(
+                    message, static_cast<QStatus>(status));
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send error reply of '%s' to method call: %s",
+                        replyStr.c_str(), QCC_StatusText(err));
+            }
+        }
+    }
+    else if(replyNecessary)
+    {
+        LOG_RELEASE("Failed to receive the method reply for %s in a timely manner.",
+                member->name.c_str());
         QStatus err = MethodReply(
-                message, &replyArgs[0], replyArgs.size());
+            message, ER_FAIL);
         if(err != ER_OK)
         {
-            LOG_RELEASE("Failed to reply to method call: %s",
-                    QCC_StatusText(err));
+            LOG_RELEASE("Failed to send an ER_FAIL reply to a method call: %s",
+                QCC_StatusText(err));
         }
     }
 }
 
 QStatus
 RemoteBusObject::ImplementInterfaces(
-    const vector<const InterfaceDescription*>& interfaces
+    const vector<InterfaceDescriptionData>& interfaces
     )
 {
-    vector<const InterfaceDescription*>::const_iterator it;
+    FNLOG;
+    vector<InterfaceDescriptionData>::const_iterator it;
     for(it = interfaces.begin(); it != interfaces.end(); ++it)
     {
-        QStatus err = AddInterface(**it);
+        QStatus err = AddInterface(*it->desc, it->announced ? ANNOUNCED : UNANNOUNCED);
         if(ER_OK != err)
         {
             LOG_RELEASE("Failed to add interface %s: %s",
-                    (*it)->GetName(), QCC_StatusText(err));
+                    it->desc->GetName(), QCC_StatusText(err));
             return err;
         }
 
         m_interfaces.push_back(*it);
 
         // Register method handlers
-        size_t numMembers = (*it)->GetMembers();
+        size_t numMembers = it->desc->GetMembers();
         InterfaceDescription::Member** interfaceMembers =
                 new InterfaceDescription::Member*[numMembers];
-        numMembers = (*it)->GetMembers(
+        numMembers = it->desc->GetMembers(
                 (const InterfaceDescription::Member**)interfaceMembers,
                 numMembers);
 
@@ -100,12 +156,21 @@ RemoteBusObject::ImplementInterfaces(
             if(interfaceMembers[i]->memberType == MESSAGE_SIGNAL)
             {
                 err = m_bus->RegisterSignalHandler(interfaceMembers[i]);
+                LOG_VERBOSE("Registered signal handler for %s%s: %s",
+                    m_bus->RemoteName().c_str(), GetPath(),
+                    interfaceMembers[i]->name.c_str());
             }
             else
             {
                 err = AddMethodHandler(interfaceMembers[i],
                         static_cast<MessageReceiver::MethodHandler>(
-                        &RemoteBusObject::AllJoynMethodHandler));       //cout << "Registered method handler for " << m_bus->RemoteName() << GetPath() << ":" << interfaceMembers[i]->name << endl;
+                        &RemoteBusObject::AllJoynMethodHandler));
+                if(err == ER_OK)
+                {
+                    LOG_VERBOSE("Registered method handler for %s%s: %s",
+                        m_bus->RemoteName().c_str(), GetPath(),
+                        interfaceMembers[i]->name.c_str());
+                }
             }
             if(err != ER_OK)
             {
@@ -132,27 +197,35 @@ RemoteBusObject::SendSignal(
     QStatus err = ER_FAIL;
 
     // Get the InterfaceDescription::Member
-    vector<const InterfaceDescription*>::iterator ifaceIter;
+    vector<InterfaceDescriptionData>::iterator ifaceIter;
     for(ifaceIter = m_interfaces.begin();
         ifaceIter != m_interfaces.end();
         ++ifaceIter)
     {
-        if(ifaceName == (*ifaceIter)->GetName())
+        if(ifaceName == ifaceIter->desc->GetName())
         {
-            size_t numMembers = (*ifaceIter)->GetMembers();
+            size_t numMembers = ifaceIter->desc->GetMembers();
             InterfaceDescription::Member** members =
                     new InterfaceDescription::Member*[numMembers];
-            numMembers = (*ifaceIter)->GetMembers(
+            numMembers = ifaceIter->desc->GetMembers(
                     (const InterfaceDescription::Member**)members,
                     numMembers);
             for(uint32_t i = 0; i < numMembers; ++i)
             {
                 if(ifaceMember == members[i]->name.c_str())
                 {
+                    uint16_t ttl = 0;
+                    uint8_t flags = 0;
+                    Message* msg = NULL;
+                    if(sessionId == 0)
+                    {
+                        flags = ALLJOYN_FLAG_SESSIONLESS;
+                    }
                     err = Signal(
                             (destination.empty() ?
                             NULL : destination.c_str()), sessionId,
-                            *members[i], &msgArgs[0], msgArgs.size());
+                            *members[i], (msgArgs.size() > 0 ? &msgArgs[0] : NULL), msgArgs.size(),
+                            ttl, flags, msg);
                     if(err != ER_OK)
                     {
                         LOG_RELEASE("Failed to send signal: %s",
@@ -207,18 +280,39 @@ RemoteBusObject::Get(
 
     if(replyReceived)
     {
-        MsgArg arg(util::msgarg::FromString(replyStr));
-        if(arg.Signature() == "v") {
-            val = *arg.v_variant.val;
-        } else {
-            val = arg;
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            MsgArg arg(util::msgarg::FromString(replyStr));
+            if(arg.Signature() == "v") {
+                val = *arg.v_variant.val;
+            } else {
+                val = arg;
+            }
+            val.Stabilize();
+            return ER_OK;
         }
-        val.Stabilize();
-        return ER_OK;
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling Get call!");
+                status = ER_FAIL;
+            }
+            return static_cast<QStatus>(status);
+        }
     }
     else
     {
-        return ER_BUS_NO_SUCH_PROPERTY;
+        LOG_RELEASE("Failed to receive the get reply for %s, %s in a timely manner.",
+                ifaceName, propName);
+        return ER_FAIL;
     }
 }
 
@@ -246,11 +340,23 @@ RemoteBusObject::Set(
 
     if(replyReceived)
     {
-        return static_cast<QStatus>(strtol(replyStr.c_str(), NULL, 10));
+        // Check for an error result and generate a new reply
+        stringstream ss(replyStr);
+        uint32_t status = 0;
+        ss >> status;
+        if((ss.rdstate() & stringstream::failbit ) != 0)
+        {
+            // The conversion from string to uint32_t failed
+            status = ER_FAIL;
+            LOG_RELEASE("Failed to convert from status code to uint32_t when handling Set call!");
+        }
+       return static_cast<QStatus>(status);
     }
     else
     {
-        return ER_BUS_NO_SUCH_PROPERTY;
+        LOG_RELEASE("Failed to receive the Set reply for %s, %s in a timely manner.",
+                ifaceName, propName);
+        return ER_FAIL;
     }
 }
 
@@ -260,8 +366,12 @@ RemoteBusObject::GetAllProps(
     Message&                            msg
     )
 {
+	// NOTE: The only way to get the correct interface name is to dig
+    //  through the Message structure. It should always be the first
+    //  argument, and it should be a string value.
+    string ifaceName(msg->GetArg(0)->v_string.str);
     LOG_DEBUG("Received AllJoyn GetAllProps request for %s: %s",
-            member->iface->GetName(), member->name.c_str());
+        ifaceName.c_str(), member->name.c_str());
     bool replyReceived = false;
     string replyStr;
 
@@ -269,7 +379,7 @@ RemoteBusObject::GetAllProps(
         ScopedTransactionLocker transLock(&m_reply);
 
         m_connector->SendGetAllRequest(
-                member, m_bus->RemoteName(), GetPath());
+                ifaceName, member, m_bus->RemoteName(), GetPath());
 
         // Wait for the XMPP response signal
         transLock.ReceiveReply(replyReceived, replyStr);
@@ -277,11 +387,48 @@ RemoteBusObject::GetAllProps(
 
     if(replyReceived)
     {
-        MsgArg result = util::msgarg::FromString(replyStr);
-        QStatus err = MethodReply(msg, &result, 1);
+        // A successful reply is a MsgArg XML object and starts with a '<'
+        const string successReplyPrefix("<");
+        if(0 == replyStr.compare(0, successReplyPrefix.length(), successReplyPrefix))
+        {
+            MsgArg result = util::msgarg::FromString(replyStr);
+            QStatus err = MethodReply(msg, &result, 1);
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send method reply to GetAllProps request: %s",
+                        QCC_StatusText(err));
+            }
+        }
+        else
+        {
+            // Check for an error result and generate a new reply
+            stringstream ss(replyStr);
+            uint32_t status = 0;
+            ss >> status;
+            if((ss.rdstate() & stringstream::failbit ) != 0)
+            {
+                // The conversion from string to uint32_t failed
+                LOG_RELEASE("Failed to convert from status code to uint32_t when handling GetAllProps call!");
+                status = ER_FAIL;
+            }
+            QStatus err = MethodReply(
+                    msg, static_cast<QStatus>(status));
+            if(err != ER_OK)
+            {
+                LOG_RELEASE("Failed to send error reply of '%s' to GetAllProps request: %s",
+                        replyStr.c_str(), QCC_StatusText(err));
+            }
+        }
+    }
+    else
+    {
+        LOG_RELEASE("Failed to receive the GetAllProps reply for %s, %s in a timely manner.",
+                ifaceName.c_str(), member->name.c_str());
+        QStatus err = MethodReply(
+                msg, ER_FAIL);
         if(err != ER_OK)
         {
-            LOG_RELEASE("Failed to send method reply to GetAllProps request: %s",
+            LOG_RELEASE("Failed to send an ER_FAIL reply to GetAllProps request: %s",
                     QCC_StatusText(err));
         }
     }
