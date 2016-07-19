@@ -33,7 +33,7 @@ $1/%.o: %.cpp
 	$(CC) $(CFLAGS) $(INCLUDES) -c $$< -o $$@
 endef
 
-LIBS += -lalljoyn_gwconnector -lalljoyn_config -lalljoyn_notification -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lcrypto -lresolv -lstdc++ -lpthread -lrt -lz -lgcc_s -lc -luuid
+LIBS += -lalljoyn_config  -lalljoyn_about -lalljoyn_services_common -lalljoyn -lstrophe -lxml2 -lssl -lcrypto -lresolv -lstdc++ -lpthread -lrt -lz -lgcc_s -lc -luuid
 
 ifeq	($(CPU),arm)
     LIBS += -llzma

@@ -28,7 +28,7 @@ SessionTracker::~SessionTracker()
 
 void SessionTracker::JoinSent( const string& name, const SessionId& session_id )
 {
-    FNLOG
+    FNLOG;
     Lock();
     m_pending[name] = session_id;
     Unlock();
@@ -36,7 +36,7 @@ void SessionTracker::JoinSent( const string& name, const SessionId& session_id )
 
 void SessionTracker::JoinConfirmed( const string& name )
 {
-    FNLOG
+    FNLOG;
     Lock();
     if ( m_pending.end() != m_pending.find(name) )
     {
@@ -52,7 +52,7 @@ void SessionTracker::JoinConfirmed( const string& name )
 
 void SessionTracker::SessionLost( const string& name )
 {
-    FNLOG
+    FNLOG;
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) )
     {
@@ -66,7 +66,7 @@ void SessionTracker::SessionLost( const string& name )
 
 bool SessionTracker::IsSessionPending( const string& name ) const
 {
-    FNLOG
+    FNLOG;
     bool found = false;
     Lock();
     if ( m_pending.end() != m_pending.find(name) )
@@ -79,7 +79,7 @@ bool SessionTracker::IsSessionPending( const string& name ) const
 
 bool SessionTracker::IsSessionJoined( const string& name ) const
 {
-    FNLOG
+    FNLOG;
     bool found = false;
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) )
@@ -92,7 +92,7 @@ bool SessionTracker::IsSessionJoined( const string& name ) const
 
 bool SessionTracker::IsSessionPendingOrJoined( const string& name ) const
 {
-    FNLOG
+    FNLOG;
     bool found = false;
     Lock();
     if ( m_sessions.end() != m_sessions.find(name) ||
@@ -106,7 +106,7 @@ bool SessionTracker::IsSessionPendingOrJoined( const string& name ) const
 
 SessionId SessionTracker::GetSession( const string& name ) const
 {
-    FNLOG
+    FNLOG;
     SessionId session_id = 0;
     Lock();
 
