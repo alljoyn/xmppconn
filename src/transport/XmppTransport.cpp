@@ -55,8 +55,16 @@ XmppTransport::XmppTransport(
 
 XmppTransport::~XmppTransport()
 {
-    xmpp_conn_release(m_xmppconn);
-    xmpp_ctx_free(m_xmppctx);
+    if (m_xmppconn)
+    {
+        xmpp_conn_release(m_xmppconn);
+        m_xmppconn = NULL;
+    }
+    if (m_xmppctx)
+    {
+        xmpp_ctx_free(m_xmppctx);
+        m_xmppctx = NULL;
+    }
     xmpp_shutdown();
 }
 
@@ -154,7 +162,8 @@ XmppTransport::StopImpl()
     {
         xmpp_disconnect(m_xmppconn);
         xmpp_handler_delete(m_xmppconn, XmppStanzaHandler);
-        m_xmppconn = NULL;
+        xmpp_handler_delete(m_xmppconn, XmppPresenceHandler);
+        xmpp_handler_delete(m_xmppconn, XmppRosterHandler);
     }
 }
 
@@ -386,7 +395,7 @@ XmppTransport::XmppPresenceHandler(
         )
 {
 
-    FNLOG
+    FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
 
     /*        // First determine if it's a probe and answer it if necessary
@@ -479,7 +488,7 @@ XmppTransport::XmppRosterHandler(
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     QCC_UNUSED(transport);
 
-    FNLOG
+    FNLOG;
     LOG_DEBUG("Received Roster Stanza");
 
     char* buf = 0;
@@ -573,8 +582,10 @@ XmppTransport::XmppConnectionHandler(
         void* const                userdata
         )
 {
-
-    FNLOG
+    QCC_UNUSED(conn);
+    QCC_UNUSED(err);
+    QCC_UNUSED(streamerror);
+    FNLOG;
     XmppTransport* transport = static_cast<XmppTransport*>(userdata);
     switch(event)
     {

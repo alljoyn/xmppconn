@@ -23,13 +23,10 @@
 #include "common/CommonBusListener.h"
 #include "SimpleBusObject.h"
 
-#include <alljoyn/about/AboutPropertyStoreImpl.h>
-#include <alljoyn/about/AnnouncementRegistrar.h>
-#include <alljoyn/about/AboutServiceApi.h>
-#include <alljoyn/services_common/GuidUtil.h>
 #include <alljoyn/AboutObj.h>
 #include <alljoyn/BusAttachment.h>
 #include <qcc/StringUtil.h>
+#include <alljoyn/Init.h>
 
 #include <iostream>
 #include <fstream>
@@ -178,6 +175,7 @@ void cleanup()
 
 static void SigIntHandler(int sig)
 {
+    QCC_UNUSED(sig);
     LOG_RELEASE("Handling SIGINT");
     inotify_rm_watch(s_ConfigFileDescriptor, s_ConfigFileWatchDescriptor);
     s_Continue = false;
@@ -253,7 +251,17 @@ void getConfigurationFields(){
 
 int main(int argc, char** argv)
 {
+    QCC_UNUSED(argc);
+    QCC_UNUSED(argv);
+    QStatus status = AllJoynInit();
+    if (status != ER_OK)
+    {
+        LOG_RELEASE("Failed to initialize AllJoyn: %s", QCC_StatusText(status));
+        return status;
+    }
+
     signal(SIGINT, SigIntHandler);
+    signal(SIGPIPE, SIG_IGN);	//ignore "broken pipes" caused by TLS errors
 
     // Ensure that we can open our config file
     ifstream conf_file(CONF_FILE.c_str());
@@ -305,7 +313,7 @@ int main(int argc, char** argv)
                 cleanup();
                 return status;
             }
-        
+
             configDataStore = new ConfigDataStore(FACTORY_FILE.c_str(),
                                                   CONF_FILE.c_str(),
                                                   s_AppId.c_str(),
@@ -320,7 +328,7 @@ int main(int argc, char** argv)
                 LOG_RELEASE("Failed to get About Service instance!");
                 return ER_BUS_NOT_ALLOWED;
             }
-        
+
             busListener = new CommonBusListener(s_Bus, simpleCallback);
         
             SessionPort sp = 900;
@@ -522,5 +530,6 @@ int main(int argc, char** argv)
 
     }while(s_Continue);
 
+    AllJoynShutdown();
 }
 

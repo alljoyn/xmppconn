@@ -17,11 +17,10 @@
 #include "app/ConfigDataStore.h"
 #include "app/ConfigParser.h"
 #include "common/xmppconnutil.h"
+#include "app/AboutObjApi.h"
 
 #include <alljoyn/config/AboutDataStoreInterface.h>
-#include <alljoyn/about/AboutServiceApi.h>
 #include <alljoyn/AboutData.h>
-#include <alljoyn/services_common/GuidUtil.h>
 
 #include <fstream>
 #include <iomanip>
@@ -92,7 +91,8 @@ void ConfigDataStore::Initialize(bool reset)
 
         // Prime with blank values for required values that may not be in the config file
         MsgArg value;
-        value.Set("s","");
+        string signature("s");
+        value.Set(signature.c_str(),"");
         SetField("Server", value);
         SetField("UserJID", value);
         SetField("UserPassword", value);
@@ -103,7 +103,9 @@ void ConfigDataStore::Initialize(bool reset)
         std::map<std::string,std::string> configMap = configParser.GetConfigMap();
         for(std::map<std::string,std::string>::iterator it = configMap.begin(); it != configMap.end(); ++it){
             if(strcmp(it->first.c_str(), "Port") == 0){
-                value.Set("i", configParser.GetPort()); 
+                signature = "i";
+                value.Set(signature.c_str(), configParser.GetPort());
+                value.Stabilize();
             }
             else if(strcmp(it->first.c_str(), "Roster") == 0){
                 /* TODO: Use this for an array
@@ -115,20 +117,29 @@ void ConfigDataStore::Initialize(bool reset)
                    {
                    tmp[index] = it->c_str();
                    }
-                   value.Set("as", roster.size(), tmp);
+                   signature = "as";
+                   value.Set(signature.c_str(), roster.size(), tmp);
+                   value.Stabilize();
                    delete[] tmp;
                    */
                 /////////////// TEMPORARY
                 vector<string> roster = configParser.GetRoster();
                 string firstvalue = roster.empty() ? string() : roster.front();
-                value.Set("s", firstvalue.c_str());
+                signature = "s";
+                value.Set(signature.c_str(), firstvalue.c_str());
+                value.Stabilize();
                 /////////////// END TEMPORARY
             }
             else if(strcmp(it->first.c_str(), "UserPassword") == 0){ 
-                value.Set("s", "******");
+                string pwd("******");
+                signature = "s";
+                value.Set(signature.c_str(), pwd.c_str());
+                value.Stabilize();
             }
             else {
-                value.Set("s", it->second.c_str());
+                signature = "s";
+                value.Set(signature.c_str(), it->second.c_str());
+                value.Stabilize();
             }
             SetField(it->first.c_str(), value);
         }
@@ -187,6 +198,7 @@ QStatus ConfigDataStore::ReadAll(const char* languageTag, DataPermission::Filter
 
 QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const ajn::MsgArg* value)
 {
+    QCC_UNUSED(languageTag);
     QStatus status = ER_INVALID_VALUE;
     ConfigParser configParser(m_configFileName.c_str());
     char* chval = NULL;
@@ -199,13 +211,12 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             MsgArg newvalue;
 
             configParser.SetPort(intVal);
-            newvalue.Set("i", &intVal);
+            string signature("i");
+            newvalue.Set(signature.c_str(), &intVal);
+            newvalue.Stabilize();
             SetField(name, newvalue);
 
-            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi){
-                status = aboutObjApi->Announce();
-            }
+            Announce();
         }
     }
     else if(strcmp(name, "Roster") == 0)
@@ -223,7 +234,9 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
            if(status == ER_OK){
            MsgArg newvalue;
            configParser.SetRoster( roster );
-           newvalue.Set("as", numItems, tmpArray);
+           string signature("as");
+           newvalue.Set(signature.c_str(), numItems, tmpArray);
+           newvalue.Stabilize();
            SetField(name, newvalue, "en");
            }
            delete[] tmpArray;
@@ -239,16 +252,15 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
 
             // Update our About service
             MsgArg newvalue;
-            newvalue.Set("s", chval);
+            string signature("s");
+            newvalue.Set(signature.c_str(), chval);
+            newvalue.Stabilize();
             SetField(name, newvalue);
         }
         /////////////// END TEMPORARY
 
         // Re-announce
-        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi){
-            status = aboutObjApi->Announce();
-        }
+        Announce();
     }
     else if(strcmp(name, "UserPassword") == 0)
     {
@@ -265,13 +277,12 @@ QStatus ConfigDataStore::Update(const char* name, const char* languageTag, const
             configParser.SetField(name, chval);
 
             MsgArg newvalue;
-            newvalue.Set("s", chval);
+            string signature("s");
+            newvalue.Set(signature.c_str(), chval);
+            newvalue.Stabilize();
             SetField(name, newvalue);
 
-            AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-            if (aboutObjApi){
-                status = aboutObjApi->Announce();
-            }
+            Announce();
         }
     }
 
@@ -296,16 +307,15 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
     {
         std::string tmp = factoryParser.GetField(name);
 
-        status = value->Set("s", tmp.c_str());
+        string signature("s");
+        status = value->Set(signature.c_str(), tmp.c_str());
+        value->Stabilize();
         status = SetField(name, *value, languageTag);
 
         ConfigParser configParser(m_configFileName.c_str());
         configParser.SetField(name, tmp.c_str());
 
-        AboutServiceApi* aboutObjApi = AboutServiceApi::getInstance();
-        if (aboutObjApi){
-            status = aboutObjApi->Announce();
-        }
+        Announce();
     }
 
     delete value;
@@ -316,4 +326,15 @@ QStatus ConfigDataStore::Delete(const char* name, const char* languageTag)
 std::string ConfigDataStore::GetConfigFileName() const
 {
     return m_configFileName;
+}
+
+void ConfigDataStore::Announce()
+{
+    ajn::services::AboutObjApi* aboutObj = ajn::services::AboutObjApi::getInstance();
+    if (!aboutObj){
+        LOG_RELEASE("Cannot announce! Failed to get AboutObjApi instance!");
+        return;
+    }
+
+    aboutObj->Announce();
 }
